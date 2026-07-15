@@ -19,15 +19,17 @@ export async function addTask(
   title: string,
   recurrence?: Recurrence,
   categoryId?: string,
+  startDate?: string, // 缺省 = 今天（本地民用日期）
 ): Promise<void> {
   const trimmed = title.trim()
   if (!trimmed) return
   const t = now()
+  const anchor = startDate ?? today()
   const task: Task = {
     id: crypto.randomUUID(),
     title: trimmed,
     rank: nextRank(),
-    startDate: today(),
+    startDate: anchor,
     lifecycleStatus: 'active',
     templateVersion: 1,
     createdAt: t,
@@ -36,7 +38,7 @@ export async function addTask(
     ...(recurrence && { recurrence }),
     ...(recurrence?.mode === 'after_completion' && {
       currentSequence: 1,
-      nextDueDate: today(),
+      nextDueDate: anchor,
     }),
   }
   await db.tasks.add(task)

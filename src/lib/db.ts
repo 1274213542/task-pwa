@@ -65,6 +65,23 @@ export interface Category {
   updatedAt: string
 }
 
+export interface CalendarEvent {
+  id: string
+  title: string
+  notes?: string
+  allDay: boolean
+  startDate: string // PlainDate
+  endDate: string // 必填；单日 = startDate（IndexedDB 复合索引不容缺失，v4.2 §8）
+  startAt?: string // Instant，非全天时使用
+  endAt?: string
+  timezone?: string // IANA，定时事件记录创建时的时区
+  categoryId?: string
+  lifecycleStatus: LifecycleStatus
+  deletedAt?: string
+  createdAt: string
+  updatedAt: string
+}
+
 export interface SyncedPreferences {
   id: string // '#prefs'：官方私有单例模式（# 前缀 + put + db.on.ready）
   weekStartsOn: 1 | 0
@@ -79,6 +96,7 @@ export const db = new Dexie('task-pwa', { addons: [dexieCloud] }) as Dexie & {
   completionRecords: EntityTable<CompletionRecord, 'id'>
   syncedPreferences: EntityTable<SyncedPreferences, 'id'>
   categories: EntityTable<Category, 'id'>
+  calendarEvents: EntityTable<CalendarEvent, 'id'>
 }
 
 db.version(2).stores({
@@ -98,6 +116,11 @@ db.version(4).stores({
   tasks:
     'id, lifecycleStatus, [lifecycleStatus+rank], [id+currentSequence], categoryId',
   categories: 'id, lifecycleStatus',
+})
+
+// v5：日历事项表（无 recurrence——周期语义只在 Task，v4.2 §8.1）
+db.version(5).stores({
+  calendarEvents: 'id, lifecycleStatus, startDate, endDate',
 })
 
 if (cloudEnabled) {
