@@ -5,6 +5,6 @@
  * - 留空 = 纯本地模式：App 完整可用，仅无跨设备同步（免费服务消失时的退化形态）。
  * - 由 `npx dexie-cloud create` 生成后填入。
  */
-export const DEXIE_CLOUD_URL: string = ''
+export const DEXIE_CLOUD_URL: string = 'https://zcgk53qk8.dexie.cloud'
 
 export const cloudEnabled = DEXIE_CLOUD_URL.length > 0
