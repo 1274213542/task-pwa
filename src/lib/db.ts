@@ -82,6 +82,39 @@ export interface CalendarEvent {
   updatedAt: string
 }
 
+export type PurchaseStatus = 'pending' | 'purchased'
+
+export interface ShoppingLocation {
+  id: string
+  name: string
+  type: 'physical' | 'online' // 购买渠道由 type 表达，具体地点/网站即记录本身（v4.2 §8.1）
+  address?: string
+  url?: string
+  note?: string
+  rank: string
+  lifecycleStatus: LifecycleStatus
+  deletedAt?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ShoppingItem {
+  id: string
+  name: string
+  quantity?: number // 数量/单位/备注分离（v4.2 §9 修正，不合并 qtyNote）
+  unit?: string
+  note?: string
+  locationId?: string
+  locationNameSnapshot?: string // 购买时快照：地点删除后历史仍可读
+  rank: string
+  purchaseStatus: PurchaseStatus // 恒有值（IndexedDB 不可索引 undefined）
+  purchasedAt?: string // Instant；有值 ⇔ purchased（同事务一致）
+  lifecycleStatus: LifecycleStatus
+  deletedAt?: string
+  createdAt: string
+  updatedAt: string
+}
+
 export interface SyncedPreferences {
   id: string // '#prefs'：官方私有单例模式（# 前缀 + put + db.on.ready）
   weekStartsOn: 1 | 0
@@ -97,6 +130,8 @@ export const db = new Dexie('task-pwa', { addons: [dexieCloud] }) as Dexie & {
   syncedPreferences: EntityTable<SyncedPreferences, 'id'>
   categories: EntityTable<Category, 'id'>
   calendarEvents: EntityTable<CalendarEvent, 'id'>
+  shoppingItems: EntityTable<ShoppingItem, 'id'>
+  shoppingLocations: EntityTable<ShoppingLocation, 'id'>
 }
 
 db.version(2).stores({
@@ -121,6 +156,12 @@ db.version(4).stores({
 // v5：日历事项表（无 recurrence——周期语义只在 Task，v4.2 §8.1）
 db.version(5).stores({
   calendarEvents: 'id, lifecycleStatus, startDate, endDate',
+})
+
+// v6：购物清单与购买地点
+db.version(6).stores({
+  shoppingItems: 'id, lifecycleStatus, purchaseStatus, locationId, purchasedAt',
+  shoppingLocations: 'id, lifecycleStatus',
 })
 
 if (cloudEnabled) {
