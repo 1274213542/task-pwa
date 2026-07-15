@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useObservable } from 'dexie-react-hooks'
+import { useLiveQuery, useObservable } from 'dexie-react-hooks'
 import { db } from '../lib/db'
 import { cloudEnabled } from '../config'
 import { ensurePersistentStorage, isStoragePersisted } from '../lib/persistence'
@@ -23,6 +23,7 @@ export default function Settings() {
 
   const user = useObservable(db.cloud.currentUser)
   const persistedSync = useObservable(db.cloud.persistedSyncState)
+  const prefs = useLiveQuery(() => db.syncedPreferences.get('#prefs'), [])
   const lastSync = !cloudEnabled
     ? '未配置'
     : persistedSync?.timestamp
@@ -76,6 +77,31 @@ export default function Settings() {
             )}
           </div>
         )}
+        <div
+          className="flex items-center justify-between border-b border-black/5 px-4
+            py-3 dark:border-white/10"
+        >
+          <span className="text-[15px]">完成后的任务</span>
+          <select
+            aria-label="完成后的任务展示方式"
+            value={prefs?.defaultCompletedDisplay ?? 'keep'}
+            onChange={(e) =>
+              void db.syncedPreferences.update('#prefs', {
+                defaultCompletedDisplay: e.target.value as
+                  | 'keep'
+                  | 'collapse'
+                  | 'hide',
+                updatedAt: new Date().toISOString(),
+              })
+            }
+            className="rounded-lg bg-neutral-100 px-2 py-1 text-[14px]
+              dark:bg-neutral-700"
+          >
+            <option value="keep">保留在列表</option>
+            <option value="collapse">折叠</option>
+            <option value="hide">隐藏（记录页可查）</option>
+          </select>
+        </div>
         <Row
           label="本地存储保护"
           value={persisted === null ? '…' : persisted ? '已启用' : '未启用'}

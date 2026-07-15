@@ -1,12 +1,15 @@
 import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, type CompletionRecord, type Task } from '../lib/db'
+import { db, type Category, type CompletionRecord, type Task } from '../lib/db'
 import {
   type Recurrence,
   describeRecurrence,
+  fixedOccurrencesInRange,
   latestFixedOnOrBefore,
 } from '../lib/recurrence'
 import { checkAfterCompletionIntegrity } from '../lib/integrity'
+import { COLOR_TOKENS } from '../lib/categories'
+import { addDaysISO, todayLocalISO } from '../lib/dates'
 import {
   RecurrenceConflictError,
   addTask,
@@ -23,7 +26,7 @@ import {
 import TaskRow from '../components/TaskRow'
 import RecurrencePicker from '../components/RecurrencePicker'
 
-/** 今天视图的投影条目（TaskOccurrenceView 的 MS3 子集） */
+/** 今天视图的投影条目（TaskOccurrenceView 的子集） */
 interface TodayItem {
   task: Task
   kind: 'single' | 'fixed' | 'ac'
@@ -56,12 +59,24 @@ function buildItems(
         overdue: false,
       })
     } else if (r.mode === 'fixed_schedule') {
-      const due = latestFixedOnOrBefore(r, task.startDate ?? todayISO, task.endDate, todayISO)
+      const start = task.startDate ?? todayISO
+      const due = latestFixedOnOrBefore(r, start, task.endDate, todayISO)
       if (!due) continue
       const rec = recMap.get(`${task.id}:fixed:${due}`)
       const resolved = rec && rec.resolution !== 'voided'
-      // 已解决且不是今天的历史期不再占据今天视图
       if (resolved && due !== todayISO) continue
+      // 错过 n 期徽标（v4.2 决策表 #4）：最近一期之前的未解决实例为计算态，不落库
+      let missed = 0
+      if (due < todayISO || !resolved) {
+        const windowStart =
+          start > addDaysISO(todayISO, -62) ? start : addDaysISO(todayISO, -62)
+        missed = fixedOccurrencesInRange(r, start, task.endDate, windowStart, due)
+          .filter((d) => d < due)
+          .filter((d) => {
+            const x = recMap.get(`${task.id}:fixed:${d}`)
+            return !x || x.resolution === 'voided'
+          }).length
+      }
       items.push({
         task,
         kind: 'fixed',
@@ -70,22 +85,22 @@ function buildItems(
         completed: rec?.resolution === 'completed',
         overdue: due < todayISO,
         subtitle:
-          describeRecurrence(r) + (due < todayISO ? ` · 逾期（${due.slice(5)}）` : ''),
+          describeRecurrence(r) +
+          (due < todayISO ? ` · 逾期（${due.slice(5)}）` : '') +
+          (missed > 0 ? ` · 已错过 ${missed} 期` : ''),
       })
     } else {
-      // after_completion：完整性校验（v4.2 §7.4）
       const acRecords = records.filter(
         (x) => x.taskId === task.id && x.occurrenceKey.startsWith('ac:'),
       )
       const check = checkAfterCompletionIntegrity(task, acRecords)
       if (check.status === 'cache_mismatch') {
-        // 缓存偏差：只重写缓存字段，火后即忘（永不动记录）
         void repairAfterCompletionCache(
           task.id,
           check.expectedSequence,
           check.expectedNextDueDate,
         )
-        continue // liveQuery 修复后自动重渲
+        continue
       }
       if (check.status === 'conflict') {
         items.push({
@@ -110,17 +125,13 @@ function buildItems(
           completed: false,
           overdue: due < todayISO,
           subtitle:
-            describeRecurrence(r) + (due < todayISO ? ` · 逾期（${due.slice(5)}）` : ''),
+            describeRecurrence(r) +
+            (due < todayISO ? ` · 逾期（${due.slice(5)}）` : ''),
         })
       }
-      // 今天刚完成的一期保留显示（完成感窗口，勾选可撤销）——
-      // 与"下一期是否到期"无关，必须在到期判断之外
       const prevSeq = (task.currentSequence ?? 1) - 1
       const prev = recMap.get(`${task.id}:ac:${prevSeq}`)
-      if (
-        prev?.resolution === 'completed' &&
-        prev.resolvedAt.slice(0, 10) === todayISO
-      ) {
+      if (prev?.resolution === 'completed' && prev.completedDate === todayISO) {
         items.push({
           task,
           kind: 'ac',
@@ -139,16 +150,27 @@ function buildItems(
 export default function Today() {
   const [title, setTitle] = useState('')
   const [recurrence, setRecurrence] = useState<Recurrence | undefined>()
+  const [categoryId, setCategoryId] = useState<string>('')
+  const [showDone, setShowDone] = useState(false)
 
   const tasks = useLiveQuery(
     () => db.tasks.where('lifecycleStatus').equals('active').sortBy('rank'),
     [],
   )
   const records = useLiveQuery(() => db.completionRecords.toArray(), [])
+  const categories = useLiveQuery(
+    () => db.categories.where('lifecycleStatus').equals('active').sortBy('rank'),
+    [],
+  )
+  const prefs = useLiveQuery(() => db.syncedPreferences.get('#prefs'), [])
+  const policy = prefs?.defaultCompletedDisplay ?? 'keep'
 
-  const todayISO = new Date().toISOString().slice(0, 10)
+  const todayISO = todayLocalISO() // 本地民用日期（v4.2 §7.5，勿用 UTC 切片）
+  const catMap = new Map((categories ?? []).map((c) => [c.id, c]))
   const items =
     tasks && records ? buildItems(tasks, records, todayISO) : undefined
+  const pending = items?.filter((i) => !i.completed) ?? []
+  const done = items?.filter((i) => i.completed) ?? []
 
   const dateLabel = new Date().toLocaleDateString('zh-CN', {
     month: 'long',
@@ -157,9 +179,10 @@ export default function Today() {
   })
 
   async function submit() {
-    await addTask(title, recurrence)
+    await addTask(title, recurrence, categoryId || undefined)
     setTitle('')
     setRecurrence(undefined)
+    setCategoryId('')
   }
 
   async function guarded(fn: () => Promise<void>) {
@@ -167,7 +190,7 @@ export default function Today() {
       await fn()
     } catch (e) {
       if (e instanceof RecurrenceConflictError) {
-        alert(e.message) // MS4 换 toast；冲突时不推进，历史已保留
+        alert(e.message)
       } else {
         throw e
       }
@@ -204,22 +227,45 @@ export default function Today() {
                   await resolveAfterCompletion(task, 'skipped')
                 }
               }),
-      onDelete: () => {
-        if (task.recurrence) {
-          // v4.2 决策表 #10：周期任务删除必须区分。MS3 用两段式确认，MS4 换 sheet
-          const wholeSeriesOk = confirm(
-            '删除整个周期任务？\n（历史完成记录会保留；如只想跳过本次请点"取消"再用"跳过"）',
-          )
-          if (wholeSeriesOk) void softDeleteTask(task.id)
-        } else {
-          void softDeleteTask(task.id)
-        }
-      },
+      // 两步确认由 TaskRow 承担；周期任务额外提供"仅本次"（=跳过本期）
+      onDelete: () => void softDeleteTask(task.id),
+      onDeleteOnce:
+        task.recurrence && !item.completed && !item.conflict
+          ? () =>
+              void guarded(async () => {
+                if (item.kind === 'fixed') {
+                  await skipFixedOccurrence(task, item.occurrenceDate)
+                } else {
+                  await resolveAfterCompletion(task, 'skipped')
+                }
+              })
+          : undefined,
       onRename:
         item.kind === 'single' || !item.completed
           ? (t: string) => void renameTask(task.id, t)
           : undefined,
     }
+  }
+
+  function rowFor(item: TodayItem) {
+    const cat = item.task.categoryId ? catMap.get(item.task.categoryId) : undefined
+    const catText = cat ? cat.name : undefined
+    const subtitle =
+      item.conflict ??
+      (item.subtitle && catText
+        ? `${catText} · ${item.subtitle}`
+        : (item.subtitle ?? catText))
+    return (
+      <TaskRow
+        key={`${item.task.id}:${item.occurrenceKey}`}
+        title={item.task.title}
+        subtitle={subtitle}
+        dot={cat ? COLOR_TOKENS[cat.colorToken] : undefined}
+        completed={item.completed}
+        overdue={item.overdue}
+        actions={actionsFor(item)}
+      />
+    )
   }
 
   return (
@@ -251,11 +297,29 @@ export default function Today() {
           </button>
         </div>
         {title.trim() && (
-          <RecurrencePicker value={recurrence} onChange={setRecurrence} />
+          <>
+            <RecurrencePicker value={recurrence} onChange={setRecurrence} />
+            {(categories?.length ?? 0) > 0 && (
+              <select
+                aria-label="分类"
+                value={categoryId}
+                onChange={(e) => setCategoryId(e.target.value)}
+                className="mt-2 rounded-lg bg-white px-2 py-1.5 text-[13px]
+                  text-neutral-500 dark:bg-neutral-800"
+              >
+                <option value="">无分类</option>
+                {categories!.map((c: Category) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            )}
+          </>
         )}
       </div>
 
-      {items === undefined ? null : items.length === 0 ? (
+      {items === undefined ? null : pending.length + done.length === 0 ? (
         <div
           className="mt-8 rounded-2xl border border-dashed border-neutral-300 p-8
             text-center text-neutral-400 dark:border-neutral-700"
@@ -263,18 +327,36 @@ export default function Today() {
           今天没有任务
         </div>
       ) : (
-        <ul className="mt-4 rounded-2xl bg-white px-3 dark:bg-neutral-800">
-          {items.map((item) => (
-            <TaskRow
-              key={`${item.task.id}:${item.occurrenceKey}`}
-              title={item.task.title}
-              subtitle={item.conflict ?? item.subtitle}
-              completed={item.completed}
-              overdue={item.overdue}
-              actions={actionsFor(item)}
-            />
-          ))}
-        </ul>
+        <>
+          {pending.length > 0 && (
+            <ul className="mt-4 rounded-2xl bg-white px-3 dark:bg-neutral-800">
+              {pending.map(rowFor)}
+            </ul>
+          )}
+
+          {/* 完成后展示策略（v4.2 需求 §1）：keep 原地保留 / collapse 折叠 / hide 隐藏 */}
+          {done.length > 0 && policy === 'keep' && (
+            <ul className="mt-3 rounded-2xl bg-white px-3 dark:bg-neutral-800">
+              {done.map(rowFor)}
+            </ul>
+          )}
+          {done.length > 0 && policy === 'collapse' && (
+            <div className="mt-3">
+              <button
+                onClick={() => setShowDone((s) => !s)}
+                className="px-1 text-[13px] font-medium text-neutral-400"
+              >
+                {showDone ? '▾' : '▸'} 已完成 · {done.length}
+              </button>
+              {showDone && (
+                <ul className="mt-2 rounded-2xl bg-white px-3 dark:bg-neutral-800">
+                  {done.map(rowFor)}
+                </ul>
+              )}
+            </div>
+          )}
+          {/* hide：不渲染，已完成记录页可查 */}
+        </>
       )}
     </section>
   )

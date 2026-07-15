@@ -8,8 +8,10 @@ import { cloudEnabled } from '../config'
  */
 export default function SyncStatus() {
   const syncState = useObservable(db.cloud.syncState)
+  const user = useObservable(db.cloud.currentUser)
 
-  if (!cloudEnabled || !syncState) return null
+  // 未登录 = 纯本地使用，不显示同步状态（避免"已同步"误导）；登录入口在设置页
+  if (!cloudEnabled || !syncState || !user?.isLoggedIn) return null
 
   const { phase } = syncState
   let label: string

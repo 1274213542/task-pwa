@@ -1,8 +1,9 @@
 import { db, type Task } from './db'
 import { type Recurrence, nextAfterCompletion } from './recurrence'
+import { todayLocalISO } from './dates'
 
 const now = () => new Date().toISOString()
-const today = () => new Date().toISOString().slice(0, 10)
+const today = todayLocalISO // 本地民用日期，不是 UTC（v4.2 §7.5）
 
 /** 追加式 rank：MS7 引入拖拽时换 fractional indexing，排序语义兼容 */
 const nextRank = () => Date.now().toString(36).padStart(10, '0')
@@ -17,6 +18,7 @@ export class RecurrenceConflictError extends Error {
 export async function addTask(
   title: string,
   recurrence?: Recurrence,
+  categoryId?: string,
 ): Promise<void> {
   const trimmed = title.trim()
   if (!trimmed) return
@@ -30,6 +32,7 @@ export async function addTask(
     templateVersion: 1,
     createdAt: t,
     updatedAt: t,
+    ...(categoryId && { categoryId }),
     ...(recurrence && { recurrence }),
     ...(recurrence?.mode === 'after_completion' && {
       currentSequence: 1,
@@ -67,12 +70,23 @@ async function upsertRecord(
 ): Promise<void> {
   const t = now()
   const id = `${task.id}:${occurrenceKey}`
+  // 完成当时的分类快照：分类删除/改名后历史仍如实（v4.2 §6）
+  const category = task.categoryId
+    ? await db.categories.get(task.categoryId)
+    : undefined
+  const snapshot = {
+    titleSnapshot: task.title,
+    ...(task.categoryId && { categoryIdSnapshot: task.categoryId }),
+    ...(category && { categoryNameSnapshot: category.name }),
+  }
+  const completedDate = resolution === 'completed' ? today() : undefined
   const existing = await db.completionRecords.get(id)
   if (existing) {
     await db.completionRecords.update(id, {
       resolution,
       resolvedAt: t,
-      titleSnapshot: task.title,
+      ...(completedDate && { completedDate }),
+      ...snapshot,
       updatedAt: t,
     })
   } else {
@@ -83,7 +97,8 @@ async function upsertRecord(
       occurrenceDate,
       resolution,
       resolvedAt: t,
-      titleSnapshot: task.title,
+      ...(completedDate && { completedDate }),
+      ...snapshot,
       templateVersion: task.templateVersion,
       createdAt: t,
       updatedAt: t,
@@ -137,7 +152,7 @@ export async function resolveAfterCompletion(
   const base = resolution === 'completed' ? today() : dueDate
   const nextDue = nextAfterCompletion(rule, base)
 
-  await db.transaction('rw', db.tasks, db.completionRecords, async () => {
+  await db.transaction('rw', db.tasks, db.completionRecords, db.categories, async () => {
     await upsertRecord(task, `ac:${seq}`, dueDate, resolution)
     const changed = await db.tasks
       .where('[id+currentSequence]')

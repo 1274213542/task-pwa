@@ -36,9 +36,31 @@ export interface CompletionRecord {
   occurrenceKey: string // 'single' | `fixed:${date}` | `ac:${seq}`
   occurrenceDate: string
   resolution: Resolution
-  resolvedAt: string
+  resolvedAt: string // Instant（UTC 时刻）
+  completedDate?: string // 实际完成的本地民用日期（after_completion 推进基准，v4.2 §8.1）
   titleSnapshot: string
+  categoryIdSnapshot?: string // 完成当时的分类（分类删除后历史仍可读，v4.2 §6）
+  categoryNameSnapshot?: string
   templateVersion: number
+  createdAt: string
+  updatedAt: string
+}
+
+export type ColorToken =
+  | 'gray'
+  | 'blue'
+  | 'green'
+  | 'orange'
+  | 'pink'
+  | 'purple'
+
+export interface Category {
+  id: string
+  name: string
+  colorToken: ColorToken
+  rank: string
+  lifecycleStatus: LifecycleStatus
+  deletedAt?: string
   createdAt: string
   updatedAt: string
 }
@@ -56,6 +78,7 @@ export const db = new Dexie('task-pwa', { addons: [dexieCloud] }) as Dexie & {
   tasks: EntityTable<Task, 'id'>
   completionRecords: EntityTable<CompletionRecord, 'id'>
   syncedPreferences: EntityTable<SyncedPreferences, 'id'>
+  categories: EntityTable<Category, 'id'>
 }
 
 db.version(2).stores({
@@ -68,6 +91,13 @@ db.version(2).stores({
 // v3：after_completion 条件事务所需的复合索引（v4.2 §7.3）。只加索引不迁数据。
 db.version(3).stores({
   tasks: 'id, lifecycleStatus, [lifecycleStatus+rank], [id+currentSequence]',
+})
+
+// v4：分类表 + 任务按分类索引。只增不改，无数据迁移。
+db.version(4).stores({
+  tasks:
+    'id, lifecycleStatus, [lifecycleStatus+rank], [id+currentSequence], categoryId',
+  categories: 'id, lifecycleStatus',
 })
 
 if (cloudEnabled) {

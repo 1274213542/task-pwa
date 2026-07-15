@@ -56,9 +56,10 @@ export function checkAfterCompletionIntegrity(
     expectedNextDueDate = task.startDate ?? task.createdAt.slice(0, 10)
   } else {
     const latest = resolved[resolved.length - 1]
+    // completedDate 是本地民用日期；旧记录缺失时退回 occurrenceDate（不用 UTC 时刻切片）
     const base =
       latest.resolution === 'completed'
-        ? (latest.resolvedAt?.slice(0, 10) ?? latest.occurrenceDate)
+        ? (latest.completedDate ?? latest.occurrenceDate)
         : latest.occurrenceDate
     expectedNextDueDate = nextAfterCompletion(rule as AfterCompletionRule, base)
   }

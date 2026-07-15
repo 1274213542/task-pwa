@@ -26,14 +26,17 @@ const rec = (
   seq: number,
   resolution: CompletionRecord['resolution'],
   occurrenceDate: string,
-  resolvedDate?: string,
+  completedDate?: string, // 实际完成的本地民用日期
 ): CompletionRecord => ({
   id: `t1:ac:${seq}`,
   taskId: 't1',
   occurrenceKey: `ac:${seq}`,
   occurrenceDate,
   resolution,
-  resolvedAt: `${resolvedDate ?? occurrenceDate}T10:00:00Z`,
+  resolvedAt: `${completedDate ?? occurrenceDate}T10:00:00Z`,
+  ...(resolution === 'completed' && {
+    completedDate: completedDate ?? occurrenceDate,
+  }),
   titleSnapshot: '换滤芯',
   templateVersion: 1,
   createdAt: '2026-07-01T00:00:00Z',

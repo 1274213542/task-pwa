@@ -1,28 +1,45 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 export interface RowActions {
   onToggle: () => void
   onSkip?: () => void
-  onDelete: () => void
+  onDelete: () => void // 删除（周期任务=整个系列）
+  onDeleteOnce?: () => void // 仅删除本次（周期任务，语义=跳过本期，决策表 #10）
   onRename?: (title: string) => void
 }
 
-/** 通用任务行：普通任务与周期实例共用（投影渲染，v4.2 §8 投影类型） */
+/**
+ * 通用任务行（投影渲染）。
+ * 删除永不一次点击直达（v4.2 §10）：第一次点 ✕ 进入确认态，
+ * 周期任务确认态给出「仅本次 / 删除系列」，3 秒无操作自动还原。
+ */
 export default function TaskRow({
   title,
   subtitle,
+  dot,
   completed,
   overdue,
   actions,
 }: {
   title: string
   subtitle?: string
+  dot?: string
   completed: boolean
   overdue?: boolean
   actions: RowActions
 }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(title)
+  const [confirming, setConfirming] = useState(false)
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
+
+  useEffect(() => () => clearTimeout(timer.current), [])
+
+  function armDelete() {
+    setConfirming(true)
+    clearTimeout(timer.current)
+    timer.current = setTimeout(() => setConfirming(false), 3000)
+  }
 
   function commitRename() {
     setEditing(false)
@@ -85,33 +102,68 @@ export default function TaskRow({
         )}
         {subtitle && (
           <p
-            className={`truncate text-[12px] ${
+            className={`flex items-center gap-1 truncate text-[12px] ${
               overdue && !completed ? 'text-red-500' : 'text-neutral-400'
             }`}
           >
+            {dot && (
+              <span
+                aria-hidden
+                className="inline-block h-1.5 w-1.5 shrink-0 rounded-full"
+                style={{ background: dot }}
+              />
+            )}
             {subtitle}
           </p>
         )}
       </div>
 
-      {actions.onSkip && !completed && (
-        <button
-          onClick={actions.onSkip}
-          className="shrink-0 rounded-lg px-2 py-1 text-[12px] text-neutral-400
-            opacity-60 transition group-hover:opacity-100"
-        >
-          跳过
-        </button>
+      {confirming ? (
+        <span className="flex shrink-0 items-center gap-1.5">
+          {actions.onDeleteOnce && (
+            <button
+              onClick={() => {
+                setConfirming(false)
+                actions.onDeleteOnce!()
+              }}
+              className="rounded-lg bg-neutral-500/10 px-2 py-1 text-[12px]
+                text-neutral-500"
+            >
+              仅本次
+            </button>
+          )}
+          <button
+            onClick={() => {
+              setConfirming(false)
+              actions.onDelete()
+            }}
+            className="rounded-lg bg-red-500 px-2 py-1 text-[12px] font-medium
+              text-white"
+          >
+            {actions.onDeleteOnce ? '删除系列' : '确认删除'}
+          </button>
+        </span>
+      ) : (
+        <>
+          {actions.onSkip && !completed && (
+            <button
+              onClick={actions.onSkip}
+              className="shrink-0 rounded-lg px-2 py-1 text-[12px] text-neutral-400
+                opacity-60 transition group-hover:opacity-100"
+            >
+              跳过
+            </button>
+          )}
+          <button
+            aria-label="删除"
+            onClick={armDelete}
+            className="shrink-0 rounded-full px-2 py-1 text-neutral-300 opacity-60
+              transition group-hover:opacity-100 dark:text-neutral-600"
+          >
+            ✕
+          </button>
+        </>
       )}
-
-      <button
-        aria-label="删除"
-        onClick={actions.onDelete}
-        className="shrink-0 rounded-full px-2 py-1 text-neutral-300 opacity-60
-          transition group-hover:opacity-100 dark:text-neutral-600"
-      >
-        ✕
-      </button>
     </li>
   )
 }
