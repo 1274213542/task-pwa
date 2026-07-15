@@ -1,28 +1,35 @@
 import { useState } from 'react'
-import type { Task } from '../lib/db'
-import {
-  completeTask,
-  renameTask,
-  softDeleteTask,
-  uncompleteTask,
-} from '../lib/tasks'
 
+export interface RowActions {
+  onToggle: () => void
+  onSkip?: () => void
+  onDelete: () => void
+  onRename?: (title: string) => void
+}
+
+/** 通用任务行：普通任务与周期实例共用（投影渲染，v4.2 §8 投影类型） */
 export default function TaskRow({
-  task,
+  title,
+  subtitle,
   completed,
+  overdue,
+  actions,
 }: {
-  task: Task
+  title: string
+  subtitle?: string
   completed: boolean
+  overdue?: boolean
+  actions: RowActions
 }) {
   const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState(task.title)
+  const [draft, setDraft] = useState(title)
 
-  async function commitRename() {
+  function commitRename() {
     setEditing(false)
-    if (draft.trim() && draft.trim() !== task.title) {
-      await renameTask(task.id, draft)
+    if (actions.onRename && draft.trim() && draft.trim() !== title) {
+      actions.onRename(draft)
     } else {
-      setDraft(task.title)
+      setDraft(title)
     }
   }
 
@@ -33,9 +40,7 @@ export default function TaskRow({
     >
       <button
         aria-label={completed ? '取消完成' : '完成'}
-        onClick={() =>
-          completed ? void uncompleteTask(task.id) : void completeTask(task)
-        }
+        onClick={actions.onToggle}
         className={`flex h-[22px] w-[22px] shrink-0 items-center justify-center
           rounded-full border-[1.5px] transition active:scale-90 ${
             completed
@@ -56,31 +61,52 @@ export default function TaskRow({
         )}
       </button>
 
-      {editing ? (
-        <input
-          autoFocus
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onBlur={() => void commitRename()}
-          onKeyDown={(e) => e.key === 'Enter' && void commitRename()}
-          className="min-w-0 flex-1 bg-transparent text-[16px] outline-none"
-        />
-      ) : (
+      <div className="min-w-0 flex-1">
+        {editing ? (
+          <input
+            autoFocus
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={commitRename}
+            onKeyDown={(e) => e.key === 'Enter' && commitRename()}
+            className="w-full bg-transparent text-[16px] outline-none"
+          />
+        ) : (
+          <button
+            onClick={() => actions.onRename && setEditing(true)}
+            className={`block w-full truncate text-left text-[16px] transition ${
+              completed
+                ? 'text-neutral-400 line-through decoration-neutral-400'
+                : ''
+            }`}
+          >
+            {title}
+          </button>
+        )}
+        {subtitle && (
+          <p
+            className={`truncate text-[12px] ${
+              overdue && !completed ? 'text-red-500' : 'text-neutral-400'
+            }`}
+          >
+            {subtitle}
+          </p>
+        )}
+      </div>
+
+      {actions.onSkip && !completed && (
         <button
-          onClick={() => setEditing(true)}
-          className={`min-w-0 flex-1 truncate text-left text-[16px] transition ${
-            completed
-              ? 'text-neutral-400 line-through decoration-neutral-400'
-              : ''
-          }`}
+          onClick={actions.onSkip}
+          className="shrink-0 rounded-lg px-2 py-1 text-[12px] text-neutral-400
+            opacity-60 transition group-hover:opacity-100"
         >
-          {task.title}
+          跳过
         </button>
       )}
 
       <button
         aria-label="删除"
-        onClick={() => void softDeleteTask(task.id)}
+        onClick={actions.onDelete}
         className="shrink-0 rounded-full px-2 py-1 text-neutral-300 opacity-60
           transition group-hover:opacity-100 dark:text-neutral-600"
       >

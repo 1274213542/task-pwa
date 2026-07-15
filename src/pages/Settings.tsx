@@ -21,6 +21,7 @@ export default function Settings() {
   const [persisted, setPersisted] = useState<boolean | null>(null)
   const [request, setRequest] = useState<'idle' | 'pending' | 'denied'>('idle')
 
+  const user = useObservable(db.cloud.currentUser)
   const persistedSync = useObservable(db.cloud.persistedSyncState)
   const lastSync = !cloudEnabled
     ? '未配置'
@@ -54,6 +55,27 @@ export default function Settings() {
       </div>
 
       <div className="mt-6 overflow-hidden rounded-xl bg-white dark:bg-neutral-800">
+        {cloudEnabled && (
+          <div
+            className="flex items-center justify-between border-b border-black/5 px-4
+              py-3 dark:border-white/10"
+          >
+            <span className="text-[15px]">同步账号</span>
+            {user?.isLoggedIn ? (
+              <span className="text-[15px] text-neutral-500 dark:text-neutral-400">
+                {user.email ?? user.userId}
+              </span>
+            ) : (
+              <button
+                onClick={() => void db.cloud.login()}
+                className="rounded-lg bg-[#007aff] px-3 py-1 text-[14px] font-medium
+                  text-white active:opacity-80"
+              >
+                登录以同步
+              </button>
+            )}
+          </div>
+        )}
         <Row
           label="本地存储保护"
           value={persisted === null ? '…' : persisted ? '已启用' : '未启用'}
