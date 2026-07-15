@@ -1,0 +1,38 @@
+@import 'tailwindcss';
+
+:root {
+  /* Apple 原生字面：系统字体栈，零字体文件下载 */
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'PingFang SC',
+    'Hiragino Sans GB', 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  color-scheme: light dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: #f7f7f8;
+  color: #1c1c1e;
+  overscroll-behavior-y: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  body {
+    background: #1c1c1e;
+    color: #f2f2f7;
+  }
+}
+
+/* iPhone 刘海与 Home 条安全区 */
+.safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
