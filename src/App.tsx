@@ -6,6 +6,7 @@ import Shopping from './pages/Shopping'
 import Browse from './pages/Browse'
 import Settings from './pages/Settings'
 import UpdateToast from './components/UpdateToast'
+import SyncStatus from './components/SyncStatus'
 import { ensurePersistentStorage } from './lib/persistence'
 
 const TABS = [
@@ -75,6 +76,7 @@ export default function App() {
         </div>
       </main>
 
+      <SyncStatus />
       <UpdateToast />
     </div>
   )

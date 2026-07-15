@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useObservable } from 'dexie-react-hooks'
+import { db } from '../lib/db'
+import { cloudEnabled } from '../config'
 import { ensurePersistentStorage, isStoragePersisted } from '../lib/persistence'
 
 function Row({ label, value }: { label: string; value: string }) {
@@ -17,6 +20,18 @@ function Row({ label, value }: { label: string; value: string }) {
 export default function Settings() {
   const [persisted, setPersisted] = useState<boolean | null>(null)
   const [request, setRequest] = useState<'idle' | 'pending' | 'denied'>('idle')
+
+  const persistedSync = useObservable(db.cloud.persistedSyncState)
+  const lastSync = !cloudEnabled
+    ? '未配置'
+    : persistedSync?.timestamp
+      ? new Date(persistedSync.timestamp).toLocaleString('zh-CN', {
+          month: 'numeric',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+      : '尚未同步'
 
   useEffect(() => {
     void isStoragePersisted().then(setPersisted)
@@ -43,7 +58,7 @@ export default function Settings() {
           label="本地存储保护"
           value={persisted === null ? '…' : persisted ? '已启用' : '未启用'}
         />
-        <Row label="最后云端同步时间" value="—（MS2 接入）" />
+        <Row label="最后云端同步时间" value={lastSync} />
         <Row label="最后备份时间" value="—（MS8 接入）" />
         <Row label="版本" value={__APP_VERSION__} />
       </div>

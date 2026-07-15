@@ -1,0 +1,10 @@
+/**
+ * Dexie Cloud 数据库 URL。
+ * - 这是公开可进前端的地址（数据隔离靠 OTP 认证 + 私有 realm，v4.2 §2），
+ *   管理密钥（dexie-cloud.key）绝不入库、绝不进前端。
+ * - 留空 = 纯本地模式：App 完整可用，仅无跨设备同步（免费服务消失时的退化形态）。
+ * - 由 `npx dexie-cloud create` 生成后填入。
+ */
+export const DEXIE_CLOUD_URL: string = ''
+
+export const cloudEnabled = DEXIE_CLOUD_URL.length > 0
