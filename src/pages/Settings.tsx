@@ -16,13 +16,17 @@ function Row({ label, value }: { label: string; value: string }) {
 
 export default function Settings() {
   const [persisted, setPersisted] = useState<boolean | null>(null)
+  const [request, setRequest] = useState<'idle' | 'pending' | 'denied'>('idle')
 
   useEffect(() => {
     void isStoragePersisted().then(setPersisted)
   }, [])
 
   async function requestPersist() {
-    setPersisted(await ensurePersistentStorage())
+    setRequest('pending')
+    const granted = await ensurePersistentStorage()
+    setPersisted(granted)
+    setRequest(granted ? 'idle' : 'denied')
   }
 
   return (
@@ -47,11 +51,23 @@ export default function Settings() {
       {persisted === false && (
         <button
           onClick={requestPersist}
+          disabled={request === 'pending'}
           className="mt-4 w-full rounded-xl bg-[#007aff] py-2.5 text-[15px] font-medium
-            text-white"
+            text-white transition active:scale-[0.98] active:opacity-80
+            disabled:opacity-50"
         >
-          请求持久存储
+          {request === 'pending' ? '请求中…' : '请求持久存储'}
         </button>
+      )}
+
+      {request === 'denied' && (
+        <p
+          className="mt-3 rounded-xl bg-amber-500/10 px-4 py-3 text-[13px] leading-relaxed
+            text-amber-600 dark:text-amber-400"
+        >
+          Safari 本次未授予。iOS 不弹授权窗口，而是按你对这个 App
+          的使用频率自动决定——日常使用几天后通常会自动升级为持久存储，期间云同步与备份照常兜底，无需处理。
+        </p>
       )}
 
       <p className="mt-4 px-1 text-[13px] leading-relaxed text-neutral-400">
