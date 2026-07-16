@@ -66,10 +66,10 @@ export default function App() {
     <div className="flex h-full flex-col md:flex-row">
       {/* 桌面端侧栏 / 手机端底部 Tab，同一份导航数据 */}
       <nav
-        className="safe-bottom fixed inset-x-0 bottom-0 z-10 border-t border-black/10
-          bg-white/80 backdrop-blur-xl md:static md:flex md:w-52 md:flex-col
-          md:border-t-0 md:border-r md:bg-transparent md:backdrop-blur-none
-          dark:border-white/10 dark:bg-black/40"
+        className="safe-bottom glass fixed inset-x-0 bottom-0 z-10 border-t
+          border-black/10 bg-white/80 backdrop-blur-xl md:static md:flex md:w-52
+          md:flex-col md:border-t-0 md:border-r md:bg-transparent
+          md:backdrop-blur-none dark:border-white/10 dark:bg-black/40"
       >
         <ul className="flex justify-around md:mt-16 md:flex-col md:gap-1 md:px-3">
           {TABS.map((tab, i) => (
@@ -124,7 +124,8 @@ export default function App() {
       </nav>
 
       <main className="safe-top flex-1 overflow-y-auto pb-24 md:pb-8">
-        <div className="mx-auto max-w-2xl px-5 pt-4">
+        {/* key 换页触发轻淡入过渡（reduced-motion 下自动退化） */}
+        <div key={location.pathname} className="page-in mx-auto max-w-2xl px-5 pt-4">
           <Routes>
             <Route path="/" element={<Navigate to={initialRoute()} replace />} />
             <Route path="/today" element={<Today />} />

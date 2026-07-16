@@ -239,6 +239,7 @@ export default function Plan() {
           {completed && (
             <svg width="10" height="10" viewBox="0 0 12 12" fill="none" aria-hidden>
               <path
+                className="check-path"
                 d="M2 6.5L4.5 9L10 3.5"
                 stroke="currentColor"
                 strokeWidth="2"

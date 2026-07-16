@@ -36,3 +36,122 @@ body {
 .safe-bottom {
   padding-bottom: env(safe-area-inset-bottom);
 }
+
+/* ===== 动效（MS9，v4.2 §12）：自然、连续、可中断；全部 CSS/SVG ===== */
+
+/* 页面切换：轻淡入 + 6px 上移（Apple 式克制） */
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.page-in {
+  animation: page-in 0.22s cubic-bezier(0.32, 0.72, 0.28, 1) both;
+}
+
+/* 列表新行入场 */
+@keyframes row-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.row-in {
+  animation: row-in 0.24s cubic-bezier(0.32, 0.72, 0.28, 1) both;
+}
+
+/* 弹层 / 面板：spring 感入场 */
+@keyframes pop-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+  60% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+.pop-in {
+  animation: pop-in 0.28s cubic-bezier(0.34, 1.3, 0.5, 1) both;
+}
+
+/* 底部条上滑 */
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.slide-up {
+  animation: slide-up 0.3s cubic-bezier(0.34, 1.3, 0.5, 1) both;
+}
+
+/* 勾选圈：对勾描边画出（stroke-dashoffset） */
+.check-path {
+  stroke-dasharray: 14;
+  stroke-dashoffset: 14;
+  animation: check-draw 0.25s cubic-bezier(0.32, 0.72, 0.28, 1) 0.05s forwards;
+}
+@keyframes check-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* 删除线：从左划过（line-through 不能动画，用背景渐变模拟） */
+.strike {
+  background-image: linear-gradient(currentColor, currentColor);
+  background-repeat: no-repeat;
+  background-position: 0 55%;
+  background-size: 0% 1.5px;
+  transition:
+    background-size 0.3s cubic-bezier(0.32, 0.72, 0.28, 1),
+    color 0.3s ease;
+}
+.strike[data-done='true'] {
+  background-size: 100% 1.5px;
+}
+
+/* ===== 无障碍降级（硬性要求，v4.2 §12） ===== */
+
+/* 减少动态：一切动画退化为即时呈现 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* 减少透明度：毛玻璃层退化为实色 */
+@media (prefers-reduced-transparency: reduce) {
+  .glass {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background-color: rgb(255 255 255 / 0.98) !important;
+  }
+  @media (prefers-color-scheme: dark) {
+    .glass {
+      background-color: rgb(28 28 30 / 0.98) !important;
+    }
+  }
+}

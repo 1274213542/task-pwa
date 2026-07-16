@@ -42,6 +42,7 @@ function ItemRow({
         {purchased && (
           <svg width="10" height="10" viewBox="0 0 12 12" fill="none" aria-hidden>
             <path
+              className="check-path"
               d="M2 6.5L4.5 9L10 3.5"
               stroke="currentColor"
               strokeWidth="2"
@@ -54,9 +55,10 @@ function ItemRow({
 
       <div className="min-w-0 flex-1">
         <p
-          className={`truncate text-[15px] ${
-            purchased ? 'text-neutral-400 line-through' : ''
+          className={`strike truncate text-[15px] ${
+            purchased ? 'text-neutral-400' : ''
           }`}
+          data-done={purchased}
         >
           {item.name}
           {item.quantity && (

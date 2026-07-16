@@ -59,8 +59,8 @@ export default function CommandPalette({ onClose }: { onClose: () => void }) {
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl
-          dark:bg-neutral-800"
+        className="pop-in w-full max-w-md overflow-hidden rounded-2xl bg-white
+          shadow-2xl dark:bg-neutral-800"
       >
         <input
           ref={inputRef}

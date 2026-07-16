@@ -198,7 +198,20 @@ export default function Today() {
   const [categoryId, setCategoryId] = useState<string>('')
   const [showDone, setShowDone] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  // 完成感窗口（v4.2 §12）：勾选后原地保留 ~800ms 展示动画，再按策略归置
+  const [recentlyDone, setRecentlyDone] = useState<Set<string>>(new Set())
   const inputRef = useRef<HTMLInputElement>(null)
+
+  function holdInPlace(itemKey: string) {
+    setRecentlyDone((prev) => new Set(prev).add(itemKey))
+    setTimeout(() => {
+      setRecentlyDone((prev) => {
+        const next = new Set(prev)
+        next.delete(itemKey)
+        return next
+      })
+    }, 800)
+  }
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     // 键盘拖拽（space 拾起 / 方向键移动 / space 放下）：无障碍 + 可测试
@@ -228,8 +241,11 @@ export default function Today() {
   const catMap = new Map((categories ?? []).map((c) => [c.id, c]))
   const items =
     tasks && records ? buildItems(tasks, records, todayISO) : undefined
-  const pending = items?.filter((i) => !i.completed) ?? []
-  const done = items?.filter((i) => i.completed) ?? []
+  const keyOf = (i: TodayItem) => `${i.task.id}:${i.occurrenceKey}`
+  const pending =
+    items?.filter((i) => !i.completed || recentlyDone.has(keyOf(i))) ?? []
+  const done =
+    items?.filter((i) => i.completed && !recentlyDone.has(keyOf(i))) ?? []
 
   const dateLabel = new Date().toLocaleDateString('zh-CN', {
     month: 'long',
@@ -261,6 +277,7 @@ export default function Today() {
     return {
       onToggle: () =>
         void guarded(async () => {
+          if (!item.completed) holdInPlace(`${task.id}:${item.occurrenceKey}`)
           if (item.kind === 'single') {
             item.completed
               ? await voidRecord(`${task.id}:single`)
@@ -475,9 +492,10 @@ export default function Today() {
           {/* 桌面批量操作条（⌘click 多选，⌘↵ 完成） */}
           {selectedPending.length > 0 && (
             <div
-              className="fixed inset-x-4 bottom-20 z-20 mx-auto flex max-w-md items-center
-                justify-between gap-3 rounded-2xl bg-neutral-900/90 px-4 py-2.5 text-white
-                shadow-lg backdrop-blur md:bottom-6"
+              className="glass slide-up fixed inset-x-4 bottom-20 z-20 mx-auto flex
+                max-w-md items-center justify-between gap-3 rounded-2xl
+                bg-neutral-900/90 px-4 py-2.5 text-white shadow-lg backdrop-blur
+                md:bottom-6"
             >
               <span className="text-[14px]">已选 {selectedPending.length} 项</span>
               <div className="flex gap-2">

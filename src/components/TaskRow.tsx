@@ -71,8 +71,8 @@ export default function TaskRow({
           onMetaClick()
         }
       }}
-      className={`group flex items-center gap-3 border-b border-black/5 px-1 py-3
-        last:border-b-0 dark:border-white/10 ${
+      className={`group row-in flex items-center gap-3 border-b border-black/5 px-1
+        py-3 last:border-b-0 dark:border-white/10 ${
           selected ? 'rounded-lg bg-[#007aff]/10 ring-1 ring-[#007aff]/40' : ''
         }`}
     >
@@ -89,6 +89,7 @@ export default function TaskRow({
         {completed && (
           <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden>
             <path
+              className="check-path"
               d="M2 6.5L4.5 9L10 3.5"
               stroke="currentColor"
               strokeWidth="2"
@@ -112,13 +113,14 @@ export default function TaskRow({
         ) : (
           <button
             onClick={() => actions.onRename && setEditing(true)}
-            className={`block w-full truncate text-left text-[16px] transition ${
-              completed
-                ? 'text-neutral-400 line-through decoration-neutral-400'
-                : ''
-            }`}
+            className="block w-full truncate text-left text-[16px]"
           >
-            {title}
+            <span
+              className={`strike ${completed ? 'text-neutral-400' : ''}`}
+              data-done={completed}
+            >
+              {title}
+            </span>
           </button>
         )}
         {subtitle && (
