@@ -20,6 +20,11 @@ export default function TaskRow({
   completed,
   overdue,
   actions,
+  liRef,
+  liStyle,
+  dragProps,
+  selected,
+  onMetaClick,
 }: {
   title: string
   subtitle?: string
@@ -27,6 +32,11 @@ export default function TaskRow({
   completed: boolean
   overdue?: boolean
   actions: RowActions
+  liRef?: (el: HTMLLIElement | null) => void // dnd-kit sortable
+  liStyle?: React.CSSProperties
+  dragProps?: Record<string, unknown>
+  selected?: boolean // 桌面 ⌘click 多选态
+  onMetaClick?: () => void
 }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(title)
@@ -52,8 +62,19 @@ export default function TaskRow({
 
   return (
     <li
-      className="group flex items-center gap-3 border-b border-black/5 px-1 py-3
-        last:border-b-0 dark:border-white/10"
+      ref={liRef}
+      style={liStyle}
+      {...dragProps}
+      onClick={(e) => {
+        if ((e.metaKey || e.ctrlKey) && onMetaClick) {
+          e.preventDefault()
+          onMetaClick()
+        }
+      }}
+      className={`group flex items-center gap-3 border-b border-black/5 px-1 py-3
+        last:border-b-0 dark:border-white/10 ${
+          selected ? 'rounded-lg bg-[#007aff]/10 ring-1 ring-[#007aff]/40' : ''
+        }`}
     >
       <button
         aria-label={completed ? '取消完成' : '完成'}

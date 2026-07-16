@@ -1,5 +1,12 @@
-import { useEffect } from 'react'
-import { Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import {
+  Navigate,
+  NavLink,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+} from 'react-router-dom'
 import Today from './pages/Today'
 import Plan from './pages/Plan'
 import Shopping from './pages/Shopping'
@@ -7,6 +14,7 @@ import Browse from './pages/Browse'
 import Settings from './pages/Settings'
 import UpdateToast from './components/UpdateToast'
 import SyncStatus from './components/SyncStatus'
+import CommandPalette from './components/CommandPalette'
 import { ensurePersistentStorage } from './lib/persistence'
 
 const TABS = [
@@ -18,10 +26,14 @@ const TABS = [
 
 const LAST_ROUTE_KEY = 'lastRoute'
 
+/** 通知当前页聚焦快速添加输入框（⌘N） */
+export const FOCUS_QUICK_ADD_EVENT = 'focus-quick-add'
+
 export default function App() {
   const location = useLocation()
+  const navigate = useNavigate()
+  const [paletteOpen, setPaletteOpen] = useState(false)
 
-  // 首次启动即请求持久存储（不阻塞渲染，结果在设置页可见）
   useEffect(() => {
     void ensurePersistentStorage()
   }, [])
@@ -30,16 +42,37 @@ export default function App() {
     localStorage.setItem(LAST_ROUTE_KEY, location.pathname)
   }, [location.pathname])
 
+  // 桌面快捷键（v4.2 §10）：⌘K 面板、⌘1..4 切视图、⌘N 快速新增
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const mod = e.metaKey || e.ctrlKey
+      if (!mod) return
+      if (e.key === 'k') {
+        e.preventDefault()
+        setPaletteOpen((o) => !o)
+      } else if (e.key >= '1' && e.key <= '4') {
+        e.preventDefault()
+        navigate(TABS[Number(e.key) - 1].to)
+      } else if (e.key === 'n') {
+        e.preventDefault()
+        window.dispatchEvent(new CustomEvent(FOCUS_QUICK_ADD_EVENT))
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [navigate])
+
   return (
     <div className="flex h-full flex-col md:flex-row">
       {/* 桌面端侧栏 / 手机端底部 Tab，同一份导航数据 */}
       <nav
         className="safe-bottom fixed inset-x-0 bottom-0 z-10 border-t border-black/10
-          bg-white/80 backdrop-blur-xl md:static md:w-52 md:border-t-0 md:border-r
-          md:bg-transparent md:backdrop-blur-none dark:border-white/10 dark:bg-black/40"
+          bg-white/80 backdrop-blur-xl md:static md:flex md:w-52 md:flex-col
+          md:border-t-0 md:border-r md:bg-transparent md:backdrop-blur-none
+          dark:border-white/10 dark:bg-black/40"
       >
         <ul className="flex justify-around md:mt-16 md:flex-col md:gap-1 md:px-3">
-          {TABS.map((tab) => (
+          {TABS.map((tab, i) => (
             <li key={tab.to} className="md:w-full">
               <NavLink
                 to={tab.to}
@@ -56,10 +89,38 @@ export default function App() {
                   {tab.icon}
                 </span>
                 {tab.label}
+                <kbd
+                  className="ml-auto hidden text-[11px] text-neutral-300 md:inline
+                    dark:text-neutral-600"
+                >
+                  ⌘{i + 1}
+                </kbd>
               </NavLink>
             </li>
           ))}
         </ul>
+        {/* 桌面侧栏底部：设置 + 快捷键提示 */}
+        <div className="mt-auto hidden px-3 pb-4 md:block">
+          <NavLink
+            to="/settings"
+            className={({ isActive }) =>
+              `flex items-center gap-2.5 rounded-lg px-3 py-1.5 text-[15px] ${
+                isActive
+                  ? 'bg-[#007aff]/10 text-[#007aff]'
+                  : 'text-neutral-500 dark:text-neutral-400'
+              }`
+            }
+          >
+            <span aria-hidden>⚙︎</span> 设置
+          </NavLink>
+          <button
+            onClick={() => setPaletteOpen(true)}
+            className="mt-1 flex w-full items-center gap-2.5 rounded-lg px-3 py-1.5
+              text-[13px] text-neutral-400"
+          >
+            搜索 <kbd className="ml-auto text-[11px]">⌘K</kbd>
+          </button>
+        </div>
       </nav>
 
       <main className="safe-top flex-1 overflow-y-auto pb-24 md:pb-8">
@@ -78,6 +139,7 @@ export default function App() {
 
       <SyncStatus />
       <UpdateToast />
+      {paletteOpen && <CommandPalette onClose={() => setPaletteOpen(false)} />}
     </div>
   )
 }

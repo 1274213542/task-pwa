@@ -1,12 +1,15 @@
 import { db, type Task } from './db'
 import { type Recurrence, nextAfterCompletion } from './recurrence'
 import { todayLocalISO } from './dates'
+import { appendRank, betweenRanks, normalizedRanks } from './rank'
 
 const now = () => new Date().toISOString()
 const today = todayLocalISO // 本地民用日期，不是 UTC（v4.2 §7.5）
 
-/** 追加式 rank：MS7 引入拖拽时换 fractional indexing，排序语义兼容 */
-const nextRank = () => Date.now().toString(36).padStart(10, '0')
+const nextRank = async (): Promise<string> => {
+  const last = await db.tasks.orderBy('rank').reverse().first()
+  return appendRank(last?.rank)
+}
 
 export class RecurrenceConflictError extends Error {
   constructor() {
@@ -28,7 +31,7 @@ export async function addTask(
   const task: Task = {
     id: crypto.randomUUID(),
     title: trimmed,
-    rank: nextRank(),
+    rank: await nextRank(),
     startDate: anchor,
     lifecycleStatus: 'active',
     templateVersion: 1,
@@ -190,6 +193,44 @@ export async function undoAfterCompletion(task: Task): Promise<void> {
       updatedAt: now(),
     })
   })
+}
+
+/**
+ * 拖拽重排（MS7）：常态只写一条 rank；
+ * 首次遇到旧格式键时在同一事务内做一次全表规范化，再落目标 rank。
+ */
+export async function reorderTask(
+  taskId: string,
+  beforeRank: string | null, // 新位置前一行的 rank（无=移到最前）
+  afterRank: string | null, //  新位置后一行的 rank（无=移到最后）
+): Promise<void> {
+  try {
+    const rank = betweenRanks(beforeRank, afterRank)
+    await db.tasks.update(taskId, { rank, updatedAt: now() })
+  } catch {
+    // 旧 base36 时间戳键与 fractional 键混存 → 一次性规范化后重试
+    await db.transaction('rw', db.tasks, async () => {
+      const active = await db.tasks
+        .where('lifecycleStatus')
+        .equals('active')
+        .sortBy('rank')
+      const moving = active.find((t) => t.id === taskId)
+      if (!moving) return
+      const rest = active.filter((t) => t.id !== taskId)
+      const beforeIdx =
+        beforeRank === null ? -1 : rest.findIndex((t) => t.rank === beforeRank)
+      const order = [
+        ...rest.slice(0, beforeIdx + 1),
+        moving,
+        ...rest.slice(beforeIdx + 1),
+      ]
+      const keys = normalizedRanks(order.length)
+      const t = now()
+      for (let i = 0; i < order.length; i++) {
+        await db.tasks.update(order[i].id, { rank: keys[i], updatedAt: t })
+      }
+    })
+  }
 }
 
 /** cache_mismatch 自动修复：只重写缓存字段，永不动记录（v4.2 §7.4） */
