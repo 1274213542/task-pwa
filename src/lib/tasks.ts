@@ -1,4 +1,10 @@
-import { db, type Task, type TaskScope } from './db'
+import {
+  db,
+  type ColorToken,
+  type MarkerSymbol,
+  type Task,
+  type TaskScope,
+} from './db'
 import { type Recurrence, nextAfterCompletion } from './recurrence'
 import { todayLocalISO } from './dates'
 import { appendRank, betweenRanks, isFiKey, normalizedRanks } from './rank'
@@ -92,6 +98,8 @@ export async function updateTask(
     startDate: string
     endDate?: string
     taskScope?: TaskScope
+    visualToken?: ColorToken
+    markerSymbol?: MarkerSymbol
   },
 ): Promise<void> {
   const title = changes.title.trim()
@@ -106,6 +114,8 @@ export async function updateTask(
     startDate: changes.startDate,
     endDate: changes.endDate || undefined,
     taskScope: changes.taskScope ?? 'daily',
+    visualToken: changes.visualToken,
+    markerSymbol: changes.markerSymbol,
     updatedAt: now(),
   })
 }

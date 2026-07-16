@@ -1,4 +1,4 @@
-import { db } from './db'
+import { db, type ColorToken, type MarkerSymbol } from './db'
 import { Temporal } from 'temporal-polyfill'
 
 const now = () => new Date().toISOString()
@@ -55,6 +55,8 @@ export async function updateEvent(
     endDate?: string
     time?: string
     categoryId?: string
+    visualToken?: ColorToken
+    markerSymbol?: MarkerSymbol
   },
 ): Promise<void> {
   const title = opts.title.trim()
@@ -78,6 +80,8 @@ export async function updateEvent(
     endAt: undefined,
     timezone: time ? timezone : undefined,
     categoryId: opts.categoryId || undefined,
+    visualToken: opts.visualToken,
+    markerSymbol: opts.markerSymbol,
     updatedAt: now(),
   })
 }

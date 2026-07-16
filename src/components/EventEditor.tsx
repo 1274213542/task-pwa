@@ -1,8 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Temporal } from 'temporal-polyfill'
-import type { CalendarEvent, Category } from '../lib/db'
+import type {
+  CalendarEvent,
+  Category,
+  ColorToken,
+  MarkerSymbol,
+} from '../lib/db'
 import { updateEvent } from '../lib/events'
+import VisualPicker from './VisualPicker'
 
 function localTime(event: CalendarEvent): string {
   if (!event.startAt) return ''
@@ -27,6 +33,8 @@ export default function EventEditor({
   const [endDate, setEndDate] = useState(event.endDate)
   const [time, setTime] = useState(localTime(event))
   const [categoryId, setCategoryId] = useState(event.categoryId ?? '')
+  const [visualToken, setVisualToken] = useState<ColorToken | undefined>(event.visualToken)
+  const [markerSymbol, setMarkerSymbol] = useState<MarkerSymbol | undefined>(event.markerSymbol)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const savingRef = useRef(false)
@@ -62,6 +70,8 @@ export default function EventEditor({
         endDate,
         time: time || undefined,
         categoryId: categoryId || undefined,
+        visualToken,
+        markerSymbol,
       })
       onClose()
     } catch (reason) {
@@ -174,6 +184,12 @@ export default function EventEditor({
               </select>
             </label>
           </div>
+          <VisualPicker
+            color={visualToken}
+            marker={markerSymbol}
+            onColorChange={setVisualToken}
+            onMarkerChange={setMarkerSymbol}
+          />
         </div>
         <p role="status" className="mt-2 min-h-5 text-[13px] text-red-500">
           {error}

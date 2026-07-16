@@ -35,7 +35,6 @@ import {
   latestFixedOnOrBefore,
 } from '../lib/recurrence'
 import { checkAfterCompletionIntegrity } from '../lib/integrity'
-import { COLOR_TOKENS } from '../lib/categories'
 import { addDaysISO, todayLocalISO } from '../lib/dates'
 import {
   RecurrenceConflictError,
@@ -52,6 +51,8 @@ import {
   voidRecord,
 } from '../lib/tasks'
 import TaskRow from '../components/TaskRow'
+import AppIcon from '../components/AppIcon'
+import MarkerIcon from '../components/MarkerIcon'
 import RecurrencePicker from '../components/RecurrencePicker'
 import PageHeader from '../components/PageHeader'
 import {
@@ -426,7 +427,14 @@ export default function Today() {
         key={`${item.task.id}:${item.occurrenceKey}`}
         title={item.task.title}
         subtitle={subtitle}
-        dot={cat ? COLOR_TOKENS[cat.colorToken] : undefined}
+        colorToken={
+          item.task.visualToken ?? cat?.colorToken ?? (scope === 'weekly' ? 'purple' : 'green')
+        }
+        markerSymbol={
+          item.task.markerSymbol ??
+          cat?.markerSymbol ??
+          (item.kind === 'single' ? 'dot' : 'spark')
+        }
         completed={item.completed}
         overdue={item.overdue}
         actions={actionsFor(item)}
@@ -554,7 +562,7 @@ export default function Today() {
             className="primary-action h-11 w-11 shrink-0 rounded-xl text-xl
               text-white transition active:scale-95 disabled:opacity-40"
           >
-            +
+            <AppIcon name="plus" size={23} />
           </button>
         </div>
         <div className="mt-1 flex flex-wrap items-center gap-2 px-1 pb-1">
@@ -609,11 +617,10 @@ export default function Today() {
       </p>
 
       {items === undefined ? null : pending.length + done.length === 0 ? (
-        <div
-          className="mt-8 rounded-2xl border border-dashed border-neutral-300 p-8
-            text-center text-neutral-400 dark:border-neutral-700"
-        >
-          {scope === 'daily' ? '今天没有任务' : '本周没有任务'}
+        <div className="task-empty-state mt-8">
+          <MarkerIcon symbol={scope === 'daily' ? 'flower' : 'star'} color={scope === 'daily' ? 'green' : 'purple'} size={58} />
+          <strong>{scope === 'daily' ? '今天没有任务' : '本周没有任务'}</strong>
+          <span>在上方添加普通任务或会按周期更新的固定任务</span>
         </div>
       ) : (
         <>
@@ -630,7 +637,7 @@ export default function Today() {
                 items={pending.map((p) => p.task.id)}
                 strategy={verticalListSortingStrategy}
               >
-                <ul className="list-card mt-4 rounded-2xl bg-white px-3 dark:bg-neutral-800">
+                <ul className="task-card-list mt-4">
                   {pending.map((item) => (
                     <SortablePendingRow
                       key={`${item.task.id}:${item.occurrenceKey}`}
@@ -691,7 +698,7 @@ export default function Today() {
 
           {/* 完成后展示策略（v4.2 需求 §1）：keep 原地保留 / collapse 折叠 / hide 隐藏 */}
           {done.length > 0 && policy === 'keep' && (
-            <ul className="list-card mt-3 rounded-2xl bg-white px-3 dark:bg-neutral-800">
+            <ul className="task-card-list completed-card-list mt-3">
               {done.map((i) => rowFor(i))}
             </ul>
           )}
@@ -701,10 +708,15 @@ export default function Today() {
                 onClick={() => setShowDone((s) => !s)}
                 className="px-1 text-[13px] font-medium text-neutral-400"
               >
-                {showDone ? '▾' : '▸'} 已完成 · {done.length}
+                <AppIcon
+                  name="chevronDown"
+                  size={15}
+                  className={showDone ? '' : '-rotate-90'}
+                />
+                已完成 · {done.length}
               </button>
               {showDone && (
-                <ul className="list-card mt-2 rounded-2xl bg-white px-3 dark:bg-neutral-800">
+                <ul className="task-card-list completed-card-list mt-2">
                   {done.map((i) => rowFor(i))}
                 </ul>
               )}

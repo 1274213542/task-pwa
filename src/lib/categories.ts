@@ -1,4 +1,4 @@
-import { db, type ColorToken } from './db'
+import { db, type ColorToken, type MarkerSymbol } from './db'
 
 const now = () => new Date().toISOString()
 const nextRank = () => Date.now().toString(36).padStart(10, '0')
@@ -16,6 +16,7 @@ export const COLOR_TOKENS: Record<ColorToken, string> = {
 export async function addCategory(
   name: string,
   colorToken: ColorToken = 'gray',
+  markerSymbol: MarkerSymbol = 'dot',
 ): Promise<void> {
   const trimmed = name.trim()
   if (!trimmed) return
@@ -24,6 +25,7 @@ export async function addCategory(
     id: crypto.randomUUID(),
     name: trimmed,
     colorToken,
+    markerSymbol,
     rank: nextRank(),
     lifecycleStatus: 'active',
     createdAt: t,
@@ -42,6 +44,13 @@ export async function setCategoryColor(
   colorToken: ColorToken,
 ): Promise<void> {
   await db.categories.update(id, { colorToken, updatedAt: now() })
+}
+
+export async function setCategoryMarker(
+  id: string,
+  markerSymbol: MarkerSymbol,
+): Promise<void> {
+  await db.categories.update(id, { markerSymbol, updatedAt: now() })
 }
 
 /**

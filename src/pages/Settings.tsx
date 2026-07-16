@@ -6,6 +6,10 @@ import { cloudEnabled } from '../config'
 import { ensurePersistentStorage, isStoragePersisted } from '../lib/persistence'
 import { exportBackup, importBackup } from '../lib/backup'
 import PageHeader from '../components/PageHeader'
+import AppIcon from '../components/AppIcon'
+import { UI_THEMES } from '../lib/themes'
+import type { UIThemeId } from '../lib/db'
+import { COLOR_TOKEN_ORDER } from '../lib/themes'
 
 function downloadJson(json: string, filename: string) {
   const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }))
@@ -101,11 +105,104 @@ export default function Settings() {
         title="设置"
         eyebrow="数据与偏好"
         leading={<Link to="/browse" aria-label="返回" className="settings-back hit-target -ml-3 text-2xl">
-          ‹
+          <AppIcon name="chevronLeft" size={22} />
         </Link>}
       />
 
-      <div className="list-card mt-6 overflow-hidden rounded-xl bg-white dark:bg-neutral-800">
+      <section className="settings-theme-section" aria-labelledby="theme-heading">
+        <div className="settings-section-heading">
+          <div>
+            <p className="section-kicker">外观</p>
+            <h2 id="theme-heading">主题风格</h2>
+          </div>
+          <AppIcon name="palette" size={22} />
+        </div>
+        <div className="theme-choice-grid">
+          {UI_THEMES.map((theme) => (
+            <button
+              key={theme.id}
+              type="button"
+              aria-pressed={(prefs?.uiTheme ?? 'violet-lime') === theme.id}
+              className="theme-choice"
+              onClick={() =>
+                void db.syncedPreferences.update('#prefs', {
+                  uiTheme: theme.id as UIThemeId,
+                  updatedAt: new Date().toISOString(),
+                })
+              }
+            >
+              <span className="theme-swatches" aria-hidden>
+                {theme.swatches.map((color) => (
+                  <span key={color} style={{ background: color }} />
+                ))}
+              </span>
+              <span className="theme-choice-copy">
+                <strong>{theme.name}</strong>
+                <small>{theme.description}</small>
+              </span>
+              {(prefs?.uiTheme ?? 'violet-lime') === theme.id && (
+                <span className="theme-selected-icon">
+                  <AppIcon name="check" size={16} />
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+        <div className="appearance-control" role="group" aria-label="明暗模式">
+          {(['system', 'light', 'dark'] as const).map((appearance) => (
+            <button
+              key={appearance}
+              type="button"
+              aria-pressed={(prefs?.theme ?? 'system') === appearance}
+              onClick={() =>
+                void db.syncedPreferences.update('#prefs', {
+                  theme: appearance,
+                  updatedAt: new Date().toISOString(),
+                })
+              }
+            >
+              {appearance === 'system' ? '跟随系统' : appearance === 'light' ? '浅色' : '深色'}
+            </button>
+          ))}
+        </div>
+        <div className="action-color-control">
+          <div>
+            <strong>主操作按钮</strong>
+            <span>使用主题深色，或从协调色板选择</span>
+          </div>
+          <div className="action-color-options" role="group" aria-label="主操作按钮颜色">
+            <button
+              type="button"
+              className="action-color-default"
+              aria-label="使用主题默认按钮颜色"
+              aria-pressed={!prefs?.actionColor}
+              onClick={() =>
+                void db.syncedPreferences.update('#prefs', {
+                  actionColor: undefined,
+                  updatedAt: new Date().toISOString(),
+                })
+              }
+            />
+            {COLOR_TOKEN_ORDER.map((token) => (
+              <button
+                key={token}
+                type="button"
+                data-color-token={token}
+                aria-label={`使用 ${token} 按钮颜色`}
+                aria-pressed={prefs?.actionColor === token}
+                onClick={() =>
+                  void db.syncedPreferences.update('#prefs', {
+                    actionColor: token,
+                    updatedAt: new Date().toISOString(),
+                  })
+                }
+              />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <div className="list-card settings-data-card mt-6 overflow-hidden rounded-xl bg-white dark:bg-neutral-800">
         {cloudEnabled && (
           <div
             className="flex items-center justify-between border-b border-black/5 px-4

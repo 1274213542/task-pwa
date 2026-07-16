@@ -1,18 +1,23 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, type Category, type ColorToken } from '../lib/db'
+import { db, type Category } from '../lib/db'
 import {
-  COLOR_TOKENS,
   addCategory,
   renameCategory,
   setCategoryColor,
+  setCategoryMarker,
   softDeleteCategory,
 } from '../lib/categories'
 import PageHeader from '../components/PageHeader'
 import AppIcon from '../components/AppIcon'
-
-const TOKEN_ORDER: ColorToken[] = ['gray', 'blue', 'green', 'orange', 'pink', 'purple']
+import MarkerIcon from '../components/MarkerIcon'
+import {
+  COLOR_TOKEN_ORDER,
+  MARKER_SYMBOLS,
+  nextColorToken,
+  nextMarkerSymbol,
+} from '../lib/themes'
 
 function CategoryRow({ cat, taskCount }: { cat: Category; taskCount: number }) {
   const [editing, setEditing] = useState(false)
@@ -33,16 +38,18 @@ function CategoryRow({ cat, taskCount }: { cat: Category; taskCount: number }) {
   return (
     <li className="category-row">
       <button
-        aria-label={`切换 ${cat.name} 的颜色`}
+        aria-label={`切换 ${cat.name} 的标记图形`}
         onClick={() => {
-          const next =
-            TOKEN_ORDER[(TOKEN_ORDER.indexOf(cat.colorToken) + 1) % TOKEN_ORDER.length]
-          void setCategoryColor(cat.id, next)
+          void setCategoryMarker(cat.id, nextMarkerSymbol(cat.markerSymbol))
         }}
         className="category-token hit-target"
       >
-        <span style={{ background: COLOR_TOKENS[cat.colorToken] }}>
-          {cat.name.trim().slice(0, 1).toUpperCase()}
+        <span data-color-token={cat.colorToken}>
+          <MarkerIcon
+            symbol={cat.markerSymbol ?? 'dot'}
+            color={cat.colorToken}
+            size={28}
+          />
         </span>
       </button>
       {editing ? (
@@ -63,9 +70,18 @@ function CategoryRow({ cat, taskCount }: { cat: Category; taskCount: number }) {
         </button>
       )}
       {!confirming && (
-        <span className="category-count tabular" aria-label={`${taskCount} 个任务`}>
-          {taskCount}
-        </span>
+        <>
+          <button
+            type="button"
+            aria-label={`切换 ${cat.name} 的颜色`}
+            data-color-token={cat.colorToken}
+            className="category-color-button"
+            onClick={() => void setCategoryColor(cat.id, nextColorToken(cat.colorToken))}
+          />
+          <span className="category-count tabular" aria-label={`${taskCount} 个任务`}>
+            {taskCount}
+          </span>
+        </>
       )}
       {confirming ? (
         <button
@@ -81,7 +97,7 @@ function CategoryRow({ cat, taskCount }: { cat: Category; taskCount: number }) {
           onClick={armDelete}
           className="category-delete hit-target shrink-0"
         >
-          ✕
+          <AppIcon name="close" size={18} />
         </button>
       )}
     </li>
@@ -126,8 +142,9 @@ export default function Browse() {
 
   async function submitCategory() {
     const used = new Set((categories ?? []).map((c) => c.colorToken))
-    const color = TOKEN_ORDER.find((t) => !used.has(t)) ?? 'gray'
-    await addCategory(newName, color)
+    const color = COLOR_TOKEN_ORDER.find((t) => !used.has(t)) ?? 'gray'
+    const marker = MARKER_SYMBOLS[(categories?.length ?? 0) % MARKER_SYMBOLS.length]
+    await addCategory(newName, color, marker)
     setNewName('')
   }
 

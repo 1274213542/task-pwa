@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { CalItem } from '../lib/calendar'
-import type { Category, TaskScope } from '../lib/db'
+import type { Category, ColorToken, MarkerSymbol, TaskScope } from '../lib/db'
 import { softDeleteTask, updateTask } from '../lib/tasks'
 import { taskScopeOf } from '../lib/taskPeriods'
+import VisualPicker from './VisualPicker'
 
 export type EditableTaskStatus = 'pending' | 'completed' | 'skipped'
 
@@ -32,6 +33,8 @@ export default function TaskEditor({
   const [endDate, setEndDate] = useState(task.endDate ?? '')
   const [categoryId, setCategoryId] = useState(task.categoryId ?? '')
   const [scope, setScope] = useState<TaskScope>(taskScopeOf(task))
+  const [visualToken, setVisualToken] = useState<ColorToken | undefined>(task.visualToken)
+  const [markerSymbol, setMarkerSymbol] = useState<MarkerSymbol | undefined>(task.markerSymbol)
   const [status, setStatus] = useState<EditableTaskStatus>(originalStatus)
   const [saving, setSaving] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
@@ -69,6 +72,8 @@ export default function TaskEditor({
         startDate: date,
         endDate: task.recurrence ? endDate || undefined : undefined,
         taskScope: scope,
+        visualToken,
+        markerSymbol,
       })
       if (status !== originalStatus) await onStatusChange(status)
       onClose()
@@ -218,6 +223,12 @@ export default function TaskEditor({
               </select>
             </label>
           </div>
+          <VisualPicker
+            color={visualToken}
+            marker={markerSymbol}
+            onColorChange={setVisualToken}
+            onMarkerChange={setMarkerSymbol}
+          />
           {task.recurrence && (
             <p className="text-[12px] leading-5 text-neutral-400">
               当前编辑会更新整个固定任务系列；本期完成状态仍独立保存。

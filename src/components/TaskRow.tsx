@@ -1,4 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
+import type { ColorToken, MarkerSymbol } from '../lib/db'
+import MarkerIcon from './MarkerIcon'
+import AppIcon from './AppIcon'
 
 export interface RowActions {
   onToggle: () => void
@@ -16,7 +19,8 @@ export interface RowActions {
 export default function TaskRow({
   title,
   subtitle,
-  dot,
+  colorToken = 'gray',
+  markerSymbol = 'dot',
   completed,
   overdue,
   actions,
@@ -29,7 +33,8 @@ export default function TaskRow({
 }: {
   title: string
   subtitle?: string
-  dot?: string
+  colorToken?: ColorToken
+  markerSymbol?: MarkerSymbol
   completed: boolean
   overdue?: boolean
   actions: RowActions
@@ -67,6 +72,8 @@ export default function TaskRow({
       ref={liRef}
       style={liStyle}
       {...dragProps}
+      data-color-token={colorToken}
+      data-completed={completed || undefined}
       data-dragging={dragging || undefined}
       onClick={(e) => {
         if ((e.metaKey || e.ctrlKey) && onMetaClick) {
@@ -74,8 +81,7 @@ export default function TaskRow({
           onMetaClick()
         }
       }}
-      className={`group row-in flex items-center gap-3 border-b border-black/5 px-1
-        py-3 last:border-b-0 dark:border-white/10 ${
+      className={`task-card group row-in flex items-center gap-3 ${
           selected ? 'is-selected' : ''
         } ${dragProps ? 'task-sortable' : ''}`}
     >
@@ -107,6 +113,10 @@ export default function TaskRow({
         </span>
       </button>
 
+      <span className="task-marker" aria-hidden>
+        <MarkerIcon symbol={markerSymbol} color={colorToken} size={27} />
+      </span>
+
       <div className="min-w-0 flex-1">
         {editing ? (
           <input
@@ -132,17 +142,10 @@ export default function TaskRow({
         )}
         {subtitle && (
           <p
-            className={`flex items-center gap-1 truncate text-[12px] ${
+            className={`task-card-meta flex items-center gap-1 truncate text-[12px] ${
               overdue && !completed ? 'text-red-500' : 'text-neutral-400'
             }`}
           >
-            {dot && (
-              <span
-                aria-hidden
-                className="inline-block h-1.5 w-1.5 shrink-0 rounded-full"
-                style={{ background: dot }}
-              />
-            )}
             {subtitle}
           </p>
         )}
@@ -190,7 +193,7 @@ export default function TaskRow({
             className="hit-target -mr-2 shrink-0 rounded-full text-neutral-300 opacity-60
               transition group-hover:opacity-100 dark:text-neutral-600"
           >
-            ✕
+            <AppIcon name="close" size={19} />
           </button>
         </>
       )}

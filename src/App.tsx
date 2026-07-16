@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useLiveQuery } from 'dexie-react-hooks'
 import {
   Navigate,
   NavLink,
@@ -17,6 +18,8 @@ import SyncStatus from './components/SyncStatus'
 import CommandPalette from './components/CommandPalette'
 import AppIcon, { type AppIconName } from './components/AppIcon'
 import { ensurePersistentStorage } from './lib/persistence'
+import { db } from './lib/db'
+import MarkerIcon from './components/MarkerIcon'
 
 const TABS = [
   { to: '/today', label: '任务', icon: 'today', tone: 'task' },
@@ -35,6 +38,7 @@ export default function App() {
   const navigate = useNavigate()
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [keyboardOpen, setKeyboardOpen] = useState(false)
+  const prefs = useLiveQuery(() => db.syncedPreferences.get('#prefs'), [])
   const activeTabIndex = TABS.findIndex((tab) => location.pathname === tab.to)
   const previousTabIndex = useRef(activeTabIndex)
   const pageDirection =
@@ -47,6 +51,14 @@ export default function App() {
   useEffect(() => {
     void ensurePersistentStorage()
   }, [])
+
+  useEffect(() => {
+    const root = document.documentElement
+    root.dataset.uiTheme = prefs?.uiTheme ?? 'violet-lime'
+    root.dataset.appearance = prefs?.theme ?? 'system'
+    if (prefs?.actionColor) root.dataset.actionColor = prefs.actionColor
+    else delete root.dataset.actionColor
+  }, [prefs?.actionColor, prefs?.theme, prefs?.uiTheme])
 
   useEffect(() => {
     localStorage.setItem(LAST_ROUTE_KEY, location.pathname)
@@ -126,6 +138,24 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey)
   }, [navigate])
 
+  function focusPrimaryAdd() {
+    if (activeTabIndex === 3 || activeTabIndex < 0) {
+      navigate('/today')
+      window.setTimeout(
+        () => window.dispatchEvent(new CustomEvent(FOCUS_QUICK_ADD_EVENT)),
+        60,
+      )
+      return
+    }
+    window.dispatchEvent(new CustomEvent(FOCUS_QUICK_ADD_EVENT))
+  }
+
+  const todayLabel = new Intl.DateTimeFormat('zh-CN', {
+    month: 'long',
+    day: 'numeric',
+    weekday: 'long',
+  }).format(new Date())
+
   return (
     <div className="app-shell flex h-full flex-col lg:flex-row">
       {/* 桌面端侧栏 / 手机端底部 Tab，同一份导航数据 */}
@@ -138,25 +168,24 @@ export default function App() {
             keyboardOpen ? 'is-keyboard-open' : ''
           }`}
       >
-        <ul className="relative grid grid-cols-4 lg:mt-16 lg:flex lg:flex-col lg:gap-1 lg:px-3">
-          <li
-            aria-hidden
-            className={`mobile-tab-indicator pointer-events-none absolute inset-y-1.5 left-0
-              w-1/4 px-1.5 lg:hidden ${activeTabIndex < 0 ? 'opacity-0' : ''}`}
-            style={{ transform: `translate3d(${Math.max(activeTabIndex, 0) * 100}%, 0, 0)` }}
-          >
-            <span className="mobile-tab-indicator-fill block h-full rounded-[14px]" />
-          </li>
+        <div className="desktop-sidebar-brand hidden lg:block">
+          <div className="desktop-brand-mark">
+            <MarkerIcon symbol="flower" color="green" size={30} />
+          </div>
+          <p className="desktop-brand-name">Task Schedule</p>
+          <p className="desktop-brand-date">{todayLabel}</p>
+        </div>
+        <ul className="mobile-nav-list relative grid lg:flex lg:flex-col lg:gap-2 lg:px-4">
           {TABS.map((tab, i) => (
-            <li key={tab.to} className="lg:w-full">
+            <li key={tab.to} className={`mobile-nav-item mobile-nav-item-${i} lg:w-full`}>
               <NavLink
                 to={tab.to}
                 data-tone={tab.tone}
                 data-active={location.pathname === tab.to}
                 className={({ isActive }) =>
-                  `mobile-tab-link relative flex min-h-14 flex-col items-center justify-center
-                   gap-0.5 px-3 py-1.5 text-[11px] lg:min-h-11 lg:flex-row lg:justify-start
-                   lg:gap-2.5 lg:rounded-xl lg:px-3 lg:text-[15px] ${
+                  `mobile-tab-link relative flex flex-col items-center justify-center
+                   gap-0.5 text-[11px] lg:min-h-12 lg:flex-row lg:justify-start
+                   lg:gap-3 lg:px-3 lg:text-[15px] ${
                      isActive ? 'is-active' : 'text-neutral-500 dark:text-neutral-400'
                    }`
                 }
@@ -174,9 +203,19 @@ export default function App() {
               </NavLink>
             </li>
           ))}
+          <li className="mobile-primary-slot lg:hidden">
+            <button
+              type="button"
+              aria-label="快速新增"
+              onClick={focusPrimaryAdd}
+              className="mobile-primary-add"
+            >
+              <AppIcon name="plus" size={28} />
+            </button>
+          </li>
         </ul>
         {/* 桌面侧栏底部：设置 + 快捷键提示 */}
-        <div className="mt-auto hidden px-3 pb-4 lg:block">
+        <div className="mt-auto hidden px-4 pb-5 lg:block">
           <NavLink
             to="/settings"
             className={({ isActive }) =>
@@ -204,7 +243,7 @@ export default function App() {
           keyboardOpen ? 'pb-5' : 'pb-24'
         } lg:pb-8`}
       >
-        <div className="safe-inline app-content mx-auto max-w-[940px] pt-2 lg:pt-5">
+        <div className="safe-inline app-content mx-auto max-w-[1480px] pt-2 lg:pt-5">
           {/* 固定高度的非覆盖状态槽：同步状态永不压住导航或输入。 */}
           <div className="app-status-slot flex h-7 items-center justify-end" aria-live="polite">
             <SyncStatus />

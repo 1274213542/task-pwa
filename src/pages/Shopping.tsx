@@ -12,21 +12,29 @@ import {
   unmarkPurchased,
 } from '../lib/shopping'
 import PageHeader from '../components/PageHeader'
+import AppIcon from '../components/AppIcon'
+import MarkerIcon from '../components/MarkerIcon'
+import type { ColorToken } from '../lib/db'
+
+const SHOPPING_TONES: ColorToken[] = ['green', 'blue', 'purple', 'orange', 'pink']
 
 function ItemRow({
   item,
   locationLabel,
+  tone = 'green',
 }: {
   item: ShoppingItem
   locationLabel?: string
+  tone?: ColorToken
 }) {
   const [confirming, setConfirming] = useState(false)
   const purchased = item.purchaseStatus === 'purchased'
 
   return (
     <li
-      className="flex items-center gap-3 border-b border-black/5 px-1 py-2.5
-        last:border-b-0 dark:border-white/10"
+      data-color-token={tone}
+      data-completed={purchased || undefined}
+      className="shopping-card row-in flex items-center gap-3"
     >
       <button
         aria-label={purchased ? '恢复待购' : '已购买'}
@@ -57,6 +65,10 @@ function ItemRow({
           )}
         </span>
       </button>
+
+      <span className="shopping-marker" aria-hidden>
+        <MarkerIcon symbol="squircle" color={tone} size={27} />
+      </span>
 
       <div className="min-w-0 flex-1">
         <p
@@ -97,7 +109,7 @@ function ItemRow({
           }}
           className="hit-target -mr-2 shrink-0 text-neutral-300 dark:text-neutral-600"
         >
-          ✕
+          <AppIcon name="close" size={19} />
         </button>
       )}
     </li>
@@ -120,8 +132,8 @@ function LocationManager({ locations }: { locations: ShoppingLocation[] }) {
             className="flex items-center gap-2.5 border-b border-black/5 px-4 py-2.5
               dark:border-white/10"
           >
-            <span aria-hidden className="text-[13px]">
-              {loc.type === 'online' ? '🌐' : '🏬'}
+            <span aria-hidden className="location-type-icon">
+              <AppIcon name={loc.type === 'online' ? 'browse' : 'shopping'} size={17} />
             </span>
             {editingId === loc.id ? (
               <input
@@ -166,7 +178,7 @@ function LocationManager({ locations }: { locations: ShoppingLocation[] }) {
                 }}
                 className="hit-target -mr-2 shrink-0 text-neutral-300 dark:text-neutral-600"
               >
-                ✕
+                <AppIcon name="close" size={18} />
               </button>
             )}
           </li>
@@ -282,7 +294,11 @@ export default function Shopping() {
   }
 
   // 按地点分组：实体在前、网站在后、无地点最后（v4.2 需求 §3）
-  const groups: { label: string; icon: string; items: ShoppingItem[] }[] = []
+  const groups: {
+    label: string
+    type: 'physical' | 'online' | 'unassigned'
+    items: ShoppingItem[]
+  }[] = []
   if (grouped && locations) {
     for (const loc of [...locations].sort((a, b) =>
       a.type === b.type ? a.rank.localeCompare(b.rank) : a.type === 'physical' ? -1 : 1,
@@ -291,14 +307,14 @@ export default function Shopping() {
       if (list.length > 0)
         groups.push({
           label: loc.name,
-          icon: loc.type === 'online' ? '🌐' : '🏬',
+          type: loc.type,
           items: list,
         })
     }
     const known = new Set(locations.map((l) => l.id))
     const unassigned = pending.filter((i) => !i.locationId || !known.has(i.locationId))
     if (unassigned.length > 0)
-      groups.push({ label: '未指定地点', icon: '·', items: unassigned })
+      groups.push({ label: '未指定地点', type: 'unassigned', items: unassigned })
   }
 
   return (
@@ -369,7 +385,7 @@ export default function Shopping() {
           className="primary-action h-11 w-11 shrink-0 rounded-xl text-xl
             text-white transition active:scale-95 disabled:opacity-40"
           >
-            +
+            <AppIcon name="plus" size={23} />
           </button>
         </div>
         {(locations?.length ?? 0) > 0 && (
@@ -409,28 +425,39 @@ export default function Shopping() {
 
       {pending.length === 0 ? (
         <div
-          className="mt-6 rounded-2xl border border-dashed border-neutral-300 p-8
-            text-center text-neutral-400 dark:border-neutral-700"
+          className="shopping-empty-state mt-6"
         >
-          清单是空的
+          <MarkerIcon symbol="flower" color="green" size={52} />
+          <strong>清单是空的</strong>
+          <span>添加商品后会按地点和状态清楚归类</span>
         </div>
       ) : grouped ? (
         groups.map((g) => (
           <div key={g.label} className="mt-5">
-            <p className="px-1 text-[13px] font-medium text-neutral-400">
-              {g.icon} {g.label} · {g.items.length}
+            <p className="shopping-group-title">
+              <AppIcon
+                name={g.type === 'online' ? 'browse' : g.type === 'physical' ? 'shopping' : 'category'}
+                size={17}
+              />
+              <span>{g.label}</span>
+              <span className="shopping-group-count">{g.items.length}</span>
             </p>
-            <ul className="list-card mt-1.5 rounded-2xl bg-white px-3 dark:bg-neutral-800">
-              {g.items.map((i) => (
-                <ItemRow key={i.id} item={i} />
+            <ul className="shopping-card-list mt-1.5">
+              {g.items.map((i, index) => (
+                <ItemRow key={i.id} item={i} tone={SHOPPING_TONES[index % SHOPPING_TONES.length]} />
               ))}
             </ul>
           </div>
         ))
       ) : (
-        <ul className="list-card mt-4 rounded-2xl bg-white px-3 dark:bg-neutral-800">
-          {pending.map((i) => (
-            <ItemRow key={i.id} item={i} locationLabel={locName(i.locationId)} />
+        <ul className="shopping-card-list mt-4">
+          {pending.map((i, index) => (
+            <ItemRow
+              key={i.id}
+              item={i}
+              locationLabel={locName(i.locationId)}
+              tone={SHOPPING_TONES[index % SHOPPING_TONES.length]}
+            />
           ))}
         </ul>
       )}
@@ -441,15 +468,17 @@ export default function Shopping() {
             onClick={() => setShowHistory((s) => !s)}
             className="px-1 text-[13px] font-medium text-neutral-400"
           >
-            {showHistory ? '▾' : '▸'} 已购历史 · {purchased.length}
+            <AppIcon name={showHistory ? 'chevronDown' : 'chevronRight'} size={16} />
+            已购历史 · {purchased.length}
           </button>
           {showHistory && (
-            <ul className="list-card mt-2 rounded-2xl bg-white px-3 dark:bg-neutral-800">
-              {purchased.slice(0, 30).map((i) => (
+            <ul className="shopping-card-list is-history mt-2">
+              {purchased.slice(0, 30).map((i, index) => (
                 <ItemRow
                   key={i.id}
                   item={i}
                   locationLabel={locName(i.locationId, i.locationNameSnapshot)}
+                  tone={SHOPPING_TONES[index % SHOPPING_TONES.length]}
                 />
               ))}
             </ul>

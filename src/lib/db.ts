@@ -13,6 +13,8 @@ import { ensureTaskScope } from './migrations'
 export type LifecycleStatus = 'active' | 'deleted'
 export type Resolution = 'completed' | 'skipped' | 'voided'
 export type TaskScope = 'daily' | 'weekly'
+export type MarkerSymbol = 'dot' | 'flower' | 'star' | 'diamond' | 'spark' | 'squircle'
+export type UIThemeId = 'violet-lime' | 'aqua-garden' | 'mono-green' | 'soft-mix'
 
 export interface Task {
   id: string
@@ -23,6 +25,8 @@ export interface Task {
   startDate?: string // PlainDate ISO
   endDate?: string // 周期任务的结束日；缺省 = 持续有效
   taskScope?: TaskScope // v7：旧记录缺省按 daily 读取，迁移时补齐
+  visualToken?: ColorToken // 可选视觉覆盖；缺省继承分类或当前主题
+  markerSymbol?: MarkerSymbol
   recurrence?: Recurrence
   currentSequence?: number // 仅 after_completion：当前活动实例序号（可推导缓存）
   nextDueDate?: string //     仅 after_completion：当前实例到期日（可推导缓存）
@@ -61,6 +65,7 @@ export interface Category {
   id: string
   name: string
   colorToken: ColorToken
+  markerSymbol?: MarkerSymbol // 旧分类缺省使用 dot
   rank: string
   lifecycleStatus: LifecycleStatus
   deletedAt?: string
@@ -79,6 +84,8 @@ export interface CalendarEvent {
   endAt?: string
   timezone?: string // IANA，定时事件记录创建时的时区
   categoryId?: string
+  visualToken?: ColorToken
+  markerSymbol?: MarkerSymbol
   lifecycleStatus: LifecycleStatus
   deletedAt?: string
   createdAt: string
@@ -122,6 +129,8 @@ export interface SyncedPreferences {
   id: string // '#prefs'：官方私有单例模式（# 前缀 + put + db.on.ready）
   weekStartsOn: 1 | 0
   theme: 'system' | 'light' | 'dark'
+  uiTheme?: UIThemeId // 旧数据缺省使用 violet-lime
+  actionColor?: ColorToken // 可选主操作按钮颜色；缺省使用主题深色
   defaultCompletedDisplay: 'keep' | 'collapse' | 'hide'
   fullSwipeToComplete: boolean
   updatedAt: string
@@ -199,8 +208,14 @@ db.on('ready', async () => {
       id: '#prefs',
       weekStartsOn: 1,
       theme: 'system',
+      uiTheme: 'violet-lime',
       defaultCompletedDisplay: 'keep',
       fullSwipeToComplete: false,
+      updatedAt: new Date().toISOString(),
+    })
+  } else if (!existing.uiTheme) {
+    await db.syncedPreferences.update('#prefs', {
+      uiTheme: 'violet-lime',
       updatedAt: new Date().toISOString(),
     })
   }
