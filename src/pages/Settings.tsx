@@ -1,9 +1,21 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLiveQuery, useObservable } from 'dexie-react-hooks'
 import { db } from '../lib/db'
 import { cloudEnabled } from '../config'
 import { ensurePersistentStorage, isStoragePersisted } from '../lib/persistence'
+import { exportBackup, importBackup } from '../lib/backup'
+
+function downloadJson(json: string, filename: string) {
+  const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }))
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+const stamp = () => new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
@@ -20,6 +32,42 @@ function Row({ label, value }: { label: string; value: string }) {
 export default function Settings() {
   const [persisted, setPersisted] = useState<boolean | null>(null)
   const [request, setRequest] = useState<'idle' | 'pending' | 'denied'>('idle')
+  const [lastBackupAt, setLastBackupAt] = useState(
+    () => localStorage.getItem('lastBackupAt') ?? '',
+  )
+  const [importState, setImportState] = useState<
+    { phase: 'idle' } | { phase: 'confirm'; json: string; name: string } | { phase: 'done' } | { phase: 'error'; msg: string }
+  >({ phase: 'idle' })
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  async function doExport() {
+    const json = await exportBackup(db, __APP_VERSION__)
+    downloadJson(json, `task-pwa-backup-${stamp()}.json`)
+    const t = new Date().toISOString()
+    localStorage.setItem('lastBackupAt', t)
+    setLastBackupAt(t)
+  }
+
+  async function onFilePicked(f: File | undefined) {
+    if (!f) return
+    const json = await f.text()
+    setImportState({ phase: 'confirm', json, name: f.name })
+  }
+
+  async function doImport() {
+    if (importState.phase !== 'confirm') return
+    try {
+      // 导入前自动回滚备份（v4.2 §9）：先把当前库快照下载到本地
+      downloadJson(
+        await exportBackup(db, __APP_VERSION__),
+        `task-pwa-rollback-${stamp()}.json`,
+      )
+      await importBackup(db, importState.json)
+      setImportState({ phase: 'done' })
+    } catch (e) {
+      setImportState({ phase: 'error', msg: e instanceof Error ? e.message : String(e) })
+    }
+  }
 
   const user = useObservable(db.cloud.currentUser)
   const persistedSync = useObservable(db.cloud.persistedSyncState)
@@ -107,7 +155,19 @@ export default function Settings() {
           value={persisted === null ? '…' : persisted ? '已启用' : '未启用'}
         />
         <Row label="最后云端同步时间" value={lastSync} />
-        <Row label="最后备份时间" value="—（MS8 接入）" />
+        <Row
+          label="最后备份时间"
+          value={
+            lastBackupAt
+              ? new Date(lastBackupAt).toLocaleString('zh-CN', {
+                  month: 'numeric',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })
+              : '还没备份过'
+          }
+        />
         <Row label="版本" value={__APP_VERSION__} />
       </div>
 
@@ -136,6 +196,70 @@ export default function Settings() {
       <p className="mt-4 px-1 text-[13px] leading-relaxed text-neutral-400">
         未启用持久存储时 App 照常使用；系统存储紧张时本地数据有被清除的可能，请保持云端同步并定期备份。
       </p>
+
+      <h2 className="mt-8 px-1 text-[13px] font-medium text-neutral-400">数据备份</h2>
+      <div className="mt-2 overflow-hidden rounded-xl bg-white dark:bg-neutral-800">
+        <button
+          onClick={() => void doExport()}
+          className="w-full border-b border-black/5 px-4 py-3 text-left text-[15px]
+            text-[#007aff] dark:border-white/10"
+        >
+          导出全部数据（JSON）
+        </button>
+        <button
+          onClick={() => fileRef.current?.click()}
+          className="w-full px-4 py-3 text-left text-[15px] text-[#007aff]"
+        >
+          从备份导入…
+        </button>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="application/json"
+          aria-label="选择备份文件"
+          className="hidden"
+          onChange={(e) => {
+            void onFilePicked(e.target.files?.[0])
+            e.target.value = ''
+          }}
+        />
+      </div>
+
+      {importState.phase === 'confirm' && (
+        <div
+          className="mt-3 rounded-xl bg-amber-500/10 px-4 py-3 text-[13px] leading-relaxed
+            text-amber-600 dark:text-amber-400"
+        >
+          <p>
+            将用「{importState.name}」<strong>覆盖当前全部数据</strong>
+            。导入前会自动下载一份当前数据的回滚备份；导入失败不会改动现有数据。
+          </p>
+          <div className="mt-2 flex gap-2">
+            <button
+              onClick={() => void doImport()}
+              className="rounded-lg bg-red-500 px-3 py-1.5 text-[13px] font-medium text-white"
+            >
+              确认导入
+            </button>
+            <button
+              onClick={() => setImportState({ phase: 'idle' })}
+              className="rounded-lg px-3 py-1.5 text-[13px]"
+            >
+              取消
+            </button>
+          </div>
+        </div>
+      )}
+      {importState.phase === 'done' && (
+        <p className="mt-3 rounded-xl bg-emerald-500/10 px-4 py-3 text-[13px] text-emerald-600">
+          导入完成，数据已恢复。
+        </p>
+      )}
+      {importState.phase === 'error' && (
+        <p className="mt-3 rounded-xl bg-red-500/10 px-4 py-3 text-[13px] text-red-500">
+          导入失败：{importState.msg}（现有数据未被改动）
+        </p>
+      )}
     </section>
   )
 }
