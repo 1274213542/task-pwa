@@ -105,7 +105,7 @@ export default function Settings() {
       <MobilePageHeader
         title="Settings"
         eyebrow="数据与偏好"
-        backHref="#/browse"
+        backHref="#/overview"
         showSecondary={false}
       />
       <PageHeader

@@ -7,12 +7,15 @@ import {
   CalendarBlank,
   CalendarCheck,
   CalendarDots,
+  ChartPieSlice,
   CaretDown,
   CaretLeft,
   CaretRight,
   Check,
+  CheckCircle,
   Clock,
   Compass,
+  DotsThree,
   FolderSimple,
   GearSix,
   HouseSimple,
@@ -31,6 +34,8 @@ import {
 } from '@phosphor-icons/react'
 
 export type AppIconName =
+  | 'dashboard'
+  | 'tasks'
   | 'today'
   | 'calendar'
   | 'shopping'
@@ -59,8 +64,11 @@ export type AppIconName =
   | 'folder'
   | 'people'
   | 'arrowUpRight'
+  | 'more'
 
 const icons: Record<AppIconName, Icon> = {
+  dashboard: ChartPieSlice,
+  tasks: CheckCircle,
   today: Sun,
   calendar: CalendarDots,
   shopping: ShoppingBagOpen,
@@ -89,6 +97,7 @@ const icons: Record<AppIconName, Icon> = {
   folder: FolderSimple,
   people: UsersThree,
   arrowUpRight: ArrowUpRight,
+  more: DotsThree,
 }
 
 export default function AppIcon({

@@ -125,6 +125,11 @@ describe('monthly 与短月边界（决策表 #1/#2）', () => {
     expect(matchesFixed(r, '2026-01-10', undefined, '2026-03-10')).toBe(true)
     expect(matchesFixed(r, '2026-01-10', undefined, '2026-04-10')).toBe(false)
   })
+  it('每 3 个月与每 6 个月按锚点生成', () => {
+    expect(matchesFixed(monthly(12, 'clamp', 3), '2026-01-12', undefined, '2026-04-12')).toBe(true)
+    expect(matchesFixed(monthly(12, 'clamp', 3), '2026-01-12', undefined, '2026-05-12')).toBe(false)
+    expect(matchesFixed(monthly(12, 'clamp', 6), '2026-01-12', undefined, '2026-07-12')).toBe(true)
+  })
 })
 
 describe('窗口展开与逾期（决策表 #4）', () => {

@@ -1,88 +1,97 @@
-# Design QA — reference fidelity rebuild
+# Design QA — compact information architecture rebuild
 
 ## Final result
 
 final result: passed
 
-## Sources and states compared
+## Evidence
 
-- Mobile task reference: supplied image 3, measured phone crop, compared against
-  `qa/screenshots/mobile-today-final.png` at `390 × 844`.
-- Mobile month reference: supplied image 1, measured phone crop, compared against
-  `qa/screenshots/mobile-plan-month-final.png` at `390 × 844`.
-- Mobile timeline reference: supplied image 2, measured phone crop, compared
-  against `qa/screenshots/mobile-plan-week-final.png` at `390 × 844`.
-- Desktop weekly reference: supplied wide calendar reference, compared against
-  `qa/screenshots/desktop-plan-week-final.png` at `1440 × 1000`.
-- Desktop month reference: supplied wide month reference, compared against
-  `qa/screenshots/desktop-plan-month-final.png` at `1440 × 1000`.
-- Narrow mobile check: `qa/screenshots/mobile-320-today.png` at `320 × 568`.
-- Compact desktop check: `qa/screenshots/desktop-1024-plan.png` at `1024 × 768`.
+Final captures:
 
-Combined comparison inputs:
+- `qa/redesign-final/01-overview-mobile.png` — start dashboard, `390 × 844`.
+- `qa/redesign-final/02-tasks-mobile.png` — compact task baseline.
+- `qa/redesign-final/03-month-mobile.png` — month overview without day details.
+- `qa/redesign-final/04-timeline-mobile.png` — refined weekly timeline.
+- `qa/redesign-final/05-shopping-mobile.png` — compact shopping/location layout.
+- `qa/redesign-final/06-browse-mobile.png` — categories and completion records.
+- `qa/redesign-final/07-calendar-desktop.png` — desktop month application.
+- `qa/redesign-final/08-overview-320.png` — narrow responsive check.
 
-- `qa/screenshots/mobile-today-comparison-final.png`
-- `qa/screenshots/mobile-plan-month-comparison-final.png`
-- `qa/screenshots/mobile-plan-week-comparison-final.png`
-- `qa/screenshots/mobile-today-overlay-final.png`
+Reference comparison inputs:
+
+- `qa/redesign-final/compare-tasks.png`
+- `qa/redesign-final/compare-month.png`
+- `qa/redesign-final/compare-timeline.png`
+- `qa/redesign-final/compare-desktop.png`
+- `qa/redesign-final/overlay-tasks.png`
+- `qa/redesign-final/overlay-month.png`
+- `qa/redesign-final/overlay-timeline.png`
 
 ## Visible checks
 
-### Mobile task baseline
+### Task baseline
 
-- Passed: top profile/action geometry, 52px circular controls, horizontal filter
-  rail, black/lime/purple area ratio, 30px card silhouette and 58px task action.
-- Passed: live progress card replaces decorative team data while preserving the
-  reference panel height and rhythm.
-- Passed: 68px dark dock, 56px central action, 20px bottom inset and safe-area
-  backing surface.
-- Passed: long Chinese title wraps to two lines without clipping at 320px.
+- Passed: header, filter rail and bottom dock use the same horizontal geometry as
+  the supplied mobile crop.
+- Passed: task rows are `72px` minimum, four real tasks fit above the fold, and
+  the artificial notch/progress panel is removed.
+- Passed: the real settings action replaces the nonfunctional notification icon.
+- Passed: navigation has four distinct routes plus one centered add action.
 
-### Mobile calendar and timeline
+### Calendar
 
-- Passed: circular month dates, readable first task title, selected/today states,
-  visible selected-day card and direct add control.
-- Passed: selected-day week strip, time rail, lime/purple/charcoal event sequence
-  and rounded event blocks.
-- Passed: opening a calendar task produced an active dialog, not an active input;
-  the keyboard did not open automatically.
-- Passed: title edit saved to the existing task, updated the calendar immediately
-  and remained after reload.
+- Passed: month mode contains no `.calendar-day-panel`; scheduled dates are
+  directly highlighted and the canvas has no horizontal overflow.
+- Passed: timeline bars are thinner and rounder with a compact time rail.
+- Passed: tapping add switches to agenda and opens the composer without focusing
+  a text field; tapping edit opens a dialog with the dialog surface focused.
+- Passed: existing task/event editors, save/delete controls and stored IDs remain
+  unchanged.
+
+### Overview, shopping and utility pages
+
+- Passed: `/` redirects to `/overview`; today/week/shopping/fixed/calendar and
+  upcoming summaries are live database projections.
+- Passed: shopping location remains a small secondary control; item add/check is
+  still the dominant flow.
+- Passed: categories/completion records remain accessible without occupying a
+  primary navigation slot.
 
 ### Desktop
 
-- Passed: persistent 280px rail, full-width seven-column board, 70px time rail,
-  80px time rows and large readable event cards.
-- Passed: month view uses the available desktop canvas and shows real task titles
-  in cells rather than dots or counts alone.
+- Passed: `288px` persistent sidebar includes nav, mini month and category/filter
+  information; the calendar uses the remaining full canvas.
+- Passed: desktop task composer remains reachable after mobile-only headers are
+  hidden.
+- Passed: desktop month cells show real item titles and counts.
 
-### Interaction and stability
+### Theme, recurrence and accessibility
 
-- Passed: rapid task → plan → shopping → browse navigation ended on the correct
-  route with one active state and no animation pile-up.
-- Passed: batch shopping add created three ordered items from three non-empty
-  lines and returned to the stable list state.
-- Passed: task action menu opened through touch/click without toggling completion.
-- Passed: page changes reset vertical/horizontal scroll; editors retain their own
-  scroll state.
-- Passed: build, lint and all 55 unit tests.
+- Passed: switching `violet-lime → aqua-garden → violet-lime` changed persisted
+  `data-ui-theme`, background and accent values in the rendered app.
+- Passed: custom recurrence rendered `every X` controls; choosing `3 months`
+  changed the stored interval input to `3`.
+- Passed: recurrence engine tests cover three- and six-month anchor behavior.
+- Passed: `320px` viewport had `scrollWidth === innerWidth`; dock stayed inside
+  the viewport and safe-area rules remained active.
+- Passed: reduced-motion CSS disables nonessential movement.
 
-## Remaining intentional differences
+## Automated verification
 
-- The source screenshot's iOS status bar and physical phone frame are device
-  chrome and are not reproduced inside the PWA viewport.
-- The source portrait is not licensed as an application asset; the existing app
-  identity image occupies the same measured slot.
-- Real product labels, task titles, recurrence state and progress replace fake
-  review/team metadata from the concept artwork.
-- The real month/week/agenda mode switch stays visible because all three shipped
-  modes must remain discoverable.
-- Mobile month cells keep one task-title summary to satisfy the product requirement
-  that dates with tasks show actual content, not only colored circles.
+- `npm run lint`: passed.
+- `npm test -- --run`: 56 tests passed.
+- `npm run build`: passed; PWA generated 13 precache entries.
+- Nonblocking build note: the main JS chunk remains above Vite's 500kB advisory.
 
-## Runtime note
+## Intentional differences from the concept reference
 
-Local development logs contain expected Dexie Cloud `Failed to fetch` entries
-because the local preview cannot reach the configured sync service in the
-restricted test environment. No React render, routing or application exceptions
-were observed. Online sync is verified separately after deployment.
+- Task cards are deliberately thinner than the concept after the user's explicit
+  correction that the previous cards were too heavy.
+- Month mode omits the concept's selected-day card because the product direction
+  now defines month as overview only; details live in agenda.
+- Real Chinese product labels and actual stored tasks replace fake review/team
+  metadata.
+- Device status bars, home indicators and the unlicensed portrait are not drawn
+  inside the web viewport.
+- Desktop evidence uses the real month dataset; empty early-month cells reflect
+  stored data rather than decorative mock events.

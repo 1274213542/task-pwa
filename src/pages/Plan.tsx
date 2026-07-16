@@ -72,7 +72,11 @@ export default function Plan() {
   const weekBoardRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const openComposer = () => setComposerOpen(true)
+    const openComposer = () => {
+      setMode('agenda')
+      localStorage.setItem('planMode', 'agenda')
+      setComposerOpen(true)
+    }
     window.addEventListener(FOCUS_QUICK_ADD_EVENT, openComposer)
     return () => window.removeEventListener(FOCUS_QUICK_ADD_EVENT, openComposer)
   }, [])
@@ -263,7 +267,7 @@ export default function Plan() {
       setCursor(next.with({ day: 1 }))
     }
     window.requestAnimationFrame(() => {
-      if (window.innerWidth >= 1180) return
+      if (mode !== 'agenda' || window.innerWidth >= 1180) return
       dayPanelRef.current?.scrollIntoView({
         block: 'nearest',
         behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
@@ -323,6 +327,7 @@ export default function Plan() {
     const isToday = dateISO === todayISO
     const isSelected = dateISO === selected
     const items = byDay?.get(dateISO) ?? []
+    const firstVisual = items[0] ? itemVisual(items[0]) : undefined
     return (
       <button
         key={dateISO}
@@ -332,6 +337,8 @@ export default function Plan() {
         tabIndex={isSelected ? 0 : -1}
         onClick={() => selectDay(dateISO)}
         className="calendar-day"
+        data-has-items={items.length > 0 || undefined}
+        data-color-token={firstVisual?.color}
         data-outside={!inMonth || undefined}
         data-selected={isSelected || undefined}
       >
@@ -509,14 +516,24 @@ export default function Plan() {
   return (
     <section className="app-page page-plan" data-mode={mode}>
       <header className="plan-mobile-header">
-        <div className="plan-mobile-profile">
-          <img src={`${import.meta.env.BASE_URL}icons/icon-192.png`} alt="" />
-        </div>
-        <h1>Task Schedule</h1>
-        <a href="#/settings" aria-label="同步和提醒设置" className="plan-mobile-bell">
-          <AppIcon name="bell" size={24} />
-          <span aria-hidden />
+        <a href="#/overview" className="plan-mobile-profile" aria-label="返回总览">
+          <AppIcon name="dashboard" size={22} />
         </a>
+        <div className="plan-mobile-heading">
+          <p>{dateLabel(selected, { month: 'long', day: 'numeric' })}</p>
+          <h1>计划</h1>
+        </div>
+        <button
+          type="button"
+          aria-label="新增安排"
+          className="plan-mobile-add"
+          onClick={() => {
+            switchMode('agenda')
+            setComposerOpen(true)
+          }}
+        >
+          <AppIcon name="plus" size={24} />
+        </button>
       </header>
       <div className="plan-mobile-mode-switch" role="tablist" aria-label="视图模式">
         {([
@@ -697,12 +714,12 @@ export default function Plan() {
               </>
             )}
           </div>
-          {dayPanel}
         </div>
       )}
 
       {mode === 'agenda' && (
         <div className="agenda-layout">
+          <div className="agenda-day-focus">{dayPanel}</div>
           <div className="agenda-hero">
             <MarkerIcon symbol="flower" color="purple" size={62} />
             <div>

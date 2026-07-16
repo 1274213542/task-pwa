@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
   DndContext,
@@ -54,6 +54,7 @@ import TaskRow from '../components/TaskRow'
 import AppIcon from '../components/AppIcon'
 import MarkerIcon from '../components/MarkerIcon'
 import RecurrencePicker from '../components/RecurrencePicker'
+import PageHeader from '../components/PageHeader'
 import {
   defaultFixedRecurrence,
   taskScopeOf,
@@ -78,7 +79,7 @@ type TaskRowProjectionExtra = {
   liStyle?: React.CSSProperties
   dragProps?: Record<string, unknown>
   dragging?: boolean
-  featureTone?: 'charcoal' | 'lime' | 'purple'
+  featureTone?: 'charcoal' | 'lime' | 'purple' | 'custom'
   selected?: boolean
   onMetaClick?: () => void
 }
@@ -227,13 +228,11 @@ function buildItems(
 function SortablePendingRow({
   item,
   row,
-  index,
   selected,
   onMetaClick,
 }: {
   item: TodayItem
   row: (item: TodayItem, extra?: TaskRowProjectionExtra) => React.ReactNode
-  index: number
   selected: boolean
   onMetaClick: () => void
 }) {
@@ -248,7 +247,7 @@ function SortablePendingRow({
     },
     dragProps: { ...attributes, ...listeners },
     dragging: isDragging,
-    featureTone: (['charcoal', 'lime', 'purple'] as const)[index % 3],
+    featureTone: 'custom',
     selected,
     onMetaClick,
   })
@@ -545,10 +544,30 @@ export default function Today() {
 
   return (
     <section className="app-page page-tasks" data-scope={scope}>
-      <h1 className="sr-only">任务</h1>
+      <PageHeader
+        title="任务"
+        eyebrow={scope === 'daily' ? dateLabel : `本周 ${weeklyRangeLabel}`}
+        actions={(
+          <button
+            type="button"
+            aria-label={composerOpen ? '收起新增任务' : '新增任务'}
+            aria-expanded={composerOpen}
+            onClick={() => setComposerOpen((open) => !open)}
+            className="task-round-action task-round-action-primary"
+          >
+            <AppIcon name={composerOpen ? 'close' : 'plus'} size={24} />
+          </button>
+        )}
+      />
       <header className="task-mobile-toolbar">
-        <div className="task-profile" aria-label="Task Schedule">
-          <img src={`${import.meta.env.BASE_URL}icons/icon-192.png`} alt="" />
+        <div className="task-mobile-brand">
+          <div className="task-profile" aria-hidden>
+            <img src={`${import.meta.env.BASE_URL}icons/icon-192.png`} alt="" />
+          </div>
+          <div>
+            <p>{dateLabel}</p>
+            <h1>任务</h1>
+          </div>
         </div>
         <div className="task-mobile-actions">
           <button
@@ -562,11 +581,10 @@ export default function Today() {
           </button>
           <a
             href="#/settings"
-            aria-label="同步和提醒设置"
-            className="task-round-action task-round-action-bell"
+            aria-label="设置"
+            className="task-round-action task-round-action-settings"
           >
-            <AppIcon name="bell" size={25} />
-            <span className="task-alert-dot" aria-hidden />
+            <AppIcon name="settings" size={23} />
           </a>
         </div>
       </header>
@@ -650,7 +668,7 @@ export default function Today() {
               固定任务
             </button>
           </div>
-          {fixed && scope === 'daily' && title.trim() && (
+          {fixed && title.trim() && (
             <details className="w-full">
               <summary className="cursor-pointer px-1 text-[12px] text-neutral-400">
                 调整重复周期
@@ -705,38 +723,15 @@ export default function Today() {
                 items={pending.map((p) => p.task.id)}
                 strategy={verticalListSortingStrategy}
               >
-                <ul className="task-card-list task-feature-list">
-                  {pending.map((item, index) => (
-                    <Fragment key={`${item.task.id}:${item.occurrenceKey}`}>
-                      <SortablePendingRow
-                        item={item}
-                        row={rowFor}
-                        index={index}
-                        selected={selectedIds.has(item.task.id)}
-                        onMetaClick={() => toggleSelect(item.task.id)}
-                      />
-                      {index === 0 && pending.length > 1 && (
-                        <li className="task-progress-card" aria-label={`当前周期已完成 ${done.length} 项，共 ${items?.length ?? 0} 项`}>
-                          <div className="task-progress-summary">
-                            <span className="task-progress-markers" aria-hidden>
-                              <MarkerIcon symbol="flower" color="green" size={24} />
-                              <MarkerIcon symbol="diamond" color="purple" size={24} />
-                              <MarkerIcon symbol="spark" color="blue" size={24} />
-                            </span>
-                            <strong>{pending.length}</strong>
-                            <span>进行中</span>
-                          </div>
-                          <div className="task-progress-track" aria-hidden>
-                            <span
-                              style={{
-                                width: `${Math.round((done.length / Math.max(items?.length ?? 1, 1)) * 100)}%`,
-                              }}
-                            />
-                          </div>
-                          <p>{done.length > 0 ? `已完成 ${done.length} 项` : '保持节奏，完成第一项吧'}</p>
-                        </li>
-                      )}
-                    </Fragment>
+                <ul className="task-card-list task-compact-list">
+                  {pending.map((item) => (
+                    <SortablePendingRow
+                      key={`${item.task.id}:${item.occurrenceKey}`}
+                      item={item}
+                      row={rowFor}
+                      selected={selectedIds.has(item.task.id)}
+                      onMetaClick={() => toggleSelect(item.task.id)}
+                    />
                   ))}
                 </ul>
               </SortableContext>

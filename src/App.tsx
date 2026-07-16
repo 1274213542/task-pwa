@@ -12,6 +12,7 @@ import Today from './pages/Today'
 import Plan from './pages/Plan'
 import Shopping from './pages/Shopping'
 import Browse from './pages/Browse'
+import Overview from './pages/Overview'
 import Settings from './pages/Settings'
 import UpdateToast from './components/UpdateToast'
 import SyncStatus from './components/SyncStatus'
@@ -20,12 +21,13 @@ import AppIcon, { type AppIconName } from './components/AppIcon'
 import { ensurePersistentStorage } from './lib/persistence'
 import { db } from './lib/db'
 import MarkerIcon from './components/MarkerIcon'
+import DesktopSidebarExtras from './components/DesktopSidebarExtras'
 
 const TABS = [
-  { to: '/today', label: '任务', icon: 'home', tone: 'task' },
+  { to: '/overview', label: '总览', icon: 'dashboard', tone: 'overview' },
+  { to: '/today', label: '任务', icon: 'tasks', tone: 'task' },
   { to: '/plan', label: '计划', icon: 'calendar', tone: 'plan' },
   { to: '/shopping', label: '购物', icon: 'shopping', tone: 'shopping' },
-  { to: '/browse', label: '浏览', icon: 'people', tone: 'browse' },
 ] as const
 
 const LAST_ROUTE_KEY = 'lastRoute'
@@ -141,7 +143,7 @@ export default function App() {
   }, [navigate])
 
   function focusPrimaryAdd() {
-    if (activeTabIndex === 3 || activeTabIndex < 0) {
+    if (activeTabIndex <= 0) {
       navigate('/today')
       window.setTimeout(
         () => window.dispatchEvent(new CustomEvent(FOCUS_QUICK_ADD_EVENT)),
@@ -217,6 +219,7 @@ export default function App() {
             </button>
           </li>
         </ul>
+        <DesktopSidebarExtras />
         {/* 桌面侧栏底部：设置 + 快捷键提示 */}
         <div className="mt-auto hidden px-4 pb-5 lg:block">
           <NavLink
@@ -255,13 +258,14 @@ export default function App() {
           {/* transform/opacity 换页动效可被下一次导航立即打断。 */}
           <div key={location.pathname} className={`page-in ${pageDirection}`}>
             <Routes>
-              <Route path="/" element={<Navigate to={initialRoute()} replace />} />
+              <Route path="/" element={<Navigate to="/overview" replace />} />
+              <Route path="/overview" element={<Overview />} />
               <Route path="/today" element={<Today />} />
               <Route path="/plan" element={<Plan />} />
               <Route path="/shopping" element={<Shopping />} />
               <Route path="/browse" element={<Browse />} />
               <Route path="/settings" element={<Settings />} />
-              <Route path="*" element={<Navigate to="/today" replace />} />
+              <Route path="*" element={<Navigate to="/overview" replace />} />
             </Routes>
           </div>
         </div>
@@ -271,9 +275,4 @@ export default function App() {
       {paletteOpen && <CommandPalette onClose={() => setPaletteOpen(false)} />}
     </div>
   )
-}
-
-function initialRoute(): string {
-  const last = localStorage.getItem(LAST_ROUTE_KEY)
-  return last && last !== '/' ? last : '/today'
 }

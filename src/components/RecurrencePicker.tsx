@@ -77,6 +77,15 @@ export default function RecurrencePicker({
   const selectCls =
     'min-h-11 rounded-xl bg-white px-2 py-1.5 text-[13px] dark:bg-neutral-800'
 
+  const fixedUnit =
+    value?.mode === 'fixed_schedule'
+      ? value.frequency === 'daily'
+        ? '天'
+        : value.frequency === 'weekly'
+          ? '周'
+          : '个月'
+      : ''
+
   return (
     <div className="mt-2 flex flex-wrap items-center gap-2 text-[13px] text-neutral-500">
       <select
@@ -92,6 +101,42 @@ export default function RecurrencePicker({
         <option value="monthlyLast">每月最后一天</option>
         <option value="after">完成后再重复</option>
       </select>
+
+      {value?.mode === 'fixed_schedule' && (
+        <div className="recurrence-interval-control">
+          <label>
+            <span>每</span>
+            <input
+              type="number"
+              min={1}
+              max={365}
+              aria-label="重复间隔"
+              value={value.interval}
+              onChange={(event) =>
+                onChange({
+                  ...value,
+                  interval: Math.min(365, Math.max(1, Number(event.target.value) || 1)),
+                })
+              }
+            />
+            <span>{fixedUnit}</span>
+          </label>
+          {value.frequency === 'monthly' && (
+            <div className="recurrence-quick-values" role="group" aria-label="常用月间隔">
+              {[1, 3, 6].map((interval) => (
+                <button
+                  key={interval}
+                  type="button"
+                  aria-pressed={value.interval === interval}
+                  onClick={() => onChange({ ...value, interval })}
+                >
+                  {interval === 1 ? '每月' : `${interval} 个月`}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {value?.mode === 'fixed_schedule' && value.frequency === 'weekly' && (
         <div className="flex gap-1" role="group" aria-label="星期几">

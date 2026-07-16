@@ -326,7 +326,7 @@ export default function Shopping() {
   return (
     <section className="app-page page-shopping">
       <MobilePageHeader
-        title="Shopping List"
+        title="购物清单"
         eyebrow={`${pending.length} 件待购`}
         onPrimary={() => setComposerOpen((open) => !open)}
         primaryLabel={composerOpen ? '收起新增商品' : '新增商品'}
@@ -343,7 +343,7 @@ export default function Shopping() {
         </button>
       </div>
       <PageHeader
-        title="购物"
+        title="购物清单"
         eyebrow={`${pending.length} 件待购`}
         actions={<div
           role="tablist"

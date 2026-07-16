@@ -37,25 +37,25 @@ export const UI_THEMES: Array<{
     id: 'violet-lime',
     name: '紫绿日程',
     description: '参考图主配色，清爽且有明确对比',
-    swatches: ['#aaa3df', '#c8dc7b', '#d9eef1', '#222421'],
+    swatches: ['#dbe77d', '#dcd9ef', '#efeee9', '#20211f'],
   },
   {
     id: 'aqua-garden',
     name: '浅蓝花园',
     description: '浅蓝、叶绿与柔紫的冷静组合',
-    swatches: ['#8bdde1', '#b8df8a', '#c0b9e8', '#19302b'],
+    swatches: ['#b9e2d2', '#cbdbe9', '#e9f0ed', '#18322b'],
   },
   {
     id: 'mono-green',
     name: '黑白青柠',
     description: '黑白基础配合克制的绿色强调',
-    swatches: ['#b8d36a', '#dce8c5', '#f1f2ee', '#181a18'],
+    swatches: ['#cfe36f', '#dfe4d9', '#eceee8', '#181a18'],
   },
   {
     id: 'soft-mix',
     name: '柔和彩色',
     description: '紫、粉、浅黄和青色的柔和组合',
-    swatches: ['#b7afe7', '#efc7bd', '#f1d77d', '#9edfe1'],
+    swatches: ['#ead48f', '#d8cfeb', '#f0eaed', '#282225'],
   },
 ]
 

@@ -152,11 +152,9 @@ export default function Browse() {
   return (
     <section className="app-page page-browse">
       <MobilePageHeader
-        title="Browse"
+        title="分类与记录"
         eyebrow="分类与记录"
-        onPrimary={() => { window.location.hash = '/settings' }}
-        primaryLabel="设置"
-        primaryIcon="settings"
+        backHref="#/overview"
       />
       <PageHeader
         title="浏览"

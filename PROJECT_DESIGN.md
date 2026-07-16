@@ -1,98 +1,86 @@
-# Task PWA — measured reference specification
+# Task PWA — compact reference-calibrated design contract
 
-This document is an implementation contract derived from the supplied task,
-month-calendar, time-rail and desktop-calendar screenshots. It is not a mood
-board. Functional data flows remain independent from these visual projections.
+This contract is measured from the supplied `REFERENCE / IMPLEMENTATION`
+comparisons at `390 × 844` and the wide desktop calendar. It deliberately
+separates stored product data from its visual projection.
 
-## Reference mapping
+## Information architecture
 
-- Mobile task list: reference image 3 (primary baseline).
-- Mobile month calendar: reference image 1.
-- Mobile selected-day time rail: reference image 2.
-- Desktop weekly calendar: wide reference image 7.
-- Desktop month grid: wide reference image 8.
-- Conflicts resolve in that order; existing data and accessibility behavior are
-  preserved even when a screenshot does not depict them.
+- App start: `总览` (`/overview`). It summarizes today, this week, shopping,
+  recurring tasks, the next seven days and the next four actionable items.
+- Primary navigation: `总览 / 任务 / 计划 / 购物`; the centered add control is
+  an action, not a duplicate route.
+- `分类与记录` remains reachable from overview and the desktop sidebar. It is a
+  utility screen, not an unexplained primary tab.
+- Calendar modes keep their existing functionality: month = overview, time =
+  selected-week timeline, agenda = details, add and edit.
 
-## Measured mobile canvas
+## Measured mobile system
 
-- Validation viewport: `390 × 844` CSS px.
-- Source phone frame: approximately `482 × 1042` inside the 1026 × 1280 image.
-- Page/card gutter: `12px` (`10px` below 360px).
-- Top round controls: `52px`; gap `12px`; profile/action radius `50%`.
-- Filter rail: `54px`; pills `52px`; radius `21px`; gap `8px`.
-- Task card: `134px` standard, `142px` charcoal feature; radius `30px`;
-  vertical gap `9px`; top action `58px`.
-- Task title: `22/28px`, weight 520–620 depending script rendering.
-- Card meta: `11px`; status capsule `42px` high, radius `18px`.
-- Bottom dock: `68px`, `12px` side gutter, `20px + safe-area` bottom inset,
-  radius `29px`; central action `56px`.
-- Month date circle: `36px`; 7 columns; 49px minimum row including one
-  visible task-title summary.
-- Week event: 66px minimum height, radius `24px`, 57px time-label rail.
+- QA viewport: `390 × 844`; narrow check: `320 × 568`.
+- Page gutter: `16px`, reduced to `12px` below 360px.
+- Header controls: `44 × 44px`; header band `72px`.
+- Filter band: `46px`; pills `42px` high, `17px` radius, `6px` gap.
+- Compact task row: `72px` minimum, `20px` radius, `7px` list gap. No masked
+  notches, decorative team panel, or oversized arrow control.
+- Bottom dock: `64px`, `14px` side inset, `12px + safe-area` bottom inset,
+  `24px` radius; central action `50px`.
+- Month dates: `34px` circles. Scheduled dates use the item color directly;
+  month mode does not append a selected-day detail list.
+- Timeline event: `52px` minimum, `22px` radius, `48px` time rail, `68px` row.
+- Touch targets stay at least `44px`; text inputs remain `16px` on mobile.
 
-## Measured desktop canvas
+## Desktop system
 
-- Validation viewports: `1440 × 1000` and `1728 × 1117`.
-- Persistent navigation rail: `280px`.
-- Main calendar uses the remaining width; selected-day details flow below the
-  calendar so the reference-sized seven-column board is not compressed.
-- Week time rail: `70px`; day header `72px`; hour interval `80px`; event radius
-  `21px`.
-- Month cells: `116px` minimum at 1180px and above, increasing at wider widths.
+- QA viewport: `1440 × 1000`.
+- Persistent sidebar: `288px` with identity, primary navigation, mini calendar,
+  categories or meaningful fixed/normal fallback filters, settings and search.
+- Main month grid owns the remaining canvas. Cells are `104px` minimum and grow
+  to `118–132px` at wider breakpoints.
+- Calendar uses real titles in desktop cells; mobile month mode uses colored
+  dates only to preserve the requested overview density.
+- Overview becomes a two-column dashboard rather than a stretched phone page.
 
-## Color tokens
+## Visual tokens
 
-Core measured roles:
-
-- `--ref-charcoal: #282828`
-- `--ref-lime: #c8d67f`
-- `--ref-purple: #a7a0d3`
-- `--ref-neutral: #ededed`
-- `--ref-lavender-wash: #f0eefb`
-- App background remains the pre-redesign `#f7f7f8` to preserve the requested
-  product background while matching the reference surfaces and controls.
-
-Saved semantic colors remain `gray / blue / green / orange / pink / purple`.
-An explicit saved task/category color overrides the reference-sequence surface;
-records without a saved visual token use charcoal → lime → purple in list order.
+- Background: `#f7f6f2`; surface: `#ffffff`; soft surface: `#efeee9`.
+- Ink: `#1d1e1b`; muted: `#73756e`; line: `#e2e1db`.
+- Main accent: `#dbe77d`; secondary: `#dcd9ef`; dark: `#20211f`.
+- Panel/card/control radii: `26 / 20 / 16px`.
+- Shadows are reserved for floating menus and drag state; normal cards are flat.
+- Persisted alternative themes update background, surfaces, ink, accents and
+  calendar/task surfaces together; they are not one-variable color swaps.
 
 ## Typography and icons
 
-- One system grotesk/CJK stack; no mixed display font.
-- Primary mobile headings: 21–22px; desktop page heading: 42px.
-- Body/input text: 16px minimum on mobile to avoid iOS focus zoom.
-- Phosphor Icons is the only operational icon source, regular/rounded line
-  weight; no emoji, inline SVG or text-symbol controls.
-- Decorative category markers use Phosphor fill icons through the same color
-  tokens.
+- System grotesk/CJK stack: SF Pro Text, PingFang SC, Hiragino Sans, Yu Gothic
+  UI, Segoe UI.
+- Mobile page title `19px`; task title `15px`; metadata `10–11px`; desktop page
+  title `43px`.
+- Operational icons use the existing Phosphor family only. Category markers use
+  the same semantic color tokens.
+- The original notification concept is not reproduced because the product has no
+  notification feature; the corresponding real action is settings.
 
-## Component rules
+## Recurrence and data compatibility
 
-- Task list default state matches the supplied card composition: title top-left,
-  circular action top-right, time/type bottom-left, status capsule bottom-right.
-- Add composers are collapsed until the real add button is pressed. They keep
-  multiline batch input and do not alter stored data to produce the layout.
-- Calendar month cells retain a readable first task title because the product
-  requirement explicitly requires visible task summaries rather than dots.
-- Calendar task taps open the existing editor without auto-focusing a field.
-- Shopping location remains secondary and collapsed; item add/check efficiency
-  stays primary.
-- Touch targets are at least 44px; bottom/sheet surfaces include safe areas.
+- The existing `fixed_schedule` rule already stores `frequency + interval`.
+- The UI now exposes `every X days / weeks / months`, with one-, three- and
+  six-month shortcuts. No schema rewrite or destructive migration is required.
+- Recurrence templates and completion records remain separate; visual changes do
+  not create occurrences or mutate completion history.
 
 ## Motion
 
-- Press: 160–180ms, scale `.90–.96` depending control size.
-- Menu: 180ms, opacity + small scale/translation.
-- Composer/sheet: 260ms with `cubic-bezier(.16,.86,.26,1)`.
-- Page: 260–460ms transform/opacity; forward/back directions stay opposite.
-- Only `transform` and `opacity` animate during navigation and list feedback.
-- `prefers-reduced-motion` disables nonessential movement.
+- Press feedback: `160–180ms`, transform only.
+- Navigation/content transitions: `180–260ms`, opacity and small translation.
+- Menus/sheets: `180–260ms`; task drag remains interruptible.
+- `prefers-reduced-motion` collapses nonessential animation to near-zero.
 
 ## Visual QA contract
 
-- Capture with the in-app browser at the fixed reference viewport.
-- Put reference and implementation in a single side-by-side image, then inspect
-  spacing, proportion, card silhouette, type hierarchy and color area.
-- Repeat after P0/P1 fixes. Store evidence under `qa/screenshots/` and record the
-  final verdict in `design-qa.md`.
+- Capture fixed-size implementation screenshots in the in-app browser.
+- Crop the supplied reference to the same `390 × 844` canvas.
+- Produce both side-by-side and 50% alpha overlays for task, month and timeline.
+- Preserve intentional product differences in the QA notes rather than hiding
+  them with decorative similarity.

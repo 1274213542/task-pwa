@@ -8,6 +8,9 @@ export default function MobilePageHeader({
   primaryIcon = 'plus',
   backHref,
   showSecondary = true,
+  secondaryHref = '#/settings',
+  secondaryLabel = '设置',
+  secondaryIcon = 'settings',
 }: {
   title: string
   eyebrow?: string
@@ -16,6 +19,9 @@ export default function MobilePageHeader({
   primaryIcon?: AppIconName
   backHref?: string
   showSecondary?: boolean
+  secondaryHref?: string
+  secondaryLabel?: string
+  secondaryIcon?: AppIconName
 }) {
   return (
     <header className="mobile-page-header">
@@ -38,9 +44,8 @@ export default function MobilePageHeader({
             <AppIcon name={primaryIcon} size={26} />
           </button>
         )}
-        {showSecondary && <a href="#/settings" aria-label="同步和提醒设置" className="mobile-page-secondary">
-          <AppIcon name="bell" size={23} />
-          <span aria-hidden />
+        {showSecondary && <a href={secondaryHref} aria-label={secondaryLabel} className="mobile-page-secondary">
+          <AppIcon name={secondaryIcon} size={22} />
         </a>}
       </div>
     </header>

@@ -91,10 +91,20 @@ export default function TaskRow({
         dragProps ? 'task-sortable' : ''
       }`}
     >
-      <div className="task-card-heading">
-        <span className="task-card-marker" aria-hidden>
-          <MarkerIcon symbol={markerSymbol} color={colorToken} size={18} />
-        </span>
+      <button
+        type="button"
+        onClick={actions.onToggle}
+        className="task-card-check"
+        aria-label={completed ? '取消完成' : '完成'}
+      >
+        {completed ? (
+          <AppIcon name="check" size={16} weight="bold" />
+        ) : (
+          <MarkerIcon symbol={markerSymbol} color={colorToken} size={15} />
+        )}
+      </button>
+
+      <div className="task-card-copy">
         {editing ? (
           <input
             value={draft}
@@ -121,6 +131,14 @@ export default function TaskRow({
             </span>
           </button>
         )}
+        <span className={`task-card-meta ${overdue && !completed ? 'is-overdue' : ''}`}>
+          <AppIcon name="clock" size={14} />
+          <span>{subtitle || '今天'}</span>
+        </span>
+      </div>
+
+      <div className="task-card-tail">
+        {completed && <span className="task-card-done-label">已完成</span>}
         <button
           type="button"
           aria-label="任务操作"
@@ -128,23 +146,7 @@ export default function TaskRow({
           onClick={() => setMenuOpen((open) => !open)}
           className="task-card-open"
         >
-          <AppIcon name="arrowUpRight" size={24} />
-        </button>
-      </div>
-
-      <div className="task-card-footer">
-        <span className={`task-card-meta ${overdue && !completed ? 'is-overdue' : ''}`}>
-          <AppIcon name="clock" size={17} />
-          <span>{subtitle || '今天'}</span>
-        </span>
-        <button
-          type="button"
-          onClick={actions.onToggle}
-          className="task-card-status"
-          aria-label={completed ? '取消完成' : '完成'}
-        >
-          {completed && <AppIcon name="check" size={15} weight="bold" />}
-          <span>{completed ? '已完成' : '标记完成'}</span>
+          <AppIcon name="more" size={24} weight="bold" />
         </button>
       </div>
 
