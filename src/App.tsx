@@ -22,10 +22,10 @@ import { db } from './lib/db'
 import MarkerIcon from './components/MarkerIcon'
 
 const TABS = [
-  { to: '/today', label: '任务', icon: 'today', tone: 'task' },
+  { to: '/today', label: '任务', icon: 'home', tone: 'task' },
   { to: '/plan', label: '计划', icon: 'calendar', tone: 'plan' },
   { to: '/shopping', label: '购物', icon: 'shopping', tone: 'shopping' },
-  { to: '/browse', label: '浏览', icon: 'browse', tone: 'browse' },
+  { to: '/browse', label: '浏览', icon: 'people', tone: 'browse' },
 ] as const
 
 const LAST_ROUTE_KEY = 'lastRoute'
@@ -38,6 +38,7 @@ export default function App() {
   const navigate = useNavigate()
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [keyboardOpen, setKeyboardOpen] = useState(false)
+  const mainRef = useRef<HTMLElement>(null)
   const prefs = useLiveQuery(() => db.syncedPreferences.get('#prefs'), [])
   const activeTabIndex = TABS.findIndex((tab) => location.pathname === tab.to)
   const previousTabIndex = useRef(activeTabIndex)
@@ -62,6 +63,7 @@ export default function App() {
 
   useEffect(() => {
     localStorage.setItem(LAST_ROUTE_KEY, location.pathname)
+    mainRef.current?.scrollTo({ top: 0, left: 0, behavior: 'auto' })
   }, [location.pathname])
 
   useEffect(() => {
@@ -180,6 +182,7 @@ export default function App() {
             <li key={tab.to} className={`mobile-nav-item mobile-nav-item-${i} lg:w-full`}>
               <NavLink
                 to={tab.to}
+                aria-label={tab.label}
                 data-tone={tab.tone}
                 data-active={location.pathname === tab.to}
                 className={({ isActive }) =>
@@ -238,6 +241,7 @@ export default function App() {
       </nav>
 
       <main
+        ref={mainRef}
         data-keyboard-open={keyboardOpen}
         className={`safe-top flex-1 overflow-y-auto ${
           keyboardOpen ? 'pb-5' : 'pb-24'

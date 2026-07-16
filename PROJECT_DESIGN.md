@@ -1,125 +1,98 @@
-# Task PWA — Reference-led product design system
+# Task PWA — measured reference specification
 
-## 1. Product context
+This document is an implementation contract derived from the supplied task,
+month-calendar, time-rail and desktop-calendar screenshots. It is not a mood
+board. Functional data flows remain independent from these visual projections.
 
-- Product: offline-first personal tasks, calendar, shopping list and completion archive.
-- Primary job: add, scan, complete and reschedule work quickly on a phone; plan across a larger calendar on desktop.
-- Required content: daily/weekly tasks, recurring state, calendar items, categories, shopping items, sync and backup states.
-- Required interaction: touch-first controls, long-press sorting, inline quick add, calendar editing without auto-focus, offline continuity.
-- Technical constraints: React 19, Tailwind 4 plus global CSS, Dexie/Dexie Cloud, Vite PWA, no destructive data reset.
+## Reference mapping
 
-## 2. Existing UI read
+- Mobile task list: reference image 3 (primary baseline).
+- Mobile month calendar: reference image 1.
+- Mobile selected-day time rail: reference image 2.
+- Desktop weekly calendar: wide reference image 7.
+- Desktop month grid: wide reference image 8.
+- Conflicts resolve in that order; existing data and accessibility behavior are
+  preserved even when a screenshot does not depict them.
 
-- Preserve: `#f7f7f8` light app background, `#1c1c1e` dark background, bottom navigation behavior, safe-area handling, keyboard viewport handling, page routes and all data workflows.
-- Reuse: PageHeader, TaskRow, editors, segmented controls, live Dexie queries, current category color tokens.
-- Evolve: the flat list-card vocabulary, narrow desktop container, page-specific but disconnected colors, tiny utility icons.
-- Remove: sharp/square operational surfaces, thin gray-on-gray hierarchy, desktop layout that only stretches the mobile page, one-off glyphs such as text crosses and arrows.
+## Measured mobile canvas
 
-## 3. Taste direction
+- Validation viewport: `390 × 844` CSS px.
+- Source phone frame: approximately `482 × 1042` inside the 1026 × 1280 image.
+- Page/card gutter: `12px` (`10px` below 360px).
+- Top round controls: `52px`; gap `12px`; profile/action radius `50%`.
+- Filter rail: `54px`; pills `52px`; radius `21px`; gap `8px`.
+- Task card: `134px` standard, `142px` charcoal feature; radius `30px`;
+  vertical gap `9px`; top action `58px`.
+- Task title: `22/28px`, weight 520–620 depending script rendering.
+- Card meta: `11px`; status capsule `42px` high, radius `18px`.
+- Bottom dock: `68px`, `12px` side gutter, `20px + safe-area` bottom inset,
+  radius `29px`; central action `56px`.
+- Month date circle: `36px`; 7 columns; 49px minimum row including one
+  visible task-title summary.
+- Week event: 66px minimum height, radius `24px`, 57px time-label rail.
 
-- Identity: a rounded, colorful personal planning tool with serious information hierarchy.
-- Direction: soft lilac/lime/aqua cards over neutral white, anchored by a charcoal navigation surface and rounded linear icons.
-- Avoid: glassmorphism, random color assignment, decorative dashboard filler, childish sticker-market visuals, one-radius-for-everything.
-- Distinctive: purposeful color families, large-radius task/event cards, small geometric category markers, high-contrast black primary actions.
-- Quiet: data storage, sync metadata, secondary labels and destructive controls.
+## Measured desktop canvas
 
-## 4. Reference synthesis
+- Validation viewports: `1440 × 1000` and `1728 × 1117`.
+- Persistent navigation rail: `280px`.
+- Main calendar uses the remaining width; selected-day details flow below the
+  calendar so the reference-sized seven-column board is not compressed.
+- Week time rail: `70px`; day header `72px`; hour interval `80px`; event radius
+  `21px`.
+- Month cells: `116px` minimum at 1180px and above, increasing at wider widths.
 
-### Mobile references 1–3 — primary
+## Color tokens
 
-- Transfer: charcoal floating bottom dock, white central action, 26–30px task cards, lime/lilac/charcoal task states, capsule filters, circular date states, generous 16–20px gutters.
-- Do not transfer: avatar/team concepts, fake review counts, decorative notches that reduce list density.
-- Substitution: recurring/status/category metadata replaces team/review content.
+Core measured roles:
 
-### Mobile references 4–5 — calendar and agenda
+- `--ref-charcoal: #282828`
+- `--ref-lime: #c8d67f`
+- `--ref-purple: #a7a0d3`
+- `--ref-neutral: #ededed`
+- `--ref-lavender-wash: #f0eefb`
+- App background remains the pre-redesign `#f7f7f8` to preserve the requested
+  product background while matching the reference surfaces and controls.
 
-- Transfer: clear time rail, soft-colored event blocks, black current-time marker, week strip, 16–22px event radius.
-- Substitution: untimed tasks live in an all-day rail; timed calendar events align to their local hour.
+Saved semantic colors remain `gray / blue / green / orange / pink / purple`.
+An explicit saved task/category color overrides the reference-sequence surface;
+records without a saved visual token use charcoal → lime → purple in list order.
 
-### Reference 6 — markers
+## Typography and icons
 
-- Transfer: a restrained set of flower/star/diamond/spark/squircle geometric markers.
-- Constraint: markers use the same six semantic color tokens and never carry random illustrations.
+- One system grotesk/CJK stack; no mixed display font.
+- Primary mobile headings: 21–22px; desktop page heading: 42px.
+- Body/input text: 16px minimum on mobile to avoid iOS focus zoom.
+- Phosphor Icons is the only operational icon source, regular/rounded line
+  weight; no emoji, inline SVG or text-symbol controls.
+- Decorative category markers use Phosphor fill icons through the same color
+  tokens.
 
-### Desktop references 7–8 — density
+## Component rules
 
-- Transfer: persistent navigation rail, expanded main calendar, clear view toolbar, large readable cells, selected-day side panel, dense but calm event chips.
-- Do not transfer: fake teams, profiles, search fields without real behavior, background photography.
+- Task list default state matches the supplied card composition: title top-left,
+  circular action top-right, time/type bottom-left, status capsule bottom-right.
+- Add composers are collapsed until the real add button is pressed. They keep
+  multiline batch input and do not alter stored data to produce the layout.
+- Calendar month cells retain a readable first task title because the product
+  requirement explicitly requires visible task summaries rather than dots.
+- Calendar task taps open the existing editor without auto-focusing a field.
+- Shopping location remains secondary and collapsed; item add/check efficiency
+  stays primary.
+- Touch targets are at least 44px; bottom/sheet surfaces include safe areas.
 
-## 5. Theme system
+## Motion
 
-All themes define a complete role set: background, surface, ink, muted, dock, primary, secondary, tertiary, task, plan, shopping, browse, success and border.
+- Press: 160–180ms, scale `.90–.96` depending control size.
+- Menu: 180ms, opacity + small scale/translation.
+- Composer/sheet: 260ms with `cubic-bezier(.16,.86,.26,1)`.
+- Page: 260–460ms transform/opacity; forward/back directions stay opposite.
+- Only `transform` and `opacity` animate during navigation and list feedback.
+- `prefers-reduced-motion` disables nonessential movement.
 
-1. `violet-lime` (default): lilac `#aaa3df`, lime `#c8dc7b`, ice `#d9eef1`, charcoal `#222421`.
-2. `aqua-garden`: aqua `#8bdde1`, leaf `#b8df8a`, violet `#c0b9e8`, deep green dock `#19302b`.
-3. `mono-green`: warm white/charcoal base with moss `#b8d36a`, sage `#dce8c5`, cool white cards.
-4. `soft-mix`: lilac, blush, butter and aqua over a warm-neutral canvas.
+## Visual QA contract
 
-Category and item colors remain symbolic (`gray`, `blue`, `green`, `orange`, `pink`, `purple`) so every saved choice remaps harmoniously when the global theme changes.
-
-## 6. Typography
-
-- Family: system-first rounded grotesk stack for reliable CJK rendering; no remote font dependency.
-- Page title: 30–36px mobile, 34–42px desktop, 650–700, tight tracking.
-- Section heading: 18–22px, 650.
-- Task/event title: 16–19px, 600.
-- Body: 15–16px, 1.4–1.55 line-height.
-- Labels: 12–13px, 500; never below 11px.
-- Dates and counts: tabular numerals.
-
-## 7. Component styling
-
-- Navigation dock: charcoal 24–28px radius, inset from phone edges, 68px content height plus safe area; round-line icons at 2px stroke; center add button is white/black.
-- Desktop navigation: 252px rail, neutral surface, rounded active rows; date/context card at top, settings/search at bottom.
-- Primary cards: 24px radius, no visible border, colored background; 16–18px internal padding.
-- Secondary containers: 20px radius, soft neutral fill, subtle 1px tinted border only when needed.
-- Inputs: 16–18px radius, 48px minimum height, neutral fill; focused ring uses theme primary.
-- Filters: 999px capsules, 44px minimum touch height.
-- Task rows: independent cards with category/item color, marker, title, compact metadata and round completion control.
-- Calendar cells: 14–18px radius on mobile; desktop month cells are large rectangular surfaces with readable event chips.
-- Editors: 26px mobile bottom sheet / 24px desktop panel; no input auto-focus.
-- Empty states: one geometric marker, direct text and optional single action; no invented metrics.
-
-## 8. Marker system
-
-- Shapes: `dot`, `flower`, `star`, `diamond`, `spark`, `squircle`.
-- Rendering: one reusable SVG/CSS component, rounded corners/joins, no emoji.
-- Color: only the theme-aware six-token palette.
-- Inheritance: task/event uses its own optional marker/color, otherwise category marker/color, otherwise page default.
-- Backward compatibility: existing records without marker or visual token render with deterministic defaults.
-
-## 9. Layout principles
-
-- Spacing scale: 4, 8, 12, 16, 20, 24, 32, 40.
-- Mobile gutters: 16px; narrow phones: 12px.
-- Desktop container: up to 1480px; content uses available space rather than a mobile-width column.
-- Desktop plan: calendar workspace plus 320–360px selected-day rail.
-- Mobile plan: month/week/agenda modes; week board horizontally scrolls rather than shrinking text.
-- Breakpoints: 640px form restructuring, 900px browse/layout changes, 1024px desktop shell, 1280px expanded calendar density.
-
-## 10. Motion and interaction
-
-- Hover/focus: 160–180ms; press scale 0.97–0.98.
-- Card/page entry: 280–360ms, 18–30ms limited stagger.
-- Sheets: 360ms mobile rise, 400ms desktop slide.
-- Use transform and opacity; no layout animation on every element.
-- Respect reduced motion and slow-update devices.
-- Minimum touch target: 44×44px.
-
-## 11. Implementation mapping
-
-- Core tokens/layout: `src/index.css`, `src/App.tsx`.
-- Themes: `src/lib/themes.ts`, `src/pages/Settings.tsx`, synced preferences.
-- Markers: `src/components/MarkerIcon.tsx`, category/task/event optional fields.
-- Icons: expand `src/components/AppIcon.tsx` and replace text glyph controls.
-- Task cards: `src/components/TaskRow.tsx`, `src/pages/Today.tsx`.
-- Calendar: `src/pages/Plan.tsx`, editors and event/task helpers.
-- Category customization: `src/pages/Browse.tsx`, `src/lib/categories.ts`.
-- Shopping: `src/pages/Shopping.tsx`.
-
-## 12. Evaluation plan
-
-- Build, lint and unit tests.
-- Browser checks at 320×568, 390×844, 430×932, 1024×768, 1440×1000 and 1728×1117.
-- Verify all four themes, marker/color persistence, long CJK titles, reduced motion, keyboard viewport and offline reload.
-- Re-run task recurrence, calendar editing, batch add, shopping, drag sorting and PWA update tests.
+- Capture with the in-app browser at the fixed reference viewport.
+- Put reference and implementation in a single side-by-side image, then inspect
+  spacing, proportion, card silhouette, type hierarchy and color area.
+- Repeat after P0/P1 fixes. Store evidence under `qa/screenshots/` and record the
+  final verdict in `design-qa.md`.

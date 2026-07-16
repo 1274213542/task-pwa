@@ -18,6 +18,7 @@ import {
   nextColorToken,
   nextMarkerSymbol,
 } from '../lib/themes'
+import MobilePageHeader from '../components/MobilePageHeader'
 
 function CategoryRow({ cat, taskCount }: { cat: Category; taskCount: number }) {
   const [editing, setEditing] = useState(false)
@@ -150,6 +151,13 @@ export default function Browse() {
 
   return (
     <section className="app-page page-browse">
+      <MobilePageHeader
+        title="Browse"
+        eyebrow="分类与记录"
+        onPrimary={() => { window.location.hash = '/settings' }}
+        primaryLabel="设置"
+        primaryIcon="settings"
+      />
       <PageHeader
         title="浏览"
         eyebrow="分类与记录"

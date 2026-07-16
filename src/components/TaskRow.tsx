@@ -6,21 +6,24 @@ import AppIcon from './AppIcon'
 export interface RowActions {
   onToggle: () => void
   onSkip?: () => void
-  onDelete: () => void // 删除（周期任务=整个系列）
-  onDeleteOnce?: () => void // 仅删除本次（周期任务，语义=跳过本期，决策表 #10）
+  onDelete: () => void
+  onDeleteOnce?: () => void
   onRename?: (title: string) => void
 }
 
+type FeatureTone = 'charcoal' | 'lime' | 'purple' | 'custom'
+
 /**
- * 通用任务行（投影渲染）。
- * 删除永不一次点击直达（v4.2 §10）：第一次点 ✕ 进入确认态，
- * 周期任务确认态给出「仅本次 / 删除系列」，3 秒无操作自动还原。
+ * Shared task surface. Data and task actions stay independent from the visual
+ * projection, so recurring templates and completion records are never mutated
+ * merely to reproduce the reference card layout.
  */
 export default function TaskRow({
   title,
   subtitle,
   colorToken = 'gray',
   markerSymbol = 'dot',
+  featureTone = 'custom',
   completed,
   overdue,
   actions,
@@ -35,22 +38,25 @@ export default function TaskRow({
   subtitle?: string
   colorToken?: ColorToken
   markerSymbol?: MarkerSymbol
+  featureTone?: FeatureTone
   completed: boolean
   overdue?: boolean
   actions: RowActions
-  liRef?: (el: HTMLLIElement | null) => void // dnd-kit sortable
+  liRef?: (el: HTMLLIElement | null) => void
   liStyle?: React.CSSProperties
   dragProps?: Record<string, unknown>
-  selected?: boolean // 桌面 ⌘click 多选态
+  selected?: boolean
   onMetaClick?: () => void
   dragging?: boolean
 }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(title)
+  const [menuOpen, setMenuOpen] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
 
   useEffect(() => () => clearTimeout(timer.current), [])
+  useEffect(() => setDraft(title), [title])
 
   function armDelete() {
     setConfirming(true)
@@ -60,11 +66,9 @@ export default function TaskRow({
 
   function commitRename() {
     setEditing(false)
-    if (actions.onRename && draft.trim() && draft.trim() !== title) {
-      actions.onRename(draft)
-    } else {
-      setDraft(title)
-    }
+    const next = draft.trim()
+    if (actions.onRename && next && next !== title) actions.onRename(next)
+    else setDraft(title)
   }
 
   return (
@@ -73,129 +77,137 @@ export default function TaskRow({
       style={liStyle}
       {...dragProps}
       data-color-token={colorToken}
+      data-feature-tone={featureTone}
       data-completed={completed || undefined}
+      data-overdue={overdue || undefined}
       data-dragging={dragging || undefined}
-      onClick={(e) => {
-        if ((e.metaKey || e.ctrlKey) && onMetaClick) {
-          e.preventDefault()
+      onClick={(event) => {
+        if ((event.metaKey || event.ctrlKey) && onMetaClick) {
+          event.preventDefault()
           onMetaClick()
         }
       }}
-      className={`task-card group row-in flex items-center gap-3 ${
-          selected ? 'is-selected' : ''
-        } ${dragProps ? 'task-sortable' : ''}`}
+      className={`task-card row-in ${selected ? 'is-selected' : ''} ${
+        dragProps ? 'task-sortable' : ''
+      }`}
     >
-      <button
-        aria-label={completed ? '取消完成' : '完成'}
-        onClick={actions.onToggle}
-        className="hit-target -ml-2.5 shrink-0 transition active:scale-95"
-      >
-        <span
-          className={`flex h-[24px] w-[24px] items-center justify-center rounded-full
-            border-[1.5px] ${
-              completed
-                ? 'task-check is-complete text-white'
-                : 'border-neutral-300 dark:border-neutral-600'
-            }`}
-        >
-          {completed && (
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
-              <path
-                className="check-path"
-                d="M2 6.5L4.5 9L10 3.5"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          )}
+      <div className="task-card-heading">
+        <span className="task-card-marker" aria-hidden>
+          <MarkerIcon symbol={markerSymbol} color={colorToken} size={18} />
         </span>
-      </button>
-
-      <span className="task-marker" aria-hidden>
-        <MarkerIcon symbol={markerSymbol} color={colorToken} size={27} />
-      </span>
-
-      <div className="min-w-0 flex-1">
         {editing ? (
           <input
-            autoFocus
             value={draft}
-            onChange={(e) => setDraft(e.target.value)}
+            aria-label="任务标题"
+            onChange={(event) => setDraft(event.target.value)}
             onBlur={commitRename}
-            onKeyDown={(e) => e.key === 'Enter' && commitRename()}
-            className="w-full bg-transparent text-[16px] outline-none"
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') commitRename()
+              if (event.key === 'Escape') {
+                setDraft(title)
+                setEditing(false)
+              }
+            }}
+            className="task-card-title-input"
           />
         ) : (
           <button
+            type="button"
             onClick={() => actions.onRename && setEditing(true)}
-            className="min-h-11 w-full truncate py-2 text-left text-[16px]"
+            className="task-card-title-button"
           >
-            <span
-              className={`strike ${completed ? 'text-neutral-400' : ''}`}
-              data-done={completed}
-            >
+            <span className="strike" data-done={completed}>
               {title}
             </span>
           </button>
         )}
-        {subtitle && (
-          <p
-            className={`task-card-meta flex items-center gap-1 truncate text-[12px] ${
-              overdue && !completed ? 'text-red-500' : 'text-neutral-400'
-            }`}
-          >
-            {subtitle}
-          </p>
-        )}
+        <button
+          type="button"
+          aria-label="任务操作"
+          aria-expanded={menuOpen}
+          onClick={() => setMenuOpen((open) => !open)}
+          className="task-card-open"
+        >
+          <AppIcon name="arrowUpRight" size={24} />
+        </button>
       </div>
 
-      {confirming ? (
-        <span className="flex shrink-0 items-center gap-1.5">
-          {actions.onDeleteOnce && (
+      <div className="task-card-footer">
+        <span className={`task-card-meta ${overdue && !completed ? 'is-overdue' : ''}`}>
+          <AppIcon name="clock" size={17} />
+          <span>{subtitle || '今天'}</span>
+        </span>
+        <button
+          type="button"
+          onClick={actions.onToggle}
+          className="task-card-status"
+          aria-label={completed ? '取消完成' : '完成'}
+        >
+          {completed && <AppIcon name="check" size={15} weight="bold" />}
+          <span>{completed ? '已完成' : '标记完成'}</span>
+        </button>
+      </div>
+
+      {menuOpen && (
+        <div className="task-card-menu" role="group" aria-label="任务操作菜单">
+          {actions.onRename && (
             <button
+              type="button"
               onClick={() => {
-                setConfirming(false)
-                actions.onDeleteOnce!()
+                setMenuOpen(false)
+                setEditing(true)
               }}
-              className="min-h-11 rounded-xl bg-neutral-500/10 px-2 text-[12px]
-                text-neutral-500"
             >
-              仅本次
+              <AppIcon name="edit" size={17} />
+              编辑
             </button>
           )}
-          <button
-            onClick={() => {
-              setConfirming(false)
-              actions.onDelete()
-            }}
-            className="min-h-11 rounded-xl bg-red-500 px-2 text-[12px] font-medium
-              text-white"
-          >
-            {actions.onDeleteOnce ? '删除系列' : '确认删除'}
-          </button>
-        </span>
-      ) : (
-        <>
           {actions.onSkip && !completed && (
             <button
-              onClick={actions.onSkip}
-              className="min-h-11 shrink-0 rounded-xl px-2 text-[12px] text-neutral-400
-                opacity-60 transition group-hover:opacity-100"
+              type="button"
+              onClick={() => {
+                setMenuOpen(false)
+                actions.onSkip?.()
+              }}
             >
-              跳过
+              <AppIcon name="chevronRight" size={17} />
+              跳过本期
             </button>
           )}
-          <button
-            aria-label="删除"
-            onClick={armDelete}
-            className="hit-target -mr-2 shrink-0 rounded-full text-neutral-300 opacity-60
-              transition group-hover:opacity-100 dark:text-neutral-600"
-          >
-            <AppIcon name="close" size={19} />
-          </button>
-        </>
+          {confirming ? (
+            <>
+              {actions.onDeleteOnce && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false)
+                    setConfirming(false)
+                    actions.onDeleteOnce?.()
+                  }}
+                >
+                  仅删除本次
+                </button>
+              )}
+              <button
+                type="button"
+                className="is-danger"
+                onClick={() => {
+                  setMenuOpen(false)
+                  setConfirming(false)
+                  actions.onDelete()
+                }}
+              >
+                <AppIcon name="trash" size={17} />
+                {actions.onDeleteOnce ? '删除系列' : '确认删除'}
+              </button>
+            </>
+          ) : (
+            <button type="button" className="is-danger" onClick={armDelete}>
+              <AppIcon name="trash" size={17} />
+              删除
+            </button>
+          )}
+        </div>
       )}
     </li>
   )

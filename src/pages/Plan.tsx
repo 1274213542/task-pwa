@@ -26,6 +26,7 @@ import TaskEditor, { type EditableTaskStatus } from '../components/TaskEditor'
 import PageHeader from '../components/PageHeader'
 import AppIcon from '../components/AppIcon'
 import MarkerIcon from '../components/MarkerIcon'
+import { FOCUS_QUICK_ADD_EVENT } from '../App'
 
 const WEEK_LABELS_MON = ['一', '二', '三', '四', '五', '六', '日']
 const WEEK_LABELS_SUN = ['日', '一', '二', '三', '四', '五', '六']
@@ -65,9 +66,16 @@ export default function Plan() {
   >(null)
   const [feedback, setFeedback] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [composerOpen, setComposerOpen] = useState(false)
   const submittingRef = useRef(false)
   const dayPanelRef = useRef<HTMLDivElement>(null)
   const weekBoardRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const openComposer = () => setComposerOpen(true)
+    window.addEventListener(FOCUS_QUICK_ADD_EVENT, openComposer)
+    return () => window.removeEventListener(FOCUS_QUICK_ADD_EVENT, openComposer)
+  }, [])
 
   const prefs = useLiveQuery(() => db.syncedPreferences.get('#prefs'), [])
   const weekStartsOn = (prefs?.weekStartsOn ?? 1) as 1 | 0
@@ -136,6 +144,12 @@ export default function Plan() {
   function switchMode(next: PlanMode) {
     setMode(next)
     localStorage.setItem('planMode', next)
+    window.requestAnimationFrame(() => {
+      document.querySelector<HTMLElement>('.app-shell main')?.scrollTo({
+        top: 0,
+        behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+      })
+    })
   }
 
   async function guarded(fn: () => Promise<void>) {
@@ -335,8 +349,13 @@ export default function Plan() {
     )
   }
 
-  function itemRow(item: CalItem) {
+  function itemRow(item: CalItem, index = 0) {
     const visual = itemVisual(item)
+    const source = item.kind === 'event' ? item.event : item.task
+    const sourceCategory = source.categoryId ? catMap.get(source.categoryId) : undefined
+    const featureTone = source.visualToken || sourceCategory?.colorToken
+      ? 'custom'
+      : (['lime', 'purple', 'charcoal'] as const)[index % 3]
     const resolved = item.kind === 'task' && (item.completed || item.skipped)
     const categoryId = item.kind === 'event' ? item.event.categoryId : item.task.categoryId
     const category = categoryId ? catMap.get(categoryId) : undefined
@@ -353,6 +372,7 @@ export default function Plan() {
       <li
         key={`${item.kind}:${item.kind === 'event' ? item.event.id : item.task.id}:${item.date}:${item.kind === 'task' ? item.occurrenceKey : ''}`}
         data-color-token={visual.color}
+        data-feature-tone={featureTone}
         data-resolved={resolved || undefined}
         className="calendar-item-card row-in"
       >
@@ -406,10 +426,20 @@ export default function Plan() {
             <p>当天安排</p>
             <h2>{dateLabel(selected, { month: 'long', day: 'numeric', weekday: 'long' })}</h2>
           </div>
-          <span>{selectedItems.length} 项</span>
+          <div className="day-panel-heading-actions">
+            <span>{selectedItems.length} 项</span>
+            <button
+              type="button"
+              aria-label={composerOpen ? '收起新增' : '在选中日期新增'}
+              aria-expanded={composerOpen}
+              onClick={() => setComposerOpen((open) => !open)}
+            >
+              <AppIcon name={composerOpen ? 'close' : 'plus'} size={20} />
+            </button>
+          </div>
         </div>
 
-        <div className="calendar-composer quick-card">
+        {composerOpen && <div className="calendar-composer quick-card">
           <textarea
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
@@ -462,7 +492,7 @@ export default function Plan() {
               <AppIcon name="plus" size={22} />
             </button>
           </div>
-        </div>
+        </div>}
         <p role="status" className="calendar-feedback">{feedback}</p>
         {selectedItems.length > 0 ? (
           <ul className="calendar-item-list">{selectedItems.map(itemRow)}</ul>
@@ -477,7 +507,34 @@ export default function Plan() {
   )
 
   return (
-    <section className="app-page page-plan">
+    <section className="app-page page-plan" data-mode={mode}>
+      <header className="plan-mobile-header">
+        <div className="plan-mobile-profile">
+          <img src={`${import.meta.env.BASE_URL}icons/icon-192.png`} alt="" />
+        </div>
+        <h1>Task Schedule</h1>
+        <a href="#/settings" aria-label="同步和提醒设置" className="plan-mobile-bell">
+          <AppIcon name="bell" size={24} />
+          <span aria-hidden />
+        </a>
+      </header>
+      <div className="plan-mobile-mode-switch" role="tablist" aria-label="视图模式">
+        {([
+          ['month', 'month', '月历'],
+          ['week', 'week', '时间'],
+          ['agenda', 'list', '日程'],
+        ] as const).map(([value, icon, label]) => (
+          <button
+            key={value}
+            role="tab"
+            aria-selected={mode === value}
+            onClick={() => switchMode(value)}
+          >
+            <AppIcon name={icon} size={18} />
+            <span>{label}</span>
+          </button>
+        ))}
+      </div>
       <PageHeader
         title="计划"
         eyebrow="日历与安排"
@@ -531,7 +588,64 @@ export default function Plan() {
                 <div className="calendar-month-grid">{grid.map(dayCell)}</div>
               </div>
             ) : (
-              <div ref={weekBoardRef} className="week-board-shell">
+              <>
+              <div className="mobile-week-timeline" aria-label={`${weekLabel} 时间安排`}>
+                <div className="mobile-week-strip">
+                  {weekDates.map((date, index) => (
+                    <button
+                      key={date}
+                      type="button"
+                      data-selected={date === selected || undefined}
+                      data-today={date === todayISO || undefined}
+                      onClick={() => selectDay(date)}
+                    >
+                      <span>{weekLabels[index]}</span>
+                      <strong>{Number(date.slice(8))}</strong>
+                    </button>
+                  ))}
+                </div>
+                <div className="mobile-timeline-list">
+                  {selectedItems.length > 0 ? selectedItems.map((item, index) => {
+                    const visual = itemVisual(item)
+                    const source = item.kind === 'event' ? item.event : item.task
+                    const category = source.categoryId ? catMap.get(source.categoryId) : undefined
+                    const featureTone = source.visualToken || category?.colorToken
+                      ? 'custom'
+                      : (['lime', 'purple', 'charcoal'] as const)[index % 3]
+                    const resolved = item.kind === 'task' && (item.completed || item.skipped)
+                    const time = itemTime(item) ?? `${String(8 + index).padStart(2, '0')}:00`
+                    return (
+                      <div
+                        key={`${item.kind}:${item.kind === 'event' ? item.event.id : item.task.id}:${item.date}:${index}`}
+                        className="mobile-timeline-row"
+                      >
+                        <time>{time}</time>
+                        <button
+                          type="button"
+                          data-color-token={visual.color}
+                          data-feature-tone={featureTone}
+                          data-resolved={resolved || undefined}
+                          className="mobile-timeline-event"
+                          onClick={() => openItem(item)}
+                        >
+                          <strong>{itemTitle(item)}</strong>
+                          <span>{item.kind === 'event' ? (itemTime(item) ? `${itemTime(item)} 开始` : '全天计划') : '任务'}</span>
+                          <MarkerIcon symbol={visual.marker} color={visual.color} size={17} />
+                        </button>
+                      </div>
+                    )
+                  }) : (
+                    <div className="mobile-timeline-empty">选择上方日期或添加新安排</div>
+                  )}
+                </div>
+              </div>
+              <div ref={weekBoardRef} className="week-board-shell desktop-week-board">
+                <div className="desktop-week-time-rail" aria-hidden>
+                  <span />
+                  {['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00'].map((time) => (
+                    <time key={time}>{time}</time>
+                  ))}
+                </div>
                 <div className="week-board" role="grid" aria-label={weekLabel}>
                   {weekDates.map((date, index) => {
                     const items = byDay?.get(date) ?? []
@@ -547,15 +661,21 @@ export default function Plan() {
                           <strong data-today={date === todayISO || undefined}>{Number(date.slice(8))}</strong>
                         </button>
                         <div className="week-column-items">
-                          {items.map((item) => {
+                          {items.map((item, itemIndex) => {
                             const visual = itemVisual(item)
                             const resolved = item.kind === 'task' && (item.completed || item.skipped)
+                            const time = itemTime(item)
+                            const [hour = 8, minute = 0] = time
+                              ? time.split(':').map(Number)
+                              : [8 + itemIndex, 0]
+                            const top = Math.max(0, (hour - 8) * 80 + (minute / 60) * 80)
                             return (
                               <button
                                 key={`${item.kind}:${item.kind === 'event' ? item.event.id : item.task.id}:${item.date}:${item.kind === 'task' ? item.occurrenceKey : ''}`}
                                 data-color-token={visual.color}
                                 data-resolved={resolved || undefined}
                                 className="week-event"
+                                style={{ '--week-event-top': `${top}px` } as React.CSSProperties}
                                 onClick={() => {
                                   selectDay(date)
                                   openItem(item)
@@ -574,6 +694,7 @@ export default function Plan() {
                   })}
                 </div>
               </div>
+              </>
             )}
           </div>
           {dayPanel}

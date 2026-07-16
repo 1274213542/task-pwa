@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
   DndContext,
@@ -54,7 +54,6 @@ import TaskRow from '../components/TaskRow'
 import AppIcon from '../components/AppIcon'
 import MarkerIcon from '../components/MarkerIcon'
 import RecurrencePicker from '../components/RecurrencePicker'
-import PageHeader from '../components/PageHeader'
 import {
   defaultFixedRecurrence,
   taskScopeOf,
@@ -72,6 +71,16 @@ interface TodayItem {
   overdue: boolean
   conflict?: string
   subtitle?: string
+}
+
+type TaskRowProjectionExtra = {
+  liRef?: (el: HTMLLIElement | null) => void
+  liStyle?: React.CSSProperties
+  dragProps?: Record<string, unknown>
+  dragging?: boolean
+  featureTone?: 'charcoal' | 'lime' | 'purple'
+  selected?: boolean
+  onMetaClick?: () => void
 }
 
 function buildItems(
@@ -218,11 +227,13 @@ function buildItems(
 function SortablePendingRow({
   item,
   row,
+  index,
   selected,
   onMetaClick,
 }: {
   item: TodayItem
-  row: (item: TodayItem, extra?: object) => React.ReactNode
+  row: (item: TodayItem, extra?: TaskRowProjectionExtra) => React.ReactNode
+  index: number
   selected: boolean
   onMetaClick: () => void
 }) {
@@ -237,6 +248,7 @@ function SortablePendingRow({
     },
     dragProps: { ...attributes, ...listeners },
     dragging: isDragging,
+    featureTone: (['charcoal', 'lime', 'purple'] as const)[index % 3],
     selected,
     onMetaClick,
   })
@@ -252,12 +264,14 @@ export default function Today() {
   const [fixed, setFixed] = useState(false)
   const [feedback, setFeedback] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [composerOpen, setComposerOpen] = useState(false)
   const [showDone, setShowDone] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null)
   // 完成感窗口（v4.2 §12）：勾选后原地保留 ~800ms 展示动画，再按策略归置
   const [recentlyDone, setRecentlyDone] = useState<Set<string>>(new Set())
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const filterRef = useRef<HTMLDivElement>(null)
   const submittingRef = useRef(false)
 
   function holdInPlace(itemKey: string) {
@@ -282,10 +296,20 @@ export default function Today() {
 
   // ⌘N：聚焦快速添加（App 层广播）
   useEffect(() => {
-    const focus = () => inputRef.current?.focus()
+    const focus = () => {
+      setComposerOpen(true)
+      window.requestAnimationFrame(() => inputRef.current?.focus())
+    }
     window.addEventListener(FOCUS_QUICK_ADD_EVENT, focus)
     return () => window.removeEventListener(FOCUS_QUICK_ADD_EVENT, focus)
   }, [])
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      filterRef.current?.scrollTo({ left: 0, behavior: 'auto' })
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [scope])
 
   const tasks = useLiveQuery(
     () => db.tasks.where('lifecycleStatus').equals('active').sortBy('rank'),
@@ -344,6 +368,8 @@ export default function Today() {
       )
       setTitle('')
       setCategoryId('')
+      setComposerOpen(false)
+      inputRef.current?.blur()
       setFeedback(count > 1 ? `已添加 ${count} 个任务` : '任务已添加')
       window.setTimeout(() => setFeedback(''), 2200)
     } catch (reason) {
@@ -415,7 +441,10 @@ export default function Today() {
     }
   }
 
-  function rowFor(item: TodayItem, extra: object = {}) {
+  function rowFor(
+    item: TodayItem,
+    extra: TaskRowProjectionExtra = {},
+  ) {
     const cat = item.task.categoryId ? catMap.get(item.task.categoryId) : undefined
     const catText = cat ? cat.name : undefined
     const subtitle =
@@ -434,6 +463,11 @@ export default function Today() {
           item.task.markerSymbol ??
           cat?.markerSymbol ??
           (item.kind === 'single' ? 'dot' : 'spark')
+        }
+        featureTone={
+          item.task.visualToken || cat?.colorToken
+            ? 'custom'
+            : extra.featureTone ?? (item.completed ? 'custom' : 'lime')
         }
         completed={item.completed}
         overdue={item.overdue}
@@ -511,33 +545,67 @@ export default function Today() {
 
   return (
     <section className="app-page page-tasks" data-scope={scope}>
-      <PageHeader
-        title="任务"
-        eyebrow={scope === 'daily' ? dateLabel : `本周 ${weeklyRangeLabel}`}
-        actions={<div
-          role="tablist"
-          aria-label="任务周期"
-          className="segmented-control flex rounded-xl bg-black/5 p-0.5 text-[13px] dark:bg-white/10"
-        >
-          {(['daily', 'weekly'] as const).map((value) => (
+      <h1 className="sr-only">任务</h1>
+      <header className="task-mobile-toolbar">
+        <div className="task-profile" aria-label="Task Schedule">
+          <img src={`${import.meta.env.BASE_URL}icons/icon-192.png`} alt="" />
+        </div>
+        <div className="task-mobile-actions">
+          <button
+            type="button"
+            aria-label={composerOpen ? '收起新增任务' : '新增任务'}
+            aria-expanded={composerOpen}
+            onClick={() => setComposerOpen((open) => !open)}
+            className="task-round-action task-round-action-primary"
+          >
+            <AppIcon name={composerOpen ? 'close' : 'plus'} size={28} />
+          </button>
+          <a
+            href="#/settings"
+            aria-label="同步和提醒设置"
+            className="task-round-action task-round-action-bell"
+          >
+            <AppIcon name="bell" size={25} />
+            <span className="task-alert-dot" aria-hidden />
+          </a>
+        </div>
+      </header>
+
+      <div className="task-filter-shell">
+        <span className="task-filter-icon" aria-hidden>
+          <AppIcon name="filter" size={22} />
+        </span>
+        <div ref={filterRef} className="task-filter-rail" role="tablist" aria-label="任务周期">
+        {(['daily', 'weekly'] as const).map((value) => {
+          const count = value === scope ? pending.length + done.length : undefined
+          return (
             <button
               key={value}
               role="tab"
               aria-selected={scope === value}
               onClick={() => switchScope(value)}
-              className={`min-h-11 rounded-[10px] px-3.5 font-medium transition ${
-                scope === value
-                  ? 'is-active bg-white text-neutral-900 shadow-sm dark:bg-neutral-700 dark:text-white'
-                  : 'text-neutral-500'
-              }`}
+              className="task-filter-pill"
             >
-              {value === 'daily' ? '每日' : '每周'}
+              <span>{value === 'daily' ? '每日任务' : '每周任务'}</span>
+              <strong>{count ?? '·'}</strong>
             </button>
-          ))}
-        </div>}
-      />
+          )
+        })}
+        <span className="task-fixed-pill">
+          <AppIcon name="sync" size={17} />
+          固定任务 {items?.filter((item) => item.kind !== 'single').length ?? 0}
+        </span>
+        </div>
+      </div>
 
-      <div className="quick-card mt-4 rounded-2xl bg-white/70 p-2 shadow-sm ring-1 ring-black/5 dark:bg-neutral-800/70 dark:ring-white/5">
+      <div
+        className="task-date-context"
+        aria-label={scope === 'daily' ? dateLabel : `本周 ${weeklyRangeLabel}`}
+      >
+        <span>{scope === 'daily' ? dateLabel : `本周 ${weeklyRangeLabel}`}</span>
+      </div>
+
+      {composerOpen && <div className="quick-card task-composer-card rounded-2xl bg-white/70 p-2 shadow-sm ring-1 ring-black/5 dark:bg-neutral-800/70 dark:ring-white/5">
         <div className="flex items-center gap-2">
           <textarea
             ref={inputRef}
@@ -611,7 +679,7 @@ export default function Today() {
             </>
           )}
         </div>
-      </div>
+      </div>}
       <p role="status" className="min-h-5 px-2 pt-1 text-[12px] text-neutral-500">
         {feedback}
       </p>
@@ -637,15 +705,38 @@ export default function Today() {
                 items={pending.map((p) => p.task.id)}
                 strategy={verticalListSortingStrategy}
               >
-                <ul className="task-card-list mt-4">
-                  {pending.map((item) => (
-                    <SortablePendingRow
-                      key={`${item.task.id}:${item.occurrenceKey}`}
-                      item={item}
-                      row={rowFor}
-                      selected={selectedIds.has(item.task.id)}
-                      onMetaClick={() => toggleSelect(item.task.id)}
-                    />
+                <ul className="task-card-list task-feature-list">
+                  {pending.map((item, index) => (
+                    <Fragment key={`${item.task.id}:${item.occurrenceKey}`}>
+                      <SortablePendingRow
+                        item={item}
+                        row={rowFor}
+                        index={index}
+                        selected={selectedIds.has(item.task.id)}
+                        onMetaClick={() => toggleSelect(item.task.id)}
+                      />
+                      {index === 0 && pending.length > 1 && (
+                        <li className="task-progress-card" aria-label={`当前周期已完成 ${done.length} 项，共 ${items?.length ?? 0} 项`}>
+                          <div className="task-progress-summary">
+                            <span className="task-progress-markers" aria-hidden>
+                              <MarkerIcon symbol="flower" color="green" size={24} />
+                              <MarkerIcon symbol="diamond" color="purple" size={24} />
+                              <MarkerIcon symbol="spark" color="blue" size={24} />
+                            </span>
+                            <strong>{pending.length}</strong>
+                            <span>进行中</span>
+                          </div>
+                          <div className="task-progress-track" aria-hidden>
+                            <span
+                              style={{
+                                width: `${Math.round((done.length / Math.max(items?.length ?? 1, 1)) * 100)}%`,
+                              }}
+                            />
+                          </div>
+                          <p>{done.length > 0 ? `已完成 ${done.length} 项` : '保持节奏，完成第一项吧'}</p>
+                        </li>
+                      )}
+                    </Fragment>
                   ))}
                 </ul>
               </SortableContext>

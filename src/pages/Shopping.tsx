@@ -15,6 +15,8 @@ import PageHeader from '../components/PageHeader'
 import AppIcon from '../components/AppIcon'
 import MarkerIcon from '../components/MarkerIcon'
 import type { ColorToken } from '../lib/db'
+import MobilePageHeader from '../components/MobilePageHeader'
+import { FOCUS_QUICK_ADD_EVENT } from '../App'
 
 const SHOPPING_TONES: ColorToken[] = ['green', 'blue', 'purple', 'orange', 'pink']
 
@@ -52,16 +54,7 @@ function ItemRow({
             }`}
         >
           {purchased && (
-            <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden>
-              <path
-                className="check-path"
-                d="M2 6.5L4.5 9L10 3.5"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
+            <AppIcon name="check" size={13} weight="bold" />
           )}
         </span>
       </button>
@@ -227,6 +220,8 @@ export default function Shopping() {
   const [showHistory, setShowHistory] = useState(false)
   const [feedback, setFeedback] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [composerOpen, setComposerOpen] = useState(false)
+  const nameRef = useRef<HTMLTextAreaElement>(null)
   const submittingRef = useRef(false)
 
   const items = useLiveQuery(
@@ -250,6 +245,15 @@ export default function Shopping() {
   const purchased = (items ?? [])
     .filter((i) => i.purchaseStatus === 'purchased')
     .sort((a, b) => (b.purchasedAt ?? '').localeCompare(a.purchasedAt ?? ''))
+
+  useEffect(() => {
+    const openComposer = () => {
+      setComposerOpen(true)
+      window.requestAnimationFrame(() => nameRef.current?.focus())
+    }
+    window.addEventListener(FOCUS_QUICK_ADD_EVENT, openComposer)
+    return () => window.removeEventListener(FOCUS_QUICK_ADD_EVENT, openComposer)
+  }, [])
 
   // 频次建议：输入同名商品时按已购历史自动预选地点（手动选择优先）
   useEffect(() => {
@@ -275,6 +279,8 @@ export default function Shopping() {
       })
       setName('')
       setQty('')
+      setComposerOpen(false)
+      nameRef.current?.blur()
       setManualLocation(false)
       setLocationId('')
       setFeedback(count > 1 ? `已添加 ${count} 件商品` : '商品已添加')
@@ -319,6 +325,23 @@ export default function Shopping() {
 
   return (
     <section className="app-page page-shopping">
+      <MobilePageHeader
+        title="Shopping List"
+        eyebrow={`${pending.length} 件待购`}
+        onPrimary={() => setComposerOpen((open) => !open)}
+        primaryLabel={composerOpen ? '收起新增商品' : '新增商品'}
+        primaryIcon={composerOpen ? 'close' : 'plus'}
+      />
+      <div className="mobile-shopping-view-switch" role="tablist" aria-label="清单视图">
+        <button role="tab" aria-selected={grouped} onClick={() => switchGrouped(true)}>
+          <AppIcon name="category" size={18} />
+          按地点
+        </button>
+        <button role="tab" aria-selected={!grouped} onClick={() => switchGrouped(false)}>
+          <AppIcon name="list" size={18} />
+          平铺
+        </button>
+      </div>
       <PageHeader
         title="购物"
         eyebrow={`${pending.length} 件待购`}
@@ -350,10 +373,11 @@ export default function Shopping() {
         </div>}
       />
 
-      <div className="quick-card mt-4 rounded-2xl bg-white/70 p-2 shadow-sm
+      {composerOpen && <div className="quick-card shopping-composer-card mt-4 rounded-2xl bg-white/70 p-2 shadow-sm
         ring-1 ring-black/5 dark:bg-neutral-800/70 dark:ring-white/5">
         <div className="shopping-composer-row flex items-center gap-2">
           <textarea
+          ref={nameRef}
           value={name}
           onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => {
@@ -411,7 +435,7 @@ export default function Shopping() {
             </select>
           </div>
         )}
-      </div>
+      </div>}
       <p role="status" className="min-h-5 px-2 pt-1 text-[12px] text-neutral-500">
         {feedback}
       </p>

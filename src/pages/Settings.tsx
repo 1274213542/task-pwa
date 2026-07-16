@@ -10,6 +10,7 @@ import AppIcon from '../components/AppIcon'
 import { UI_THEMES } from '../lib/themes'
 import type { UIThemeId } from '../lib/db'
 import { COLOR_TOKEN_ORDER } from '../lib/themes'
+import MobilePageHeader from '../components/MobilePageHeader'
 
 function downloadJson(json: string, filename: string) {
   const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }))
@@ -101,6 +102,12 @@ export default function Settings() {
 
   return (
     <section className="app-page page-settings">
+      <MobilePageHeader
+        title="Settings"
+        eyebrow="数据与偏好"
+        backHref="#/browse"
+        showSecondary={false}
+      />
       <PageHeader
         title="设置"
         eyebrow="数据与偏好"
