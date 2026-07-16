@@ -1,19 +1,21 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Temporal } from 'temporal-polyfill'
-import { db } from '../lib/db'
+import { db, type CalendarEvent, type TaskScope } from '../lib/db'
 import { type CalItem, buildCalendarItems, monthGrid } from '../lib/calendar'
 import { todayLocalISO } from '../lib/dates'
 import { COLOR_TOKENS } from '../lib/categories'
 import { addEvent, softDeleteEvent } from '../lib/events'
 import {
   RecurrenceConflictError,
-  addTask,
+  addTasks,
   completeFixedOccurrence,
   completeTask,
   resolveAfterCompletion,
   voidRecord,
 } from '../lib/tasks'
+import { parseBatchLines } from '../lib/batch'
+import EventEditor from '../components/EventEditor'
 
 const WEEK_LABELS_MON = ['一', '二', '三', '四', '五', '六', '日']
 const WEEK_LABELS_SUN = ['日', '一', '二', '三', '四', '五', '六']
@@ -30,6 +32,11 @@ export default function Plan() {
   const [draft, setDraft] = useState('')
   const [draftKind, setDraftKind] = useState<'event' | 'task'>('event')
   const [draftTime, setDraftTime] = useState('')
+  const [draftScope, setDraftScope] = useState<TaskScope>('daily')
+  const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null)
+  const [feedback, setFeedback] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const submittingRef = useRef(false)
 
   const prefs = useLiveQuery(() => db.syncedPreferences.get('#prefs'), [])
   const weekStartsOn = (prefs?.weekStartsOn ?? 1) as 1 | 0
@@ -100,14 +107,31 @@ export default function Plan() {
   }
 
   async function submitDraft() {
-    if (!draft.trim()) return
-    if (draftKind === 'event') {
-      await addEvent({ title: draft, date: selected, time: draftTime || undefined })
-    } else {
-      await addTask(draft, undefined, undefined, selected)
+    if (!draft.trim() || submittingRef.current) return
+    submittingRef.current = true
+    setSubmitting(true)
+    setFeedback('')
+    try {
+      const lines = parseBatchLines(draft)
+      if (draftKind === 'event') {
+        for (const title of lines) {
+          await addEvent({ title, date: selected, time: draftTime || undefined })
+        }
+      } else {
+        await addTasks(lines, undefined, undefined, selected, draftScope)
+      }
+      setDraft('')
+      setDraftTime('')
+      const noun = draftKind === 'event' ? '计划' : '任务'
+      setFeedback(lines.length > 1 ? `已添加 ${lines.length} 个${noun}` : `${noun}已添加`)
+      window.setTimeout(() => setFeedback(''), 2200)
+    } catch (reason) {
+      console.error('添加计划失败', reason)
+      setFeedback(reason instanceof Error ? reason.message : '添加失败，请重试')
+    } finally {
+      submittingRef.current = false
+      setSubmitting(false)
     }
-    setDraft('')
-    setDraftTime('')
   }
 
   const monthLabel = `${cursor.year} 年 ${cursor.month} 月`
@@ -201,17 +225,20 @@ export default function Plan() {
             className="h-4 w-1 shrink-0 rounded-full"
             style={{ background: cat ? COLOR_TOKENS[cat.colorToken] : '#ff9500' }}
           />
-          <div className="min-w-0 flex-1">
+          <button
+            onClick={() => setEditingEvent(ev)}
+            className="min-h-11 min-w-0 flex-1 py-1 text-left"
+          >
             <p className="truncate text-[15px]">{ev.title}</p>
             <p className="text-[12px] text-neutral-400">
               {time ?? '全天'}
               {span && ` · ${span}`}
             </p>
-          </div>
+          </button>
           <button
             aria-label="删除事项"
             onClick={() => void softDeleteEvent(ev.id)}
-            className="shrink-0 px-2 text-neutral-300 dark:text-neutral-600"
+            className="hit-target -mr-2 shrink-0 text-neutral-300 dark:text-neutral-600"
           >
             ✕
           </button>
@@ -229,25 +256,29 @@ export default function Plan() {
         <button
           aria-label={completed ? '取消完成' : '完成'}
           onClick={() => toggleItem(item)}
-          className={`flex h-[20px] w-[20px] shrink-0 items-center justify-center
-            rounded-full border-[1.5px] transition active:scale-90 ${
-              completed
-                ? 'border-[#007aff] bg-[#007aff] text-white'
-                : 'border-neutral-300 dark:border-neutral-600'
-            }`}
+          className="hit-target -ml-2.5 shrink-0 transition active:scale-95"
         >
-          {completed && (
-            <svg width="10" height="10" viewBox="0 0 12 12" fill="none" aria-hidden>
-              <path
-                className="check-path"
-                d="M2 6.5L4.5 9L10 3.5"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          )}
+          <span
+            className={`flex h-[22px] w-[22px] items-center justify-center rounded-full
+              border-[1.5px] ${
+                completed
+                  ? 'border-[#007aff] bg-[#007aff] text-white'
+                  : 'border-neutral-300 dark:border-neutral-600'
+              }`}
+          >
+            {completed && (
+              <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden>
+                <path
+                  className="check-path"
+                  d="M2 6.5L4.5 9L10 3.5"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            )}
+          </span>
         </button>
         <div className="min-w-0 flex-1">
           <p
@@ -293,7 +324,7 @@ export default function Plan() {
               role="tab"
               aria-selected={mode === m}
               onClick={() => switchMode(m)}
-              className={`rounded-md px-3 py-1 transition ${
+              className={`min-h-11 rounded-md px-3 py-1 transition ${
                 mode === m
                   ? 'bg-white shadow-sm dark:bg-neutral-700'
                   : 'text-neutral-500'
@@ -313,7 +344,7 @@ export default function Plan() {
               <button
                 aria-label="上个月"
                 onClick={() => setCursor(cursor.subtract({ months: 1 }))}
-                className="rounded-lg px-2.5 py-1 text-lg active:bg-black/5"
+                className="hit-target rounded-xl text-xl active:bg-black/5"
               >
                 ‹
               </button>
@@ -322,14 +353,14 @@ export default function Plan() {
                   setCursor(Temporal.PlainDate.from(todayISO).with({ day: 1 }))
                   setSelected(todayISO)
                 }}
-                className="rounded-lg px-2 py-1 text-[13px] active:bg-black/5"
+                className="hit-target rounded-xl text-[13px] active:bg-black/5"
               >
                 今天
               </button>
               <button
                 aria-label="下个月"
                 onClick={() => setCursor(cursor.add({ months: 1 }))}
-                className="rounded-lg px-2.5 py-1 text-lg active:bg-black/5"
+                className="hit-target rounded-xl text-xl active:bg-black/5"
               >
                 ›
               </button>
@@ -360,20 +391,27 @@ export default function Plan() {
                 weekday: 'long',
               })}
             </p>
-            <div className="mt-2 flex items-center gap-2">
-              <input
+            <div className="mt-2 flex flex-wrap items-center gap-2 rounded-2xl bg-white/70
+              p-2 shadow-sm ring-1 ring-black/5 dark:bg-neutral-800/70 dark:ring-white/5">
+              <textarea
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && void submitDraft()}
-                placeholder={draftKind === 'event' ? '添加事项 / 备注…' : '添加任务…'}
-                className="min-w-0 flex-1 rounded-xl bg-white px-3 py-2 text-[15px]
-                  outline-none placeholder:text-neutral-400 dark:bg-neutral-800"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    void submitDraft()
+                  }
+                }}
+                rows={1}
+                placeholder={draftKind === 'event' ? '添加计划；多项可换行粘贴…' : '添加任务；多项可换行粘贴…'}
+                className="min-h-11 min-w-[12rem] flex-1 resize-none bg-transparent px-2 py-2
+                  text-[16px] leading-6 outline-none placeholder:text-neutral-400"
               />
               <select
                 aria-label="类型"
                 value={draftKind}
                 onChange={(e) => setDraftKind(e.target.value as 'event' | 'task')}
-                className="rounded-lg bg-white px-1.5 py-2 text-[13px] dark:bg-neutral-800"
+                className="min-h-11 rounded-xl bg-neutral-100 px-2 text-[13px] dark:bg-neutral-800"
               >
                 <option value="event">事项</option>
                 <option value="task">任务</option>
@@ -384,19 +422,33 @@ export default function Plan() {
                   aria-label="时间（可选）"
                   value={draftTime}
                   onChange={(e) => setDraftTime(e.target.value)}
-                  className="rounded-lg bg-white px-1.5 py-1.5 text-[13px] dark:bg-neutral-800"
+                  className="min-h-11 rounded-xl bg-neutral-100 px-2 text-[13px] dark:bg-neutral-800"
                 />
+              )}
+              {draftKind === 'task' && (
+                <select
+                  aria-label="任务周期"
+                  value={draftScope}
+                  onChange={(e) => setDraftScope(e.target.value as TaskScope)}
+                  className="min-h-11 rounded-xl bg-neutral-100 px-2 text-[13px] dark:bg-neutral-800"
+                >
+                  <option value="daily">每日</option>
+                  <option value="weekly">每周</option>
+                </select>
               )}
               <button
                 onClick={() => void submitDraft()}
-                disabled={!draft.trim()}
+                disabled={!draft.trim() || submitting}
                 aria-label="添加"
-                className="h-9 w-9 shrink-0 rounded-xl bg-[#007aff] text-lg text-white
+                className="h-11 w-11 shrink-0 rounded-xl bg-[#007aff] text-lg text-white
                   disabled:opacity-40"
               >
                 +
               </button>
             </div>
+            <p role="status" className="min-h-5 px-2 pt-1 text-[12px] text-neutral-500">
+              {feedback}
+            </p>
             {selectedItems.length > 0 ? (
               <ul className="mt-2 rounded-2xl bg-white px-3 dark:bg-neutral-800">
                 {selectedItems.map(itemRow)}
@@ -442,6 +494,13 @@ export default function Plan() {
               </div>
             )}
         </div>
+      )}
+      {editingEvent && (
+        <EventEditor
+          event={editingEvent}
+          categories={categories ?? []}
+          onClose={() => setEditingEvent(null)}
+        />
       )}
     </section>
   )

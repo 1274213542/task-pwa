@@ -19,7 +19,7 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
-      registerType: 'prompt',
+      registerType: 'autoUpdate',
       includeAssets: ['icons/apple-touch-icon.png'],
       manifest: {
         name: '任务计划',
@@ -46,6 +46,7 @@ export default defineConfig({
         // 预缓存完整 App Shell；数据接口（Dexie Cloud，MS2 接入）不经 SW 缓存
         globPatterns: ['**/*.{js,css,html,png,svg,ico}'],
         navigateFallback: 'index.html',
+        cleanupOutdatedCaches: true,
       },
     }),
   ],

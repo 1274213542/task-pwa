@@ -8,7 +8,21 @@ export default function UpdateToast() {
   const {
     needRefresh: [needRefresh, setNeedRefresh],
     updateServiceWorker,
-  } = useRegisterSW()
+  } = useRegisterSW({
+    immediate: true,
+    onRegisteredSW(_swUrl, registration) {
+      if (!registration) return
+      const check = () => void registration.update()
+      const timer = window.setInterval(check, 60 * 60 * 1000)
+      window.addEventListener('online', check)
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') check()
+      })
+      window.addEventListener('pagehide', () => window.clearInterval(timer), {
+        once: true,
+      })
+    },
+  })
 
   if (!needRefresh) return null
 
@@ -17,7 +31,7 @@ export default function UpdateToast() {
       role="status"
       className="safe-bottom glass slide-up fixed inset-x-4 bottom-20 z-20 mx-auto
         flex max-w-md items-center justify-between gap-3 rounded-2xl
-        bg-neutral-900/90 px-4 py-3 text-white shadow-lg backdrop-blur md:bottom-6"
+        bg-neutral-900/90 px-4 py-3 text-white shadow-lg backdrop-blur lg:bottom-6"
     >
       <span className="text-[14px]">有新版本可用</span>
       <div className="flex gap-2">

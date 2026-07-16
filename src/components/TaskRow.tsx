@@ -79,25 +79,29 @@ export default function TaskRow({
       <button
         aria-label={completed ? '取消完成' : '完成'}
         onClick={actions.onToggle}
-        className={`flex h-[22px] w-[22px] shrink-0 items-center justify-center
-          rounded-full border-[1.5px] transition active:scale-90 ${
-            completed
-              ? 'border-[#007aff] bg-[#007aff] text-white'
-              : 'border-neutral-300 dark:border-neutral-600'
-          }`}
+        className="hit-target -ml-2.5 shrink-0 transition active:scale-95"
       >
-        {completed && (
-          <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden>
-            <path
-              className="check-path"
-              d="M2 6.5L4.5 9L10 3.5"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        )}
+        <span
+          className={`flex h-[24px] w-[24px] items-center justify-center rounded-full
+            border-[1.5px] ${
+              completed
+                ? 'border-[#007aff] bg-[#007aff] text-white'
+                : 'border-neutral-300 dark:border-neutral-600'
+            }`}
+        >
+          {completed && (
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
+              <path
+                className="check-path"
+                d="M2 6.5L4.5 9L10 3.5"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          )}
+        </span>
       </button>
 
       <div className="min-w-0 flex-1">
@@ -113,7 +117,7 @@ export default function TaskRow({
         ) : (
           <button
             onClick={() => actions.onRename && setEditing(true)}
-            className="block w-full truncate text-left text-[16px]"
+            className="min-h-11 w-full truncate py-2 text-left text-[16px]"
           >
             <span
               className={`strike ${completed ? 'text-neutral-400' : ''}`}
@@ -149,7 +153,7 @@ export default function TaskRow({
                 setConfirming(false)
                 actions.onDeleteOnce!()
               }}
-              className="rounded-lg bg-neutral-500/10 px-2 py-1 text-[12px]
+              className="min-h-11 rounded-xl bg-neutral-500/10 px-2 text-[12px]
                 text-neutral-500"
             >
               仅本次
@@ -160,7 +164,7 @@ export default function TaskRow({
               setConfirming(false)
               actions.onDelete()
             }}
-            className="rounded-lg bg-red-500 px-2 py-1 text-[12px] font-medium
+            className="min-h-11 rounded-xl bg-red-500 px-2 text-[12px] font-medium
               text-white"
           >
             {actions.onDeleteOnce ? '删除系列' : '确认删除'}
@@ -171,7 +175,7 @@ export default function TaskRow({
           {actions.onSkip && !completed && (
             <button
               onClick={actions.onSkip}
-              className="shrink-0 rounded-lg px-2 py-1 text-[12px] text-neutral-400
+              className="min-h-11 shrink-0 rounded-xl px-2 text-[12px] text-neutral-400
                 opacity-60 transition group-hover:opacity-100"
             >
               跳过
@@ -180,7 +184,7 @@ export default function TaskRow({
           <button
             aria-label="删除"
             onClick={armDelete}
-            className="shrink-0 rounded-full px-2 py-1 text-neutral-300 opacity-60
+            className="hit-target -mr-2 shrink-0 rounded-full text-neutral-300 opacity-60
               transition group-hover:opacity-100 dark:text-neutral-600"
           >
             ✕

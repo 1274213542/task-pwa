@@ -18,7 +18,13 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { FOCUS_QUICK_ADD_EVENT } from '../App'
-import { db, type Category, type CompletionRecord, type Task } from '../lib/db'
+import {
+  db,
+  type Category,
+  type CompletionRecord,
+  type Task,
+  type TaskScope,
+} from '../lib/db'
 import {
   type Recurrence,
   describeRecurrence,
@@ -30,7 +36,7 @@ import { COLOR_TOKENS } from '../lib/categories'
 import { addDaysISO, todayLocalISO } from '../lib/dates'
 import {
   RecurrenceConflictError,
-  addTask,
+  addTasks,
   completeFixedOccurrence,
   completeTask,
   renameTask,
@@ -44,6 +50,12 @@ import {
 } from '../lib/tasks'
 import TaskRow from '../components/TaskRow'
 import RecurrencePicker from '../components/RecurrencePicker'
+import {
+  defaultFixedRecurrence,
+  taskScopeOf,
+  weekEndISO,
+  weekStartISO,
+} from '../lib/taskPeriods'
 
 /** 今天视图的投影条目（TaskOccurrenceView 的子集） */
 interface TodayItem {
@@ -61,12 +73,44 @@ function buildItems(
   tasks: Task[],
   records: CompletionRecord[],
   todayISO: string,
+  scope: TaskScope,
 ): TodayItem[] {
   const recMap = new Map(records.map((r) => [r.id, r]))
   const items: TodayItem[] = []
 
   for (const task of tasks) {
+    if (taskScopeOf(task) !== scope) continue
     const r = task.recurrence
+    if (scope === 'weekly') {
+      const periodStart = weekStartISO(todayISO)
+      const periodEnd = weekEndISO(todayISO)
+      if (task.startDate && task.startDate > periodEnd) continue
+      if (!r) {
+        const rec = recMap.get(`${task.id}:single`)
+        items.push({
+          task,
+          kind: 'single',
+          occurrenceDate: task.startDate ?? periodStart,
+          occurrenceKey: 'single',
+          completed: rec?.resolution === 'completed',
+          overdue: false,
+        })
+      } else {
+        if (task.endDate && task.endDate < periodStart) continue
+        const occurrenceKey = `fixed:${periodStart}`
+        const rec = recMap.get(`${task.id}:${occurrenceKey}`)
+        items.push({
+          task,
+          kind: 'fixed',
+          occurrenceDate: periodStart,
+          occurrenceKey,
+          completed: rec?.resolution === 'completed',
+          overdue: false,
+          subtitle: '每周 · 周一更新',
+        })
+      }
+      continue
+    }
     if (!r) {
       const rec = recMap.get(`${task.id}:single`)
       items.push({
@@ -196,11 +240,18 @@ export default function Today() {
   const [title, setTitle] = useState('')
   const [recurrence, setRecurrence] = useState<Recurrence | undefined>()
   const [categoryId, setCategoryId] = useState<string>('')
+  const [scope, setScope] = useState<TaskScope>(
+    () => (localStorage.getItem('taskScope') as TaskScope) || 'daily',
+  )
+  const [fixed, setFixed] = useState(false)
+  const [feedback, setFeedback] = useState('')
+  const [submitting, setSubmitting] = useState(false)
   const [showDone, setShowDone] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   // 完成感窗口（v4.2 §12）：勾选后原地保留 ~800ms 展示动画，再按策略归置
   const [recentlyDone, setRecentlyDone] = useState<Set<string>>(new Set())
-  const inputRef = useRef<HTMLInputElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+  const submittingRef = useRef(false)
 
   function holdInPlace(itemKey: string) {
     setRecentlyDone((prev) => new Set(prev).add(itemKey))
@@ -240,7 +291,7 @@ export default function Today() {
   const todayISO = todayLocalISO() // 本地民用日期（v4.2 §7.5，勿用 UTC 切片）
   const catMap = new Map((categories ?? []).map((c) => [c.id, c]))
   const items =
-    tasks && records ? buildItems(tasks, records, todayISO) : undefined
+    tasks && records ? buildItems(tasks, records, todayISO, scope) : undefined
   const keyOf = (i: TodayItem) => `${i.task.id}:${i.occurrenceKey}`
   const pending =
     items?.filter((i) => !i.completed || recentlyDone.has(keyOf(i))) ?? []
@@ -253,11 +304,44 @@ export default function Today() {
     weekday: 'long',
   })
 
+  const weeklyRangeLabel = `${weekStartISO(todayISO).slice(5).replace('-', '/')} – ${weekEndISO(todayISO).slice(5).replace('-', '/')}`
+
+  function switchScope(next: TaskScope) {
+    setScope(next)
+    localStorage.setItem('taskScope', next)
+    if (fixed) setRecurrence(defaultFixedRecurrence(next))
+    setFeedback('')
+  }
+
+  function setTaskType(nextFixed: boolean) {
+    setFixed(nextFixed)
+    setRecurrence(nextFixed ? defaultFixedRecurrence(scope) : undefined)
+  }
+
   async function submit() {
-    await addTask(title, recurrence, categoryId || undefined)
-    setTitle('')
-    setRecurrence(undefined)
-    setCategoryId('')
+    if (submittingRef.current || !title.trim()) return
+    submittingRef.current = true
+    setSubmitting(true)
+    setFeedback('')
+    try {
+      const count = await addTasks(
+        title,
+        fixed ? (recurrence ?? defaultFixedRecurrence(scope)) : undefined,
+        categoryId || undefined,
+        undefined,
+        scope,
+      )
+      setTitle('')
+      setCategoryId('')
+      setFeedback(count > 1 ? `已添加 ${count} 个任务` : '任务已添加')
+      window.setTimeout(() => setFeedback(''), 2200)
+    } catch (reason) {
+      console.error('添加任务失败', reason)
+      setFeedback(reason instanceof Error ? reason.message : '添加失败，请重试')
+    } finally {
+      submittingRef.current = false
+      setSubmitting(false)
+    }
   }
 
   async function guarded(fn: () => Promise<void>) {
@@ -279,17 +363,14 @@ export default function Today() {
         void guarded(async () => {
           if (!item.completed) holdInPlace(`${task.id}:${item.occurrenceKey}`)
           if (item.kind === 'single') {
-            item.completed
-              ? await voidRecord(`${task.id}:single`)
-              : await completeTask(task)
+            if (item.completed) await voidRecord(`${task.id}:single`)
+            else await completeTask(task)
           } else if (item.kind === 'fixed') {
-            item.completed
-              ? await voidRecord(`${task.id}:${item.occurrenceKey}`)
-              : await completeFixedOccurrence(task, item.occurrenceDate)
+            if (item.completed) await voidRecord(`${task.id}:${item.occurrenceKey}`)
+            else await completeFixedOccurrence(task, item.occurrenceDate)
           } else {
-            item.completed
-              ? await undoAfterCompletion(task)
-              : await resolveAfterCompletion(task, 'completed')
+            if (item.completed) await undoAfterCompletion(task)
+            else await resolveAfterCompletion(task, 'completed')
           }
         }),
       onSkip:
@@ -327,10 +408,9 @@ export default function Today() {
     const cat = item.task.categoryId ? catMap.get(item.task.categoryId) : undefined
     const catText = cat ? cat.name : undefined
     const subtitle =
-      item.conflict ??
-      (item.subtitle && catText
-        ? `${catText} · ${item.subtitle}`
-        : (item.subtitle ?? catText))
+      [item.kind === 'single' ? '普通' : '固定', item.conflict, catText, item.subtitle]
+        .filter(Boolean)
+        .join(' · ')
     return (
       <TaskRow
         key={`${item.task.id}:${item.occurrenceKey}`}
@@ -348,7 +428,8 @@ export default function Today() {
   function toggleSelect(taskId: string) {
     setSelectedIds((prev) => {
       const next = new Set(prev)
-      next.has(taskId) ? next.delete(taskId) : next.add(taskId)
+      if (next.has(taskId)) next.delete(taskId)
+      else next.add(taskId)
       return next
     })
   }
@@ -405,42 +486,97 @@ export default function Today() {
 
   return (
     <section>
-      <p className="text-[13px] font-medium text-neutral-500 dark:text-neutral-400">
-        {dateLabel}
-      </p>
-      <h1 className="mt-0.5 text-3xl font-bold tracking-tight">今天</h1>
+      <div className="flex items-end justify-between gap-3">
+        <div>
+          <p className="text-[13px] font-medium text-neutral-500 dark:text-neutral-400">
+            {scope === 'daily' ? dateLabel : `本周 ${weeklyRangeLabel}`}
+          </p>
+          <h1 className="mt-0.5 text-3xl font-bold tracking-tight">任务</h1>
+        </div>
+        <div
+          role="tablist"
+          aria-label="任务周期"
+          className="flex rounded-xl bg-black/5 p-0.5 text-[13px] dark:bg-white/10"
+        >
+          {(['daily', 'weekly'] as const).map((value) => (
+            <button
+              key={value}
+              role="tab"
+              aria-selected={scope === value}
+              onClick={() => switchScope(value)}
+              className={`min-h-11 rounded-[10px] px-3.5 font-medium transition ${
+                scope === value
+                  ? 'bg-white text-neutral-900 shadow-sm dark:bg-neutral-700 dark:text-white'
+                  : 'text-neutral-500'
+              }`}
+            >
+              {value === 'daily' ? '每日' : '每周'}
+            </button>
+          ))}
+        </div>
+      </div>
 
-      <div className="mt-5">
+      <div className="mt-4 rounded-2xl bg-white/70 p-2 shadow-sm ring-1 ring-black/5 dark:bg-neutral-800/70 dark:ring-white/5">
         <div className="flex items-center gap-2">
-          <input
+          <textarea
             ref={inputRef}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && void submit()}
-            placeholder="添加任务…"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                void submit()
+              }
+            }}
+            rows={1}
+            placeholder="添加任务；多项可换行粘贴…"
             enterKeyHint="done"
-            className="min-w-0 flex-1 rounded-xl bg-white px-4 py-2.5 text-[16px]
-              outline-none placeholder:text-neutral-400 dark:bg-neutral-800"
+            className="min-h-11 min-w-0 flex-1 resize-none rounded-xl bg-transparent px-3
+              py-2.5 text-[16px] leading-6 outline-none placeholder:text-neutral-400"
           />
           <button
             onClick={() => void submit()}
-            disabled={!title.trim()}
+            disabled={!title.trim() || submitting}
             aria-label="添加"
-            className="h-[42px] w-[42px] shrink-0 rounded-xl bg-[#007aff] text-xl
+            className="h-11 w-11 shrink-0 rounded-xl bg-[#007aff] text-xl
               text-white transition active:scale-95 disabled:opacity-40"
           >
             +
           </button>
         </div>
-        {title.trim() && (
-          <>
-            <RecurrencePicker value={recurrence} onChange={setRecurrence} />
+        <div className="mt-1 flex flex-wrap items-center gap-2 px-1 pb-1">
+          <div className="flex rounded-lg bg-black/5 p-0.5 text-[12px] dark:bg-white/10">
+            <button
+              onClick={() => setTaskType(false)}
+              aria-pressed={!fixed}
+              className={`min-h-11 rounded-md px-2.5 ${!fixed ? 'bg-white shadow-sm dark:bg-neutral-700' : 'text-neutral-500'}`}
+            >
+              普通任务
+            </button>
+            <button
+              onClick={() => setTaskType(true)}
+              aria-pressed={fixed}
+              className={`min-h-11 rounded-md px-2.5 ${fixed ? 'bg-white shadow-sm dark:bg-neutral-700' : 'text-neutral-500'}`}
+            >
+              固定任务
+            </button>
+          </div>
+          {fixed && scope === 'daily' && title.trim() && (
+            <details className="w-full">
+              <summary className="cursor-pointer px-1 text-[12px] text-neutral-400">
+                调整重复周期
+              </summary>
+              <RecurrencePicker value={recurrence} onChange={setRecurrence} />
+            </details>
+          )}
+          {title.trim() && (
+            <>
             {(categories?.length ?? 0) > 0 && (
               <select
                 aria-label="分类"
                 value={categoryId}
                 onChange={(e) => setCategoryId(e.target.value)}
-                className="mt-2 rounded-lg bg-white px-2 py-1.5 text-[13px]
+                className="min-h-11 rounded-xl bg-white px-2 py-1.5 text-[13px]
                   text-neutral-500 dark:bg-neutral-800"
               >
                 <option value="">无分类</option>
@@ -450,17 +586,21 @@ export default function Today() {
                   </option>
                 ))}
               </select>
-            )}
-          </>
-        )}
+              )}
+            </>
+          )}
+        </div>
       </div>
+      <p role="status" className="min-h-5 px-2 pt-1 text-[12px] text-neutral-500">
+        {feedback}
+      </p>
 
       {items === undefined ? null : pending.length + done.length === 0 ? (
         <div
           className="mt-8 rounded-2xl border border-dashed border-neutral-300 p-8
             text-center text-neutral-400 dark:border-neutral-700"
         >
-          今天没有任务
+          {scope === 'daily' ? '今天没有任务' : '本周没有任务'}
         </div>
       ) : (
         <>
@@ -495,7 +635,7 @@ export default function Today() {
               className="glass slide-up fixed inset-x-4 bottom-20 z-20 mx-auto flex
                 max-w-md items-center justify-between gap-3 rounded-2xl
                 bg-neutral-900/90 px-4 py-2.5 text-white shadow-lg backdrop-blur
-                md:bottom-6"
+                lg:bottom-6"
             >
               <span className="text-[14px]">已选 {selectedPending.length} 项</span>
               <div className="flex gap-2">

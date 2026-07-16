@@ -1,4 +1,5 @@
 import { db, type ShoppingItem } from './db'
+import { parseBatchLines } from './batch'
 
 const now = () => new Date().toISOString()
 const nextRank = () => Date.now().toString(36).padStart(10, '0')
@@ -47,22 +48,40 @@ export async function addItem(opts: {
   note?: string
   locationId?: string
 }): Promise<void> {
-  const name = opts.name.trim()
-  if (!name) return
+  await addItems({ ...opts, names: [opts.name] })
+}
+
+/** 原子批量新增商品；重复名称有意义，因此不去重。 */
+export async function addItems(opts: {
+  names: string[] | string
+  quantity?: number
+  unit?: string
+  note?: string
+  locationId?: string
+}): Promise<number> {
+  const names = Array.isArray(opts.names)
+    ? opts.names.map((name) => name.trim()).filter(Boolean)
+    : parseBatchLines(opts.names)
+  if (names.length === 0) return 0
   const t = now()
-  await db.shoppingItems.add({
+  const base = Date.now()
+  const rows: ShoppingItem[] = names.map((name, index) => ({
     id: crypto.randomUUID(),
     name,
     ...(opts.quantity && opts.quantity > 0 && { quantity: opts.quantity }),
     ...(opts.unit?.trim() && { unit: opts.unit.trim() }),
     ...(opts.note?.trim() && { note: opts.note.trim() }),
     ...(opts.locationId && { locationId: opts.locationId }),
-    rank: nextRank(),
+    rank: (base + index).toString(36).padStart(10, '0'),
     purchaseStatus: 'pending',
     lifecycleStatus: 'active',
     createdAt: t,
     updatedAt: t,
+  }))
+  await db.transaction('rw', db.shoppingItems, async () => {
+    await db.shoppingItems.bulkAdd(rows)
   })
+  return rows.length
 }
 
 /** 勾选已购：purchaseStatus 与 purchasedAt 同笔更新；写地点名快照 */

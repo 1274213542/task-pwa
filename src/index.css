@@ -15,11 +15,49 @@ body,
   height: 100%;
 }
 
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  touch-action: pan-x pan-y;
+}
+
 body {
   margin: 0;
   background: #f7f7f8;
   color: #1c1c1e;
   overscroll-behavior-y: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+a,
+input,
+textarea,
+select {
+  touch-action: manipulation;
+}
+
+button,
+a {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 3px solid rgb(0 122 255 / 0.28);
+  outline-offset: 2px;
+}
+
+@media (max-width: 767px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
 }
 
 @media (prefers-color-scheme: dark) {
@@ -35,6 +73,44 @@ body {
 }
 .safe-bottom {
   padding-bottom: env(safe-area-inset-bottom);
+}
+.safe-inline {
+  padding-left: max(1.25rem, env(safe-area-inset-left));
+  padding-right: max(1.25rem, env(safe-area-inset-right));
+}
+
+.hit-target {
+  display: inline-flex;
+  min-width: 44px;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+}
+
+.field {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  box-sizing: border-box;
+  border-radius: 12px;
+  border: 1px solid rgb(0 0 0 / 0.06);
+  background: rgb(245 245 247 / 0.92);
+  padding: 10px 12px;
+  color: inherit;
+  font-size: 16px;
+  outline: none;
+}
+
+.field:focus {
+  border-color: rgb(0 122 255 / 0.45);
+  box-shadow: 0 0 0 3px rgb(0 122 255 / 0.1);
+}
+
+@media (prefers-color-scheme: dark) {
+  .field {
+    border-color: rgb(255 255 255 / 0.08);
+    background: rgb(58 58 60 / 0.82);
+  }
 }
 
 /* ===== 动效（MS9，v4.2 §12）：自然、连续、可中断；全部 CSS/SVG ===== */
@@ -153,5 +229,20 @@ body {
     .glass {
       background-color: rgb(28 28 30 / 0.98) !important;
     }
+  }
+}
+
+/* 低刷新率设备禁用高成本模糊与装饰动画。 */
+@media (update: slow) {
+  .glass,
+  .modal-backdrop {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+  .page-in,
+  .row-in,
+  .pop-in,
+  .slide-up {
+    animation: none !important;
   }
 }

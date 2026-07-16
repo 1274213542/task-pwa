@@ -45,6 +45,43 @@ export async function renameEvent(id: string, title: string): Promise<void> {
   await db.calendarEvents.update(id, { title: trimmed, updatedAt: now() })
 }
 
+/** 编辑原事项：只更新原 ID，不复制记录；全天/定时切换时清理旧时间字段。 */
+export async function updateEvent(
+  id: string,
+  opts: {
+    title: string
+    notes?: string
+    date: string
+    endDate?: string
+    time?: string
+    categoryId?: string
+  },
+): Promise<void> {
+  const title = opts.title.trim()
+  if (!title) throw new Error('标题不能为空')
+  const timezone = Temporal.Now.timeZoneId()
+  const time = opts.time?.trim()
+  const startAt = time
+    ? Temporal.PlainDateTime.from(`${opts.date}T${time}`)
+        .toZonedDateTime(timezone)
+        .toInstant()
+        .toString()
+    : undefined
+  await db.calendarEvents.update(id, {
+    title,
+    notes: opts.notes?.trim() || undefined,
+    allDay: !time,
+    startDate: opts.date,
+    endDate:
+      opts.endDate && opts.endDate >= opts.date ? opts.endDate : opts.date,
+    startAt,
+    endAt: undefined,
+    timezone: time ? timezone : undefined,
+    categoryId: opts.categoryId || undefined,
+    updatedAt: now(),
+  })
+}
+
 export async function softDeleteEvent(id: string): Promise<void> {
   await db.calendarEvents.update(id, {
     lifecycleStatus: 'deleted',

@@ -2,6 +2,7 @@ import Dexie, { type EntityTable } from 'dexie'
 import dexieCloud from 'dexie-cloud-addon'
 import { DEXIE_CLOUD_URL, cloudEnabled } from '../config'
 import type { Recurrence } from './recurrence'
+import { ensureTaskScope } from './migrations'
 
 /**
  * 数据模型见技术方案 v4.2 §8。
@@ -11,6 +12,7 @@ import type { Recurrence } from './recurrence'
 
 export type LifecycleStatus = 'active' | 'deleted'
 export type Resolution = 'completed' | 'skipped' | 'voided'
+export type TaskScope = 'daily' | 'weekly'
 
 export interface Task {
   id: string
@@ -20,6 +22,7 @@ export interface Task {
   rank: string
   startDate?: string // PlainDate ISO
   endDate?: string // 周期任务的结束日；缺省 = 持续有效
+  taskScope?: TaskScope // v7：旧记录缺省按 daily 读取，迁移时补齐
   recurrence?: Recurrence
   currentSequence?: number // 仅 after_completion：当前活动实例序号（可推导缓存）
   nextDueDate?: string //     仅 after_completion：当前实例到期日（可推导缓存）
@@ -163,6 +166,21 @@ db.version(6).stores({
   shoppingItems: 'id, lifecycleStatus, purchaseStatus, locationId, purchasedAt',
   shoppingLocations: 'id, lifecycleStatus',
 })
+
+// v7：每日 / 每周任务作用域。仅补字段与索引，原任务、完成记录及 ID 全部保留。
+db.version(7)
+  .stores({
+    tasks:
+      'id, lifecycleStatus, [lifecycleStatus+rank], [id+currentSequence], categoryId, taskScope',
+  })
+  .upgrade(async (tx) => {
+    await tx
+      .table('tasks')
+      .toCollection()
+      .modify((task: Task) => {
+        ensureTaskScope(task)
+      })
+  })
 
 if (cloudEnabled) {
   db.cloud.configure({

@@ -6,7 +6,7 @@ import { BUSINESS_TABLES, exportBackup, importBackup, validateBackup } from './b
 /** 与生产同名的业务表（备份逻辑只依赖表名与 id 主键） */
 function makeDb(name: string): Dexie {
   const d = new Dexie(name)
-  d.version(6).stores(Object.fromEntries(BUSINESS_TABLES.map((t) => [t, 'id'])))
+  d.version(7).stores(Object.fromEntries(BUSINESS_TABLES.map((t) => [t, 'id'])))
   return d
 }
 
@@ -32,7 +32,7 @@ describe('导出', () => {
   it('信封字段完整，含全部业务表', async () => {
     const file = JSON.parse(await exportBackup(db, 'test · 2026-07-16'))
     expect(file.formatVersion).toBe(1)
-    expect(file.schemaVersion).toBe(6)
+    expect(file.schemaVersion).toBe(7)
     expect(file.appVersion).toBe('test · 2026-07-16')
     expect(typeof file.exportedAt).toBe('string')
     for (const t of BUSINESS_TABLES) expect(Array.isArray(file.data[t])).toBe(true)

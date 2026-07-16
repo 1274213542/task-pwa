@@ -1,15 +1,12 @@
-import { db, type Task } from './db'
+import { db, type Task, type TaskScope } from './db'
 import { type Recurrence, nextAfterCompletion } from './recurrence'
 import { todayLocalISO } from './dates'
-import { appendRank, betweenRanks, normalizedRanks } from './rank'
+import { appendRank, betweenRanks, isFiKey, normalizedRanks } from './rank'
+import { parseBatchLines } from './batch'
+import { periodAnchorISO } from './taskPeriods'
 
 const now = () => new Date().toISOString()
 const today = todayLocalISO // 本地民用日期，不是 UTC（v4.2 §7.5）
-
-const nextRank = async (): Promise<string> => {
-  const last = await db.tasks.orderBy('rank').reverse().first()
-  return appendRank(last?.rank)
-}
 
 export class RecurrenceConflictError extends Error {
   constructor() {
@@ -23,28 +20,59 @@ export async function addTask(
   recurrence?: Recurrence,
   categoryId?: string,
   startDate?: string, // 缺省 = 今天（本地民用日期）
+  taskScope: TaskScope = 'daily',
 ): Promise<void> {
-  const trimmed = title.trim()
-  if (!trimmed) return
-  const t = now()
-  const anchor = startDate ?? today()
-  const task: Task = {
-    id: crypto.randomUUID(),
-    title: trimmed,
-    rank: await nextRank(),
-    startDate: anchor,
-    lifecycleStatus: 'active',
-    templateVersion: 1,
-    createdAt: t,
-    updatedAt: t,
-    ...(categoryId && { categoryId }),
-    ...(recurrence && { recurrence }),
-    ...(recurrence?.mode === 'after_completion' && {
-      currentSequence: 1,
-      nextDueDate: anchor,
-    }),
-  }
-  await db.tasks.add(task)
+  await addTasks([title], recurrence, categoryId, startDate, taskScope)
+}
+
+/** 原子批量新增：保持行序、保留重复标题，失败时整批回滚。 */
+export async function addTasks(
+  titles: string[] | string,
+  recurrence?: Recurrence,
+  categoryId?: string,
+  startDate?: string,
+  taskScope: TaskScope = 'daily',
+): Promise<number> {
+  const clean = Array.isArray(titles)
+    ? titles.map((title) => title.trim()).filter(Boolean)
+    : parseBatchLines(titles)
+  if (clean.length === 0) return 0
+
+  return db.transaction('rw', db.tasks, async () => {
+    const active = await db.tasks
+      .where('lifecycleStatus')
+      .equals('active')
+      .sortBy('rank')
+    const last = active.at(-1)
+    let rank = last?.rank
+    const fallbackBase = Date.now()
+    const anchor = periodAnchorISO(taskScope, startDate ?? today())
+    const t = now()
+    const rows: Task[] = clean.map((title, index) => {
+      rank = rank === undefined || isFiKey(rank)
+        ? appendRank(rank)
+        : (fallbackBase + index).toString(36).padStart(10, '0')
+      return {
+        id: crypto.randomUUID(),
+        title,
+        rank,
+        startDate: anchor,
+        taskScope,
+        lifecycleStatus: 'active',
+        templateVersion: 1,
+        createdAt: t,
+        updatedAt: t,
+        ...(categoryId && { categoryId }),
+        ...(recurrence && { recurrence }),
+        ...(recurrence?.mode === 'after_completion' && {
+          currentSequence: 1,
+          nextDueDate: anchor,
+        }),
+      }
+    })
+    await db.tasks.bulkAdd(rows)
+    return rows.length
+  })
 }
 
 export async function renameTask(id: string, title: string): Promise<void> {

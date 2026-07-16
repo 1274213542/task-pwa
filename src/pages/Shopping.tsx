@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, type ShoppingItem, type ShoppingLocation } from '../lib/db'
 import {
-  addItem,
+  addItems,
   addLocation,
   markPurchased,
   renameLocation,
@@ -32,25 +32,29 @@ function ItemRow({
         onClick={() =>
           purchased ? void unmarkPurchased(item.id) : void markPurchased(item)
         }
-        className={`flex h-[20px] w-[20px] shrink-0 items-center justify-center
-          rounded-md border-[1.5px] transition active:scale-90 ${
-            purchased
-              ? 'border-[#34c759] bg-[#34c759] text-white'
-              : 'border-neutral-300 dark:border-neutral-600'
-          }`}
+        className="hit-target -ml-2.5 shrink-0 transition active:scale-95"
       >
-        {purchased && (
-          <svg width="10" height="10" viewBox="0 0 12 12" fill="none" aria-hidden>
-            <path
-              className="check-path"
-              d="M2 6.5L4.5 9L10 3.5"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        )}
+        <span
+          className={`flex h-[22px] w-[22px] items-center justify-center rounded-md
+            border-[1.5px] ${
+              purchased
+                ? 'border-[#34c759] bg-[#34c759] text-white'
+                : 'border-neutral-300 dark:border-neutral-600'
+            }`}
+        >
+          {purchased && (
+            <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden>
+              <path
+                className="check-path"
+                d="M2 6.5L4.5 9L10 3.5"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          )}
+        </span>
       </button>
 
       <div className="min-w-0 flex-1">
@@ -90,7 +94,7 @@ function ItemRow({
             setConfirming(true)
             setTimeout(() => setConfirming(false), 3000)
           }}
-          className="shrink-0 px-2 text-neutral-300 dark:text-neutral-600"
+          className="hit-target -mr-2 shrink-0 text-neutral-300 dark:text-neutral-600"
         >
           ✕
         </button>
@@ -128,7 +132,7 @@ function LocationManager({ locations }: { locations: ShoppingLocation[] }) {
                   if (draft.trim()) void renameLocation(loc.id, draft)
                 }}
                 onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-                className="min-w-0 flex-1 bg-transparent text-[15px] outline-none"
+                className="min-h-11 min-w-0 flex-1 bg-transparent text-[15px] outline-none"
               />
             ) : (
               <button
@@ -136,7 +140,7 @@ function LocationManager({ locations }: { locations: ShoppingLocation[] }) {
                   setEditingId(loc.id)
                   setDraft(loc.name)
                 }}
-                className="min-w-0 flex-1 truncate text-left text-[15px]"
+                className="min-h-11 min-w-0 flex-1 truncate text-left text-[15px]"
               >
                 {loc.name}
               </button>
@@ -147,7 +151,7 @@ function LocationManager({ locations }: { locations: ShoppingLocation[] }) {
                   setConfirmId(null)
                   void softDeleteLocation(loc.id)
                 }}
-                className="shrink-0 rounded-lg bg-red-500 px-2 py-1 text-[12px]
+                className="min-h-11 shrink-0 rounded-xl bg-red-500 px-2 text-[12px]
                   font-medium text-white"
               >
                 确认删除
@@ -159,7 +163,7 @@ function LocationManager({ locations }: { locations: ShoppingLocation[] }) {
                   setConfirmId(loc.id)
                   setTimeout(() => setConfirmId(null), 3000)
                 }}
-                className="shrink-0 px-1 text-neutral-300 dark:text-neutral-600"
+                className="hit-target -mr-2 shrink-0 text-neutral-300 dark:text-neutral-600"
               >
                 ✕
               </button>
@@ -172,14 +176,14 @@ function LocationManager({ locations }: { locations: ShoppingLocation[] }) {
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="新建地点（超市 / 便利店 / 网站…）"
-          className="min-w-0 flex-1 bg-transparent text-[15px] outline-none
+          className="min-h-11 min-w-0 flex-1 bg-transparent text-[15px] outline-none
             placeholder:text-neutral-400"
         />
         <select
           aria-label="地点类型"
           value={type}
           onChange={(e) => setType(e.target.value as 'physical' | 'online')}
-          className="rounded-lg bg-neutral-100 px-1.5 py-1 text-[13px] dark:bg-neutral-700"
+          className="min-h-11 rounded-xl bg-neutral-100 px-2 text-[13px] dark:bg-neutral-700"
         >
           <option value="physical">实体</option>
           <option value="online">网站</option>
@@ -190,7 +194,7 @@ function LocationManager({ locations }: { locations: ShoppingLocation[] }) {
             setName('')
           }}
           disabled={!name.trim()}
-          className="text-[15px] font-medium text-[#007aff] disabled:opacity-40"
+          className="min-h-11 px-1 text-[15px] font-medium text-[#007aff] disabled:opacity-40"
         >
           添加
         </button>
@@ -208,6 +212,9 @@ export default function Shopping() {
     () => localStorage.getItem('shoppingGrouped') !== 'flat',
   )
   const [showHistory, setShowHistory] = useState(false)
+  const [feedback, setFeedback] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const submittingRef = useRef(false)
 
   const items = useLiveQuery(
     () => db.shoppingItems.where('lifecycleStatus').equals('active').sortBy('rank'),
@@ -243,15 +250,29 @@ export default function Shopping() {
   }, [name, items, locations, manualLocation])
 
   async function submit() {
-    await addItem({
-      name,
-      quantity: qty ? Number(qty) : undefined,
-      locationId: locationId || undefined,
-    })
-    setName('')
-    setQty('')
-    setManualLocation(false)
-    setLocationId('')
+    if (submittingRef.current || !name.trim()) return
+    submittingRef.current = true
+    setSubmitting(true)
+    setFeedback('')
+    try {
+      const count = await addItems({
+        names: name,
+        quantity: qty ? Number(qty) : undefined,
+        locationId: locationId || undefined,
+      })
+      setName('')
+      setQty('')
+      setManualLocation(false)
+      setLocationId('')
+      setFeedback(count > 1 ? `已添加 ${count} 件商品` : '商品已添加')
+      window.setTimeout(() => setFeedback(''), 2200)
+    } catch (reason) {
+      console.error('添加商品失败', reason)
+      setFeedback(reason instanceof Error ? reason.message : '添加失败，请重试')
+    } finally {
+      submittingRef.current = false
+      setSubmitting(false)
+    }
   }
 
   function switchGrouped(g: boolean) {
@@ -292,7 +313,7 @@ export default function Shopping() {
             role="tab"
             aria-selected={grouped}
             onClick={() => switchGrouped(true)}
-            className={`rounded-md px-3 py-1 transition ${
+            className={`min-h-11 rounded-md px-3 py-1 transition ${
               grouped ? 'bg-white shadow-sm dark:bg-neutral-700' : 'text-neutral-500'
             }`}
           >
@@ -302,7 +323,7 @@ export default function Shopping() {
             role="tab"
             aria-selected={!grouped}
             onClick={() => switchGrouped(false)}
-            className={`rounded-md px-3 py-1 transition ${
+            className={`min-h-11 rounded-md px-3 py-1 transition ${
               !grouped ? 'bg-white shadow-sm dark:bg-neutral-700' : 'text-neutral-500'
             }`}
           >
@@ -311,15 +332,22 @@ export default function Shopping() {
         </div>
       </div>
 
-      <div className="mt-5 flex items-center gap-2">
-        <input
+      <div className="mt-5 flex items-center gap-2 rounded-2xl bg-white/70 p-2 shadow-sm
+        ring-1 ring-black/5 dark:bg-neutral-800/70 dark:ring-white/5">
+        <textarea
           value={name}
           onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && void submit()}
-          placeholder="添加商品…"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault()
+              void submit()
+            }
+          }}
+          rows={1}
+          placeholder="添加商品；多项可换行粘贴…"
           enterKeyHint="done"
-          className="min-w-0 flex-1 rounded-xl bg-white px-4 py-2.5 text-[16px]
-            outline-none placeholder:text-neutral-400 dark:bg-neutral-800"
+          className="min-h-11 min-w-0 flex-1 resize-none bg-transparent px-2 py-2.5
+            text-[16px] leading-6 outline-none placeholder:text-neutral-400"
         />
         <input
           type="number"
@@ -328,19 +356,22 @@ export default function Shopping() {
           onChange={(e) => setQty(e.target.value)}
           placeholder="数量"
           aria-label="数量"
-          className="w-16 rounded-xl bg-white px-2 py-2.5 text-center text-[15px]
+          className="w-16 rounded-xl bg-neutral-100 px-2 py-2.5 text-center text-[15px]
             outline-none placeholder:text-neutral-400 dark:bg-neutral-800"
         />
         <button
           onClick={() => void submit()}
-          disabled={!name.trim()}
+          disabled={!name.trim() || submitting}
           aria-label="添加"
-          className="h-[42px] w-[42px] shrink-0 rounded-xl bg-[#007aff] text-xl
+          className="h-11 w-11 shrink-0 rounded-xl bg-[#007aff] text-xl
             text-white transition active:scale-95 disabled:opacity-40"
         >
           +
         </button>
       </div>
+      <p role="status" className="min-h-5 px-2 pt-1 text-[12px] text-neutral-500">
+        {feedback}
+      </p>
       {name.trim() && (locations?.length ?? 0) > 0 && (
         <select
           aria-label="购买地点"
@@ -349,7 +380,7 @@ export default function Shopping() {
             setLocationId(e.target.value)
             setManualLocation(true)
           }}
-          className="mt-2 rounded-lg bg-white px-2 py-1.5 text-[13px]
+          className="mt-2 min-h-11 rounded-xl bg-white px-2 py-1.5 text-[13px]
             text-neutral-500 dark:bg-neutral-800"
         >
           <option value="">不指定地点</option>

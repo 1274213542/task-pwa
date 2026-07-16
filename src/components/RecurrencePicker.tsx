@@ -75,7 +75,7 @@ export default function RecurrencePicker({
   }
 
   const selectCls =
-    'rounded-lg bg-white px-2 py-1.5 text-[13px] dark:bg-neutral-800'
+    'min-h-11 rounded-xl bg-white px-2 py-1.5 text-[13px] dark:bg-neutral-800'
 
   return (
     <div className="mt-2 flex flex-wrap items-center gap-2 text-[13px] text-neutral-500">
@@ -109,7 +109,7 @@ export default function RecurrencePicker({
                   if (next.length === 0) return // 至少保留一天
                   onChange({ ...value, weekdays: next.sort() })
                 }}
-                className={`h-7 w-7 rounded-full text-[12px] transition ${
+                className={`h-10 w-10 rounded-full text-[12px] transition ${
                   on
                     ? 'bg-[#007aff] text-white'
                     : 'bg-white text-neutral-500 dark:bg-neutral-800'

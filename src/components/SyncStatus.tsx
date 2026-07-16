@@ -40,10 +40,12 @@ export default function SyncStatus() {
 
   return (
     <div
-      className="pointer-events-none fixed top-2 right-3 z-20 flex items-center gap-1.5
-        rounded-full bg-white/80 px-2.5 py-1 text-[11px] text-neutral-500
-        backdrop-blur dark:bg-black/50 dark:text-neutral-400"
-      style={{ top: 'calc(env(safe-area-inset-top) + 8px)' }}
+      role="status"
+      aria-label={label}
+      className="pointer-events-none flex h-6 items-center gap-1.5 rounded-full
+        bg-white/75 px-2.5 text-[11px] font-medium text-neutral-500 shadow-sm
+        ring-1 ring-black/5 backdrop-blur-md dark:bg-neutral-800/75
+        dark:text-neutral-300 dark:ring-white/10"
     >
       <span className={`h-1.5 w-1.5 rounded-full ${dot}`} aria-hidden />
       {label}
