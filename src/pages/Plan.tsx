@@ -218,12 +218,12 @@ export default function Plan() {
         className={`calendar-day flex min-h-[76px] min-w-0 flex-col items-stretch
           justify-start rounded-xl px-0.5 pb-1 pt-1 text-[14px] sm:min-h-[92px]
           md:min-h-[112px] md:px-1 ${inMonth ? '' : 'opacity-35'} ${
-            isSelected ? 'is-selected bg-[#2f765f]/10' : ''
+            isSelected ? 'is-selected' : ''
           }`}
       >
         <span
           className={`mx-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
-            isToday ? 'bg-[#2f765f] font-semibold text-white' : ''
+            isToday ? 'calendar-today font-semibold' : ''
           }`}
         >
           {Number(dateISO.slice(8))}
@@ -237,8 +237,8 @@ export default function Plan() {
             const color = category
               ? COLOR_TOKENS[category.colorToken]
               : item.kind === 'event'
-                ? '#ff9500'
-                : '#2f765f'
+                ? '#ff650f'
+                : '#a89ded'
             const hiddenAt = index === 1 ? 'hidden sm:flex' : index === 2 ? 'hidden md:flex' : 'flex'
             const resolved = item.kind === 'task' && (item.completed || item.skipped)
             return (
@@ -301,7 +301,7 @@ export default function Plan() {
           <span
             aria-hidden
             className="h-4 w-1 shrink-0 rounded-full"
-            style={{ background: cat ? COLOR_TOKENS[cat.colorToken] : '#ff9500' }}
+            style={{ background: cat ? COLOR_TOKENS[cat.colorToken] : '#ff650f' }}
           />
           <button
             onClick={() => setEditingEvent(ev)}
@@ -340,7 +340,7 @@ export default function Plan() {
             className={`flex h-[22px] w-[22px] items-center justify-center rounded-full
               border-[1.5px] ${
                 completed
-                  ? 'border-[#2f765f] bg-[#2f765f] text-white'
+                  ? 'calendar-task-check is-complete text-white'
                   : 'border-neutral-300 dark:border-neutral-600'
               }`}
           >
@@ -391,7 +391,7 @@ export default function Plan() {
   const selectedItems = byDay?.get(selected) ?? []
 
   return (
-    <section className="app-page">
+    <section className="app-page page-plan">
       <PageHeader
         title="计划"
         eyebrow="日历与安排"
@@ -424,7 +424,7 @@ export default function Plan() {
         <>
           <div className="mt-4 flex items-center justify-between px-1">
             <p className="text-[17px] font-semibold">{monthLabel}</p>
-            <div className="flex items-center gap-1 text-[#2f765f]">
+            <div className="calendar-panel-action flex items-center gap-1">
               <button
                 aria-label="上个月"
                 onClick={() => setCursor(cursor.subtract({ months: 1 }))}
@@ -545,7 +545,7 @@ export default function Plan() {
                     onClick={() => void submitDraft()}
                     disabled={!draft.trim() || submitting}
                     aria-label="添加"
-                    className="primary-action h-11 w-11 shrink-0 rounded-xl bg-[#2f765f] text-xl text-white
+                    className="primary-action h-11 w-11 shrink-0 rounded-xl text-xl
                       transition-transform active:scale-95 disabled:opacity-40"
                   >
                     +

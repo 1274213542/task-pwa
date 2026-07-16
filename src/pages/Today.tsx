@@ -502,7 +502,7 @@ export default function Today() {
   const activePending = pending.find((item) => item.task.id === activeTaskId)
 
   return (
-    <section className="app-page">
+    <section className="app-page page-tasks" data-scope={scope}>
       <PageHeader
         title="任务"
         eyebrow={scope === 'daily' ? dateLabel : `本周 ${weeklyRangeLabel}`}
@@ -551,7 +551,7 @@ export default function Today() {
             onClick={() => void submit()}
             disabled={!title.trim() || submitting}
             aria-label="添加"
-            className="primary-action h-11 w-11 shrink-0 rounded-xl bg-[#2f765f] text-xl
+            className="primary-action h-11 w-11 shrink-0 rounded-xl text-xl
               text-white transition active:scale-95 disabled:opacity-40"
           >
             +

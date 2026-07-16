@@ -40,12 +40,14 @@ export default function TaskEditor({
   const dialogRef = useRef<HTMLElement>(null)
 
   useEffect(() => {
+    document.body.classList.add('editor-open')
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null
     const frame = window.requestAnimationFrame(() => {
       dialogRef.current?.focus({ preventScroll: true })
     })
     return () => {
       window.cancelAnimationFrame(frame)
+      document.body.classList.remove('editor-open')
       previous?.focus({ preventScroll: true })
     }
   }, [])
@@ -99,7 +101,7 @@ export default function TaskEditor({
 
   return createPortal(
     <div
-      className="modal-backdrop fixed inset-0 z-40 flex items-end justify-center bg-black/25
+      className="modal-backdrop modal-backdrop-task fixed inset-0 z-40 flex items-end justify-center bg-black/25
         px-3 pt-8 backdrop-blur-[2px] lg:items-center"
       onPointerDown={(event) => event.target === event.currentTarget && onClose()}
     >
@@ -109,7 +111,7 @@ export default function TaskEditor({
         role="dialog"
         aria-modal="true"
         aria-labelledby="task-editor-title"
-        className="safe-bottom editor-sheet w-full max-w-lg rounded-t-[26px] bg-white px-5
+        className="safe-bottom editor-sheet editor-sheet-task w-full max-w-lg rounded-t-[26px] bg-white px-5
           pb-5 pt-4 shadow-2xl outline-none lg:rounded-[24px] dark:bg-neutral-800"
       >
         <div className="mx-auto mb-2 h-1 w-9 rounded-full bg-neutral-300 lg:hidden dark:bg-neutral-600" />
@@ -123,7 +125,7 @@ export default function TaskEditor({
           <button
             onClick={() => void save()}
             disabled={saving || !title.trim()}
-            className="hit-target text-[15px] font-semibold text-[#2f765f] disabled:opacity-40"
+            className="editor-save hit-target text-[15px] font-semibold disabled:opacity-40"
           >
             {saving ? '保存中' : '保存'}
           </button>

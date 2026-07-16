@@ -39,7 +39,7 @@ function ItemRow({
           className={`flex h-[22px] w-[22px] items-center justify-center rounded-md
             border-[1.5px] ${
               purchased
-                ? 'border-[#34c759] bg-[#34c759] text-white'
+                ? 'shopping-check is-complete text-white'
                 : 'border-neutral-300 dark:border-neutral-600'
             }`}
         >
@@ -195,7 +195,7 @@ function LocationManager({ locations }: { locations: ShoppingLocation[] }) {
             setName('')
           }}
           disabled={!name.trim()}
-          className="min-h-11 px-1 text-[15px] font-medium text-[#2f765f] disabled:opacity-40"
+          className="shopping-secondary-action min-h-11 px-1 text-[15px] font-medium disabled:opacity-40"
         >
           添加
         </button>
@@ -302,7 +302,7 @@ export default function Shopping() {
   }
 
   return (
-    <section className="app-page">
+    <section className="app-page page-shopping">
       <PageHeader
         title="购物"
         eyebrow={`${pending.length} 件待购`}
@@ -366,7 +366,7 @@ export default function Shopping() {
           onClick={() => void submit()}
           disabled={!name.trim() || submitting}
           aria-label="添加"
-          className="primary-action h-11 w-11 shrink-0 rounded-xl bg-[#2f765f] text-xl
+          className="primary-action h-11 w-11 shrink-0 rounded-xl text-xl
             text-white transition active:scale-95 disabled:opacity-40"
           >
             +

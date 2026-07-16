@@ -31,20 +31,20 @@ function CategoryRow({ cat, taskCount }: { cat: Category; taskCount: number }) {
   }
 
   return (
-    <li
-      className="flex items-center gap-3 border-b border-black/5 px-4 py-3
-        last:border-b-0 dark:border-white/10"
-    >
+    <li className="category-row">
       <button
-        aria-label="切换颜色"
+        aria-label={`切换 ${cat.name} 的颜色`}
         onClick={() => {
           const next =
             TOKEN_ORDER[(TOKEN_ORDER.indexOf(cat.colorToken) + 1) % TOKEN_ORDER.length]
           void setCategoryColor(cat.id, next)
         }}
-        className="h-3.5 w-3.5 shrink-0 rounded-full transition active:scale-90"
-        style={{ background: COLOR_TOKENS[cat.colorToken] }}
-      />
+        className="category-token hit-target"
+      >
+        <span style={{ background: COLOR_TOKENS[cat.colorToken] }}>
+          {cat.name.trim().slice(0, 1).toUpperCase()}
+        </span>
+      </button>
       {editing ? (
         <input
           autoFocus
@@ -52,21 +52,25 @@ function CategoryRow({ cat, taskCount }: { cat: Category; taskCount: number }) {
           onChange={(e) => setDraft(e.target.value)}
           onBlur={commit}
           onKeyDown={(e) => e.key === 'Enter' && commit()}
-          className="min-w-0 flex-1 bg-transparent text-[15px] outline-none"
+          className="category-name-input min-w-0 bg-transparent outline-none"
         />
       ) : (
         <button
           onClick={() => setEditing(true)}
-          className="min-w-0 flex-1 truncate text-left text-[15px]"
+          className="category-name-button min-w-0 truncate text-left"
         >
           {cat.name}
         </button>
       )}
-      <span className="text-[13px] text-neutral-400">{taskCount}</span>
+      {!confirming && (
+        <span className="category-count tabular" aria-label={`${taskCount} 个任务`}>
+          {taskCount}
+        </span>
+      )}
       {confirming ? (
         <button
           onClick={() => void softDeleteCategory(cat.id)}
-          className="shrink-0 rounded-lg bg-red-500 px-2 py-1 text-[12px]
+          className="category-delete-confirm shrink-0 rounded-full bg-red-500 px-3 text-[12px]
             font-medium text-white"
         >
           确认删除
@@ -75,7 +79,7 @@ function CategoryRow({ cat, taskCount }: { cat: Category; taskCount: number }) {
         <button
           aria-label={`删除分类 ${cat.name}`}
           onClick={armDelete}
-          className="shrink-0 px-1 text-neutral-300 dark:text-neutral-600"
+          className="category-delete hit-target shrink-0"
         >
           ✕
         </button>
@@ -128,96 +132,99 @@ export default function Browse() {
   }
 
   return (
-    <section className="app-page">
+    <section className="app-page page-browse">
       <PageHeader
         title="浏览"
         eyebrow="分类与记录"
         actions={<Link
           to="/settings"
           aria-label="设置"
-          className="hit-target rounded-full text-neutral-500 dark:text-neutral-400"
+          className="browse-settings-token hit-target rounded-full"
         >
           <AppIcon name="settings" size={21} />
         </Link>}
       />
 
-      <h2 className="section-label mt-6">分类</h2>
-      <div className="list-card mt-2 overflow-hidden rounded-2xl bg-white dark:bg-neutral-800">
-        <ul>
-          {(categories ?? []).map((c) => (
-            <CategoryRow key={c.id} cat={c} taskCount={countByCat.get(c.id) ?? 0} />
-          ))}
-        </ul>
-        <div className="flex items-center gap-2 px-4 py-2.5">
-          <input
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && void submitCategory()}
-            placeholder="新建分类（如 学校 / 工作 / 生活）"
-            className="min-w-0 flex-1 bg-transparent text-[15px] outline-none
-              placeholder:text-neutral-400"
-          />
-          <button
-            onClick={() => void submitCategory()}
-            disabled={!newName.trim()}
-            className="text-[15px] font-medium text-[#2f765f] disabled:opacity-40"
-          >
-            添加
-          </button>
-        </div>
-      </div>
-
-      <h2 className="section-label mt-8">
-        已完成记录
-      </h2>
-      {(records?.length ?? 0) === 0 ? (
-        <div
-          className="mt-2 rounded-2xl border border-dashed border-neutral-300 p-6
-            text-center text-[14px] text-neutral-400 dark:border-neutral-700"
-        >
-          还没有完成记录
-        </div>
-      ) : (
-        Array.from(groups.entries()).map(([day, rs]) => (
-          <div key={day} className="mt-3">
-            <p className="px-1 text-[12px] text-neutral-400">
-              {new Date(day + 'T00:00:00').toLocaleDateString('zh-CN', {
-                month: 'long',
-                day: 'numeric',
-                weekday: 'short',
-              })}
-            </p>
-            <ul className="list-card mt-1.5 rounded-2xl bg-white px-4 dark:bg-neutral-800">
-              {rs.map((r) => (
-                <li
-                  key={r.id}
-                  className="flex items-center gap-2 border-b border-black/5 py-2.5
-                    last:border-b-0 dark:border-white/10"
-                >
-                  <span
-                    className={`text-[15px] ${
-                      r.resolution === 'completed'
-                        ? 'text-neutral-400 line-through'
-                        : 'text-neutral-400'
-                    }`}
-                  >
-                    {r.titleSnapshot}
-                  </span>
-                  <span className="ml-auto flex shrink-0 items-center gap-2 text-[12px] text-neutral-400">
-                    {r.categoryNameSnapshot && <span>{r.categoryNameSnapshot}</span>}
-                    {r.resolution === 'skipped' && (
-                      <span className="rounded bg-neutral-500/10 px-1.5 py-0.5">
-                        已跳过
-                      </span>
-                    )}
-                    {r.occurrenceKey !== 'single' && <span aria-label="周期任务">↻</span>}
-                  </span>
-                </li>
+      <div className="browse-layout">
+        <section className="browse-categories" aria-labelledby="browse-categories-title">
+          <div className="browse-section-head">
+            <h2 id="browse-categories-title" className="browse-section-title">分类</h2>
+            <span className="browse-count-token tabular">{categories?.length ?? 0}</span>
+          </div>
+          <div className="list-card browse-category-card bg-white dark:bg-neutral-800">
+            <ul>
+              {(categories ?? []).map((c) => (
+                <CategoryRow key={c.id} cat={c} taskCount={countByCat.get(c.id) ?? 0} />
               ))}
             </ul>
+            <div className="category-composer">
+              <input
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && void submitCategory()}
+                placeholder="新建分类（如 学校 / 工作 / 生活）"
+              />
+              <button
+                onClick={() => void submitCategory()}
+                disabled={!newName.trim()}
+                className="category-add"
+              >
+                添加
+              </button>
+            </div>
           </div>
-        ))
-      )}
+        </section>
+
+        <section className="browse-records" aria-labelledby="browse-records-title">
+          <div className="browse-section-head">
+            <h2 id="browse-records-title" className="browse-section-title">
+              <span>已完成</span><span className="browse-section-muted">记录</span>
+            </h2>
+            <span className="browse-count-token browse-count-complete tabular">
+              {records?.length ?? 0}
+            </span>
+          </div>
+          {(records?.length ?? 0) === 0 ? (
+            <div className="browse-empty-state">还没有完成记录</div>
+          ) : (
+            <div className="record-groups">
+              {Array.from(groups.entries()).map(([day, rs]) => (
+                <article key={day} className="record-group">
+                  <p className="record-date">
+                    {new Date(day + 'T00:00:00').toLocaleDateString('zh-CN', {
+                      month: 'long',
+                      day: 'numeric',
+                      weekday: 'short',
+                    })}
+                  </p>
+                  <ul className="list-card record-list bg-white dark:bg-neutral-800">
+                    {rs.map((r) => (
+                      <li key={r.id} className="record-row">
+                        <span
+                          className={`record-title ${
+                            r.resolution === 'completed' ? 'is-completed' : ''
+                          }`}
+                        >
+                          {r.titleSnapshot}
+                        </span>
+                        <span className="record-meta">
+                          {r.categoryNameSnapshot && (
+                            <span className="record-category">{r.categoryNameSnapshot}</span>
+                          )}
+                          {r.resolution === 'skipped' && (
+                            <span className="record-skipped">已跳过</span>
+                          )}
+                          {r.occurrenceKey !== 'single' && <span aria-label="周期任务">↻</span>}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
     </section>
   )
 }

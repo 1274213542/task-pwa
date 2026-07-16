@@ -76,7 +76,7 @@ export default function TaskRow({
       }}
       className={`group row-in flex items-center gap-3 border-b border-black/5 px-1
         py-3 last:border-b-0 dark:border-white/10 ${
-          selected ? 'rounded-lg bg-[#2f765f]/10 ring-1 ring-[#2f765f]/40' : ''
+          selected ? 'is-selected' : ''
         } ${dragProps ? 'task-sortable' : ''}`}
     >
       <button
@@ -88,7 +88,7 @@ export default function TaskRow({
           className={`flex h-[24px] w-[24px] items-center justify-center rounded-full
             border-[1.5px] ${
               completed
-                ? 'border-[#2f765f] bg-[#2f765f] text-white'
+                ? 'task-check is-complete text-white'
                 : 'border-neutral-300 dark:border-neutral-600'
             }`}
         >

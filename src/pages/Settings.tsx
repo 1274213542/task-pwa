@@ -96,11 +96,11 @@ export default function Settings() {
   }
 
   return (
-    <section className="app-page">
+    <section className="app-page page-settings">
       <PageHeader
         title="设置"
         eyebrow="数据与偏好"
-        leading={<Link to="/browse" aria-label="返回" className="hit-target -ml-3 text-2xl text-[#2f765f]">
+        leading={<Link to="/browse" aria-label="返回" className="settings-back hit-target -ml-3 text-2xl">
           ‹
         </Link>}
       />
@@ -119,8 +119,8 @@ export default function Settings() {
             ) : (
               <button
                 onClick={() => void db.cloud.login()}
-                className="rounded-lg bg-[#2f765f] px-3 py-1 text-[14px] font-medium
-                  text-white active:opacity-80"
+                className="settings-login min-h-9 rounded-full px-3 text-[14px]
+                  active:opacity-80"
               >
                 登录以同步
               </button>
@@ -177,8 +177,8 @@ export default function Settings() {
         <button
           onClick={requestPersist}
           disabled={request === 'pending'}
-          className="primary-action mt-4 w-full rounded-xl bg-[#2f765f] py-2.5 text-[15px] font-medium
-            text-white transition active:scale-[0.98] active:opacity-80
+          className="primary-action mt-4 w-full rounded-xl py-2.5 text-[15px] font-medium
+            transition active:scale-[0.98] active:opacity-80
             disabled:opacity-50"
         >
           {request === 'pending' ? '请求中…' : '请求持久存储'}
@@ -203,14 +203,14 @@ export default function Settings() {
       <div className="list-card mt-2 overflow-hidden rounded-xl bg-white dark:bg-neutral-800">
         <button
           onClick={() => void doExport()}
-          className="w-full border-b border-black/5 px-4 py-3 text-left text-[15px]
-            text-[#2f765f] dark:border-white/10"
+          className="settings-data-action w-full border-b border-black/5 px-4 py-3 text-left text-[15px]
+            dark:border-white/10"
         >
           导出全部数据（JSON）
         </button>
         <button
           onClick={() => fileRef.current?.click()}
-          className="w-full px-4 py-3 text-left text-[15px] text-[#2f765f]"
+          className="settings-data-action w-full px-4 py-3 text-left text-[15px]"
         >
           从备份导入…
         </button>

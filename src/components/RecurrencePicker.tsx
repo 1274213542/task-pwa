@@ -111,7 +111,7 @@ export default function RecurrencePicker({
                 }}
                 className={`h-10 w-10 rounded-full text-[12px] transition ${
                   on
-                    ? 'bg-[#2f765f] text-white'
+                    ? 'is-recurrence-active text-black'
                     : 'bg-white text-neutral-500 dark:bg-neutral-800'
                 }`}
               >

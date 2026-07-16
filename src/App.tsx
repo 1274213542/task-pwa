@@ -19,10 +19,10 @@ import AppIcon, { type AppIconName } from './components/AppIcon'
 import { ensurePersistentStorage } from './lib/persistence'
 
 const TABS = [
-  { to: '/today', label: '任务', icon: 'today' },
-  { to: '/plan', label: '计划', icon: 'calendar' },
-  { to: '/shopping', label: '购物', icon: 'shopping' },
-  { to: '/browse', label: '浏览', icon: 'browse' },
+  { to: '/today', label: '任务', icon: 'today', tone: 'task' },
+  { to: '/plan', label: '计划', icon: 'calendar', tone: 'plan' },
+  { to: '/shopping', label: '购物', icon: 'shopping', tone: 'shopping' },
+  { to: '/browse', label: '浏览', icon: 'browse', tone: 'browse' },
 ] as const
 
 const LAST_ROUTE_KEY = 'lastRoute'
@@ -130,6 +130,7 @@ export default function App() {
     <div className="app-shell flex h-full flex-col lg:flex-row">
       {/* 桌面端侧栏 / 手机端底部 Tab，同一份导航数据 */}
       <nav
+        data-tone={TABS[activeTabIndex]?.tone ?? 'neutral'}
         className={`mobile-nav safe-bottom glass fixed inset-x-0 bottom-0 z-10 border-t
           border-black/10 bg-white/80 backdrop-blur-xl lg:static lg:flex lg:w-56
           lg:flex-col lg:border-t-0 lg:border-r lg:bg-transparent
@@ -150,14 +151,13 @@ export default function App() {
             <li key={tab.to} className="lg:w-full">
               <NavLink
                 to={tab.to}
+                data-tone={tab.tone}
                 data-active={location.pathname === tab.to}
                 className={({ isActive }) =>
                   `mobile-tab-link relative flex min-h-14 flex-col items-center justify-center
                    gap-0.5 px-3 py-1.5 text-[11px] lg:min-h-11 lg:flex-row lg:justify-start
                    lg:gap-2.5 lg:rounded-xl lg:px-3 lg:text-[15px] ${
-                     isActive
-                       ? 'text-[#2f765f] lg:bg-[#2f765f]/10'
-                       : 'text-neutral-500 dark:text-neutral-400'
+                     isActive ? 'is-active' : 'text-neutral-500 dark:text-neutral-400'
                    }`
                 }
               >
@@ -181,9 +181,7 @@ export default function App() {
             to="/settings"
             className={({ isActive }) =>
               `flex min-h-11 items-center gap-2.5 rounded-xl px-3 text-[15px] ${
-                isActive
-                  ? 'bg-[#2f765f]/10 text-[#2f765f]'
-                  : 'text-neutral-500 dark:text-neutral-400'
+                isActive ? 'is-active settings-nav-link' : 'text-neutral-500 dark:text-neutral-400'
               }`
             }
           >
@@ -206,7 +204,7 @@ export default function App() {
           keyboardOpen ? 'pb-5' : 'pb-24'
         } lg:pb-8`}
       >
-        <div className="safe-inline mx-auto max-w-3xl pt-2 lg:pt-5">
+        <div className="safe-inline app-content mx-auto max-w-[940px] pt-2 lg:pt-5">
           {/* 固定高度的非覆盖状态槽：同步状态永不压住导航或输入。 */}
           <div className="app-status-slot flex h-7 items-center justify-end" aria-live="polite">
             <SyncStatus />

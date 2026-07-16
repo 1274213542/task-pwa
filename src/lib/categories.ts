@@ -5,12 +5,12 @@ const nextRank = () => Date.now().toString(36).padStart(10, '0')
 
 /** 受限色板（v4.2 §2 分类：视觉区分但不依赖过多颜色） */
 export const COLOR_TOKENS: Record<ColorToken, string> = {
-  gray: '#8e8e93',
-  blue: '#007aff',
-  green: '#34c759',
-  orange: '#ff9500',
-  pink: '#ff2d55',
-  purple: '#af52de',
+  gray: '#a4a4a0',
+  blue: '#35b8d4',
+  green: '#3fae7a',
+  orange: '#ff650f',
+  pink: '#df469c',
+  purple: '#a89ded',
 }
 
 export async function addCategory(

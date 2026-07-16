@@ -15,24 +15,24 @@ export default function SyncStatus() {
 
   const { phase } = syncState
   let label: string
-  let dot: string
+  let tone: 'success' | 'progress' | 'offline' | 'error'
   switch (phase) {
     case 'in-sync':
       label = '已同步'
-      dot = 'bg-emerald-500'
+      tone = 'success'
       break
     case 'pulling':
     case 'pushing':
       label = '正在同步'
-      dot = 'bg-[#2f765f] animate-pulse'
+      tone = 'progress'
       break
     case 'offline':
       label = '离线使用中'
-      dot = 'bg-neutral-400'
+      tone = 'offline'
       break
     case 'error':
       label = '同步失败，稍后重试'
-      dot = 'bg-amber-500'
+      tone = 'error'
       break
     default:
       return null // initial / not-in-sync 的短暂中间态不打扰
@@ -42,12 +42,13 @@ export default function SyncStatus() {
     <div
       role="status"
       aria-label={label}
-      className="pointer-events-none flex h-6 items-center gap-1.5 rounded-full
+      data-state={tone}
+      className="sync-status pointer-events-none flex h-6 items-center gap-1.5 rounded-full
         bg-white/75 px-2.5 text-[11px] font-medium text-neutral-500 shadow-sm
         ring-1 ring-black/5 backdrop-blur-md dark:bg-neutral-800/75
         dark:text-neutral-300 dark:ring-white/10"
     >
-      <span className={`h-1.5 w-1.5 rounded-full ${dot}`} aria-hidden />
+      <span className="sync-dot h-1.5 w-1.5 rounded-full" aria-hidden />
       {label}
     </div>
   )
