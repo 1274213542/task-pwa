@@ -67,7 +67,7 @@ export default function EventEditor({
         role="dialog"
         aria-modal="true"
         aria-labelledby="event-editor-title"
-        className="safe-bottom pop-in w-full max-w-lg rounded-t-[26px] bg-white px-5 pb-5
+        className="safe-bottom editor-sheet w-full max-w-lg rounded-t-[26px] bg-white px-5 pb-5
           pt-4 shadow-2xl lg:rounded-[24px] dark:bg-neutral-800"
       >
         <div className="mx-auto mb-2 h-1 w-9 rounded-full bg-neutral-300 lg:hidden dark:bg-neutral-600" />

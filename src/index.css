@@ -15,6 +15,14 @@ body,
   height: 100%;
 }
 
+@supports (height: 100dvh) {
+  html,
+  body,
+  #root {
+    height: 100dvh;
+  }
+}
+
 html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
@@ -99,6 +107,10 @@ select:focus-visible {
   color: inherit;
   font-size: 16px;
   outline: none;
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.2s cubic-bezier(0.32, 0.72, 0.28, 1),
+    background-color 0.16s ease;
 }
 
 .field:focus {
@@ -115,19 +127,160 @@ select:focus-visible {
 
 /* ===== 动效（MS9，v4.2 §12）：自然、连续、可中断；全部 CSS/SVG ===== */
 
-/* 页面切换：轻淡入 + 6px 上移（Apple 式克制） */
+/* 页面切换：方向只作为空间提示，幅度刻意保持很小。 */
 @keyframes page-in {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translate3d(var(--page-shift, 0), 0, 0) scale(0.997);
   }
   to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+.page-in {
+  --page-shift: 0;
+  animation: page-in 0.2s cubic-bezier(0.22, 0.72, 0.24, 1) both;
+  will-change: transform, opacity;
+}
+.page-in.page-forward {
+  --page-shift: 10px;
+}
+.page-in.page-back {
+  --page-shift: -10px;
+}
+
+@media (min-width: 1024px) {
+  .page-in {
+    animation-duration: 0.17s;
+  }
+  .page-in.page-forward {
+    --page-shift: 4px;
+  }
+  .page-in.page-back {
+    --page-shift: -4px;
+  }
+}
+
+/* 手机底栏：一个可中断的连续选中层，快速点按只改变当前 transform 目标。 */
+.mobile-nav {
+  transition:
+    transform 0.24s cubic-bezier(0.32, 0.72, 0.28, 1),
+    opacity 0.16s ease;
+}
+.mobile-nav.is-keyboard-open {
+  pointer-events: none;
+  opacity: 0;
+  transform: translate3d(0, calc(100% + env(safe-area-inset-bottom)), 0);
+}
+.mobile-tab-indicator {
+  transition:
+    transform 0.34s cubic-bezier(0.2, 0.82, 0.25, 1),
+    opacity 0.15s ease;
+  will-change: transform;
+}
+.mobile-tab-link {
+  transition: color 0.2s ease;
+}
+.mobile-tab-icon {
+  transform: translate3d(0, 1px, 0) scale(0.97);
+  transition:
+    transform 0.28s cubic-bezier(0.2, 0.82, 0.25, 1),
+    opacity 0.18s ease;
+}
+.mobile-tab-label {
+  opacity: 0.78;
+  transform: translate3d(0, 1px, 0);
+  transition:
+    transform 0.24s cubic-bezier(0.2, 0.82, 0.25, 1),
+    opacity 0.18s ease,
+    font-weight 0.18s ease;
+}
+.mobile-tab-link[data-active='true'] .mobile-tab-icon {
+  opacity: 1;
+  transform: translate3d(0, -1px, 0) scale(1.035);
+}
+.mobile-tab-link[data-active='true'] .mobile-tab-label {
+  font-weight: 600;
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+}
+
+@media (min-width: 1024px) {
+  .mobile-nav,
+  .mobile-nav.is-keyboard-open,
+  .mobile-tab-icon,
+  .mobile-tab-label,
+  .mobile-tab-link[data-active='true'] .mobile-tab-icon,
+  .mobile-tab-link[data-active='true'] .mobile-tab-label {
     opacity: 1;
     transform: none;
   }
 }
-.page-in {
-  animation: page-in 0.22s cubic-bezier(0.32, 0.72, 0.28, 1) both;
+
+/* 日历日格与当天面板：只对选中层和面板本身做反馈。 */
+.calendar-day {
+  transition:
+    background-color 0.16s ease,
+    box-shadow 0.16s ease,
+    transform 0.16s cubic-bezier(0.32, 0.72, 0.28, 1);
+}
+.calendar-day:active {
+  transform: scale(0.985);
+}
+.calendar-day.is-selected {
+  box-shadow: inset 0 0 0 1px rgb(0 122 255 / 0.16);
+}
+.calendar-composer {
+  box-sizing: border-box;
+  max-width: 100%;
+  scroll-margin-bottom: calc(7rem + env(safe-area-inset-bottom));
+}
+
+@keyframes day-panel-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 6px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+.day-panel-in {
+  animation: day-panel-in 0.2s cubic-bezier(0.32, 0.72, 0.28, 1) both;
+}
+
+@keyframes editor-sheet-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0) scale(0.995);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+.editor-sheet {
+  animation: editor-sheet-in 0.24s cubic-bezier(0.22, 0.76, 0.25, 1) both;
+  will-change: transform, opacity;
+}
+
+@media (min-width: 1024px) {
+  @keyframes editor-sheet-in-desktop {
+    from {
+      opacity: 0;
+      transform: translate3d(0, 4px, 0) scale(0.985);
+    }
+    to {
+      opacity: 1;
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+  }
+  .editor-sheet {
+    animation-name: editor-sheet-in-desktop;
+    animation-duration: 0.2s;
+  }
 }
 
 /* 列表新行入场 */
@@ -242,7 +395,14 @@ select:focus-visible {
   .page-in,
   .row-in,
   .pop-in,
-  .slide-up {
+  .slide-up,
+  .day-panel-in,
+  .editor-sheet {
     animation: none !important;
+  }
+  .mobile-tab-indicator,
+  .mobile-tab-icon,
+  .mobile-tab-label {
+    transition: none !important;
   }
 }

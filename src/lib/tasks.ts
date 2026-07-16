@@ -82,6 +82,34 @@ export async function renameTask(id: string, title: string): Promise<void> {
   await db.tasks.update(id, { title: trimmed, updatedAt: now() })
 }
 
+/** 日历编辑器使用的局部更新：只覆盖用户实际可编辑的现有字段。 */
+export async function updateTask(
+  id: string,
+  changes: {
+    title: string
+    notes?: string
+    categoryId?: string
+    startDate: string
+    endDate?: string
+    taskScope?: TaskScope
+  },
+): Promise<void> {
+  const title = changes.title.trim()
+  if (!title) throw new Error('标题不能为空')
+  if (changes.endDate && changes.endDate < changes.startDate) {
+    throw new Error('结束日期不能早于开始日期')
+  }
+  await db.tasks.update(id, {
+    title,
+    notes: changes.notes?.trim() || undefined,
+    categoryId: changes.categoryId || undefined,
+    startDate: changes.startDate,
+    endDate: changes.endDate || undefined,
+    taskScope: changes.taskScope ?? 'daily',
+    updatedAt: now(),
+  })
+}
+
 export async function softDeleteTask(id: string): Promise<void> {
   await db.tasks.update(id, {
     lifecycleStatus: 'deleted',

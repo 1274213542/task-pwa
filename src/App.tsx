@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Navigate,
   NavLink,
@@ -34,6 +34,15 @@ export default function App() {
   const location = useLocation()
   const navigate = useNavigate()
   const [paletteOpen, setPaletteOpen] = useState(false)
+  const [keyboardOpen, setKeyboardOpen] = useState(false)
+  const activeTabIndex = TABS.findIndex((tab) => location.pathname === tab.to)
+  const previousTabIndex = useRef(activeTabIndex)
+  const pageDirection =
+    activeTabIndex >= 0 && previousTabIndex.current >= 0
+      ? activeTabIndex >= previousTabIndex.current
+        ? 'page-forward'
+        : 'page-back'
+      : 'page-fade'
 
   useEffect(() => {
     void ensurePersistentStorage()
@@ -42,6 +51,50 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem(LAST_ROUTE_KEY, location.pathname)
   }, [location.pathname])
+
+  useEffect(() => {
+    previousTabIndex.current = activeTabIndex
+  }, [activeTabIndex])
+
+  // iOS 键盘出现时暂时收起底部栏，为输入区留下完整的可视高度。
+  useEffect(() => {
+    const viewport = window.visualViewport
+    let baseline = viewport?.height ?? window.innerHeight
+    let blurTimer = 0
+    const isEditable = () =>
+      document.activeElement?.matches('input, textarea, select, [contenteditable="true"]') ??
+      false
+    const update = () => {
+      const height = viewport?.height ?? window.innerHeight
+      if (!isEditable()) {
+        baseline = height
+        setKeyboardOpen(false)
+        return
+      }
+      setKeyboardOpen(
+        window.innerWidth < 1024 && isEditable() && baseline - height > 110,
+      )
+    }
+    const onFocus = () => {
+      window.clearTimeout(blurTimer)
+      baseline = Math.max(baseline, viewport?.height ?? window.innerHeight)
+      window.setTimeout(update, 40)
+    }
+    const onBlur = () => {
+      blurTimer = window.setTimeout(() => setKeyboardOpen(false), 120)
+    }
+    viewport?.addEventListener('resize', update)
+    window.addEventListener('resize', update)
+    document.addEventListener('focusin', onFocus)
+    document.addEventListener('focusout', onBlur)
+    return () => {
+      viewport?.removeEventListener('resize', update)
+      window.removeEventListener('resize', update)
+      document.removeEventListener('focusin', onFocus)
+      document.removeEventListener('focusout', onBlur)
+      window.clearTimeout(blurTimer)
+    }
+  }, [])
 
   // 桌面快捷键（v4.2 §10）：⌘K 面板、⌘1..4 切视图、⌘N 快速新增
   useEffect(() => {
@@ -67,19 +120,30 @@ export default function App() {
     <div className="flex h-full flex-col lg:flex-row">
       {/* 桌面端侧栏 / 手机端底部 Tab，同一份导航数据 */}
       <nav
-        className="safe-bottom glass fixed inset-x-0 bottom-0 z-10 border-t
+        className={`mobile-nav safe-bottom glass fixed inset-x-0 bottom-0 z-10 border-t
           border-black/10 bg-white/80 backdrop-blur-xl lg:static lg:flex lg:w-52
           lg:flex-col lg:border-t-0 lg:border-r lg:bg-transparent
-          lg:backdrop-blur-none dark:border-white/10 dark:bg-black/40"
+          lg:backdrop-blur-none dark:border-white/10 dark:bg-black/40 ${
+            keyboardOpen ? 'is-keyboard-open' : ''
+          }`}
       >
-        <ul className="flex justify-around lg:mt-16 lg:flex-col lg:gap-1 lg:px-3">
+        <ul className="relative grid grid-cols-4 lg:mt-16 lg:flex lg:flex-col lg:gap-1 lg:px-3">
+          <li
+            aria-hidden
+            className={`mobile-tab-indicator pointer-events-none absolute inset-y-1.5 left-0
+              w-1/4 px-1.5 lg:hidden ${activeTabIndex < 0 ? 'opacity-0' : ''}`}
+            style={{ transform: `translate3d(${Math.max(activeTabIndex, 0) * 100}%, 0, 0)` }}
+          >
+            <span className="block h-full rounded-[15px] bg-[#007aff]/10 dark:bg-[#0a84ff]/16" />
+          </li>
           {TABS.map((tab, i) => (
             <li key={tab.to} className="lg:w-full">
               <NavLink
                 to={tab.to}
+                data-active={location.pathname === tab.to}
                 className={({ isActive }) =>
-                  `flex min-h-14 flex-col items-center justify-center gap-0.5 px-3 py-1.5
-                   text-[11px] transition-colors lg:min-h-11 lg:flex-row lg:justify-start
+                  `mobile-tab-link relative flex min-h-14 flex-col items-center justify-center
+                   gap-0.5 px-3 py-1.5 text-[11px] lg:min-h-11 lg:flex-row lg:justify-start
                    lg:gap-2.5 lg:rounded-xl lg:px-3 lg:text-[15px] ${
                      isActive
                        ? 'text-[#007aff] lg:bg-[#007aff]/10'
@@ -87,8 +151,10 @@ export default function App() {
                    }`
                 }
               >
-                <AppIcon name={tab.icon as AppIconName} size={22} />
-                {tab.label}
+                <span className="mobile-tab-icon flex items-center justify-center">
+                  <AppIcon name={tab.icon as AppIconName} size={22} />
+                </span>
+                <span className="mobile-tab-label">{tab.label}</span>
                 <kbd
                   className="ml-auto hidden text-[11px] text-neutral-300 lg:inline
                     dark:text-neutral-600"
@@ -124,14 +190,18 @@ export default function App() {
         </div>
       </nav>
 
-      <main className="safe-top flex-1 overflow-y-auto pb-24 lg:pb-8">
+      <main
+        className={`safe-top flex-1 overflow-y-auto ${
+          keyboardOpen ? 'pb-5' : 'pb-24'
+        } lg:pb-8`}
+      >
         <div className="safe-inline mx-auto max-w-2xl pt-2 lg:pt-4">
           {/* 固定高度的非覆盖状态槽：同步状态永不压住导航或输入。 */}
           <div className="flex h-7 items-center justify-end" aria-live="polite">
             <SyncStatus />
           </div>
-          {/* key 换页触发轻淡入过渡（reduced-motion 下自动退化） */}
-          <div key={location.pathname} className="page-in">
+          {/* transform/opacity 换页动效可被下一次导航立即打断。 */}
+          <div key={location.pathname} className={`page-in ${pageDirection}`}>
             <Routes>
               <Route path="/" element={<Navigate to={initialRoute()} replace />} />
               <Route path="/today" element={<Today />} />

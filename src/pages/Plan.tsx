@@ -12,10 +12,12 @@ import {
   completeFixedOccurrence,
   completeTask,
   resolveAfterCompletion,
+  skipFixedOccurrence,
   voidRecord,
 } from '../lib/tasks'
 import { parseBatchLines } from '../lib/batch'
 import EventEditor from '../components/EventEditor'
+import TaskEditor, { type EditableTaskStatus } from '../components/TaskEditor'
 
 const WEEK_LABELS_MON = ['一', '二', '三', '四', '五', '六', '日']
 const WEEK_LABELS_SUN = ['日', '一', '二', '三', '四', '五', '六']
@@ -34,15 +36,19 @@ export default function Plan() {
   const [draftTime, setDraftTime] = useState('')
   const [draftScope, setDraftScope] = useState<TaskScope>('daily')
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null)
+  const [editingTask, setEditingTask] = useState<
+    Extract<CalItem, { kind: 'task' }> | null
+  >(null)
   const [feedback, setFeedback] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const submittingRef = useRef(false)
+  const dayPanelRef = useRef<HTMLDivElement>(null)
 
   const prefs = useLiveQuery(() => db.syncedPreferences.get('#prefs'), [])
   const weekStartsOn = (prefs?.weekStartsOn ?? 1) as 1 | 0
 
   const tasks = useLiveQuery(
-    () => db.tasks.where('lifecycleStatus').equals('active').toArray(),
+    () => db.tasks.where('lifecycleStatus').equals('active').sortBy('rank'),
     [],
   )
   const records = useLiveQuery(() => db.completionRecords.toArray(), [])
@@ -89,21 +95,46 @@ export default function Plan() {
     }
   }
 
-  function toggleItem(item: CalItem) {
-    if (item.kind !== 'task') return
-    void guarded(async () => {
-      const { task, occurrenceKey, completed, date } = item
-      if (completed) {
-        if (occurrenceKey.startsWith('ac:')) return // ac 撤销只在今天视图（仅最近一期）
-        await voidRecord(`${task.id}:${occurrenceKey}`)
-      } else if (occurrenceKey === 'single') {
-        await completeTask(task)
-      } else if (occurrenceKey.startsWith('fixed:')) {
-        await completeFixedOccurrence(task, date) // 提前完成未来一期：允许（决策表 #5）
-      } else {
-        await resolveAfterCompletion(task, 'completed')
+  async function setTaskStatus(
+    item: Extract<CalItem, { kind: 'task' }>,
+    status: EditableTaskStatus,
+  ) {
+    const current: EditableTaskStatus = item.skipped
+      ? 'skipped'
+      : item.completed
+        ? 'completed'
+        : 'pending'
+    if (status === current) return
+    await guarded(async () => {
+      const { task, occurrenceKey, date } = item
+      // 编辑器先保存字段再更新状态；重新读取可确保完成快照和普通任务日期使用新值。
+      const latestTask = (await db.tasks.get(task.id)) ?? task
+      if (status === 'pending') {
+        if (!occurrenceKey.startsWith('ac:')) {
+          await voidRecord(`${task.id}:${occurrenceKey}`)
+        }
+        return
+      }
+      if (status === 'completed') {
+        if (occurrenceKey === 'single') await completeTask(latestTask)
+        else if (occurrenceKey.startsWith('fixed:')) {
+          await completeFixedOccurrence(latestTask, date)
+        } else {
+          await resolveAfterCompletion(latestTask, 'completed')
+        }
+        return
+      }
+      if (occurrenceKey.startsWith('fixed:')) {
+        await skipFixedOccurrence(latestTask, date)
+      } else if (occurrenceKey.startsWith('ac:')) {
+        await resolveAfterCompletion(latestTask, 'skipped')
       }
     })
+  }
+
+  function toggleItem(item: CalItem) {
+    if (item.kind !== 'task') return
+    void setTaskStatus(item, item.completed ? 'pending' : 'completed')
   }
 
   async function submitDraft() {
@@ -153,6 +184,17 @@ export default function Plan() {
     }
   }
 
+  function selectDay(dateISO: string) {
+    setSelected(dateISO)
+    window.requestAnimationFrame(() => {
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      dayPanelRef.current?.scrollIntoView({
+        block: 'nearest',
+        behavior: reduceMotion ? 'auto' : 'smooth',
+      })
+    })
+  }
+
   function dayCell(dateISO: string) {
     const inMonth = dateISO.slice(0, 7) === cursor.toString().slice(0, 7)
     const isToday = dateISO === todayISO
@@ -161,43 +203,78 @@ export default function Plan() {
     const pendingCount = items.filter(
       (i) => i.kind === 'event' || (!i.completed && !i.skipped),
     ).length
+    const itemTitles = items.map((item) =>
+      item.kind === 'event' ? item.event.title : item.task.title,
+    )
     return (
       <button
         key={dateISO}
         role="gridcell"
-        aria-label={dateISO}
+        aria-label={`${dateISO}${itemTitles.length ? `：${itemTitles.join('、')}` : '：无安排'}`}
         aria-selected={isSelected}
         tabIndex={isSelected ? 0 : -1}
-        onClick={() => setSelected(dateISO)}
-        className={`flex h-12 flex-col items-center justify-start rounded-lg pt-1
-          text-[14px] transition ${inMonth ? '' : 'opacity-30'} ${
-            isSelected ? 'bg-[#007aff]/10' : ''
+        onClick={() => selectDay(dateISO)}
+        className={`calendar-day flex min-h-[76px] min-w-0 flex-col items-stretch
+          justify-start rounded-xl px-0.5 pb-1 pt-1 text-[14px] sm:min-h-[92px]
+          md:min-h-[112px] md:px-1 ${inMonth ? '' : 'opacity-35'} ${
+            isSelected ? 'is-selected bg-[#007aff]/10' : ''
           }`}
       >
         <span
-          className={`flex h-6 w-6 items-center justify-center rounded-full ${
+          className={`mx-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
             isToday ? 'bg-[#007aff] font-semibold text-white' : ''
           }`}
         >
           {Number(dateISO.slice(8))}
         </span>
-        <span className="mt-0.5 flex gap-0.5" aria-hidden>
-          {items.slice(0, 3).map((it, i) => (
-            <span
-              key={i}
-              className={`h-1 w-1 rounded-full ${
-                it.kind === 'event'
-                  ? 'bg-orange-400'
-                  : it.completed || it.skipped
-                    ? 'bg-neutral-300 dark:bg-neutral-600'
-                    : 'bg-[#007aff]'
-              }`}
-            />
-          ))}
-          {pendingCount > 3 && (
-            <span className="text-[8px] leading-none text-neutral-400">+</span>
+        <span className="mt-0.5 min-w-0 space-y-0.5 overflow-hidden text-left" aria-hidden>
+          {items.slice(0, 3).map((item, index) => {
+            const title = item.kind === 'event' ? item.event.title : item.task.title
+            const categoryId =
+              item.kind === 'event' ? item.event.categoryId : item.task.categoryId
+            const category = categoryId ? catMap.get(categoryId) : undefined
+            const color = category
+              ? COLOR_TOKENS[category.colorToken]
+              : item.kind === 'event'
+                ? '#ff9500'
+                : '#007aff'
+            const hiddenAt = index === 1 ? 'hidden sm:flex' : index === 2 ? 'hidden md:flex' : 'flex'
+            const resolved = item.kind === 'task' && (item.completed || item.skipped)
+            return (
+              <span
+                key={`${item.kind}:${item.kind === 'event' ? item.event.id : item.task.id}:${index}`}
+                className={`${hiddenAt} min-w-0 items-center gap-1 rounded-[5px] px-1 py-0.5
+                  text-[9px] leading-[1.25] md:text-[10px] ${
+                    resolved
+                      ? 'bg-neutral-100 text-neutral-400 line-through dark:bg-neutral-700/70'
+                      : 'bg-black/[0.035] text-neutral-700 dark:bg-white/[0.07] dark:text-neutral-200'
+                  }`}
+              >
+                <span
+                  className="h-1.5 w-1.5 shrink-0 rounded-full"
+                  style={{ background: resolved ? '#aeaeb2' : color }}
+                />
+                <span className="min-w-0 truncate">{title}</span>
+              </span>
+            )
+          })}
+          {items.length > 1 && (
+            <span className="block truncate px-1 text-[9px] leading-3 text-neutral-400 sm:hidden">
+              另 {items.length - 1} 项
+            </span>
+          )}
+          {items.length > 2 && (
+            <span className="hidden truncate px-1 text-[9px] leading-3 text-neutral-400 sm:block md:hidden">
+              另 {items.length - 2} 项
+            </span>
+          )}
+          {items.length > 3 && (
+            <span className="hidden truncate px-1 text-[9px] leading-3 text-neutral-400 md:block">
+              另 {items.length - 3} 项
+            </span>
           )}
         </span>
+        {pendingCount > 0 && <span className="sr-only">{pendingCount} 项待处理</span>}
       </button>
     )
   }
@@ -280,7 +357,11 @@ export default function Plan() {
             )}
           </span>
         </button>
-        <div className="min-w-0 flex-1">
+        <button
+          onClick={() => setEditingTask(item)}
+          className="min-h-11 min-w-0 flex-1 py-1 text-left"
+          aria-label={`编辑任务：${task.title}`}
+        >
           <p
             className={`truncate text-[15px] ${
               completed ? 'text-neutral-400 line-through' : ''
@@ -301,7 +382,7 @@ export default function Plan() {
               {[cat?.name, item.subtitle].filter(Boolean).join(' · ')}
             </p>
           )}
-        </div>
+        </button>
       </li>
     )
   }
@@ -383,81 +464,104 @@ export default function Plan() {
             <div className="grid grid-cols-7">{grid.map(dayCell)}</div>
           </div>
 
-          <div className="mt-4">
-            <p className="px-1 text-[13px] font-medium text-neutral-400">
-              {new Date(selected + 'T00:00:00').toLocaleDateString('zh-CN', {
-                month: 'long',
-                day: 'numeric',
-                weekday: 'long',
-              })}
-            </p>
-            <div className="mt-2 flex flex-wrap items-center gap-2 rounded-2xl bg-white/70
-              p-2 shadow-sm ring-1 ring-black/5 dark:bg-neutral-800/70 dark:ring-white/5">
-              <textarea
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault()
-                    void submitDraft()
+          <div ref={dayPanelRef} className="calendar-day-panel mt-4 scroll-mb-28">
+            <div key={selected} className="day-panel-in">
+              <div className="flex items-end justify-between gap-3 px-1">
+                <div>
+                  <p className="text-[13px] font-medium text-neutral-400">当天安排</p>
+                  <h2 className="mt-0.5 text-[17px] font-semibold">
+                    {new Date(selected + 'T00:00:00').toLocaleDateString('zh-CN', {
+                      month: 'long',
+                      day: 'numeric',
+                      weekday: 'long',
+                    })}
+                  </h2>
+                </div>
+                <span className="shrink-0 pb-0.5 text-[12px] text-neutral-400">
+                  {selectedItems.length} 项
+                </span>
+              </div>
+
+              <div
+                className="calendar-composer mt-2 min-w-0 rounded-2xl bg-white/75 p-2.5
+                  shadow-sm ring-1 ring-black/5 dark:bg-neutral-800/75 dark:ring-white/5"
+              >
+                <textarea
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault()
+                      void submitDraft()
+                    }
+                  }}
+                  rows={1}
+                  enterKeyHint="done"
+                  placeholder={
+                    draftKind === 'event'
+                      ? '在所选日期添加计划；多项可换行…'
+                      : '在所选日期添加任务；多项可换行…'
                   }
-                }}
-                rows={1}
-                placeholder={draftKind === 'event' ? '添加计划；多项可换行粘贴…' : '添加任务；多项可换行粘贴…'}
-                className="min-h-11 min-w-[12rem] flex-1 resize-none bg-transparent px-2 py-2
-                  text-[16px] leading-6 outline-none placeholder:text-neutral-400"
-              />
-              <select
-                aria-label="类型"
-                value={draftKind}
-                onChange={(e) => setDraftKind(e.target.value as 'event' | 'task')}
-                className="min-h-11 rounded-xl bg-neutral-100 px-2 text-[13px] dark:bg-neutral-800"
-              >
-                <option value="event">事项</option>
-                <option value="task">任务</option>
-              </select>
-              {draftKind === 'event' && (
-                <input
-                  type="time"
-                  aria-label="时间（可选）"
-                  value={draftTime}
-                  onChange={(e) => setDraftTime(e.target.value)}
-                  className="min-h-11 rounded-xl bg-neutral-100 px-2 text-[13px] dark:bg-neutral-800"
+                  className="min-h-12 w-full min-w-0 resize-none rounded-xl bg-transparent px-2.5
+                    py-2.5 text-[16px] leading-6 outline-none placeholder:text-neutral-400"
                 />
-              )}
-              {draftKind === 'task' && (
-                <select
-                  aria-label="任务周期"
-                  value={draftScope}
-                  onChange={(e) => setDraftScope(e.target.value as TaskScope)}
-                  className="min-h-11 rounded-xl bg-neutral-100 px-2 text-[13px] dark:bg-neutral-800"
-                >
-                  <option value="daily">每日</option>
-                  <option value="weekly">每周</option>
-                </select>
-              )}
-              <button
-                onClick={() => void submitDraft()}
-                disabled={!draft.trim() || submitting}
-                aria-label="添加"
-                className="h-11 w-11 shrink-0 rounded-xl bg-[#007aff] text-lg text-white
-                  disabled:opacity-40"
-              >
-                +
-              </button>
-            </div>
-            <p role="status" className="min-h-5 px-2 pt-1 text-[12px] text-neutral-500">
-              {feedback}
-            </p>
-            {selectedItems.length > 0 ? (
-              <ul className="mt-2 rounded-2xl bg-white px-3 dark:bg-neutral-800">
-                {selectedItems.map(itemRow)}
-              </ul>
-            ) : (
-              <p className="mt-3 px-1 text-center text-[13px] text-neutral-400">
-                这一天暂无安排
+                <div className="mt-1.5 flex min-w-0 items-center gap-2">
+                  <select
+                    aria-label="类型"
+                    value={draftKind}
+                    onChange={(e) => setDraftKind(e.target.value as 'event' | 'task')}
+                    className="min-h-11 min-w-0 flex-1 rounded-xl bg-neutral-100 px-2.5
+                      text-[13px] dark:bg-neutral-700"
+                  >
+                    <option value="event">计划</option>
+                    <option value="task">任务</option>
+                  </select>
+                  {draftKind === 'event' && (
+                    <input
+                      type="time"
+                      aria-label="时间（可选）"
+                      value={draftTime}
+                      onChange={(e) => setDraftTime(e.target.value)}
+                      className="min-h-11 min-w-0 max-w-[9.5rem] flex-[1.15] rounded-xl
+                        bg-neutral-100 px-2.5 text-[13px] dark:bg-neutral-700"
+                    />
+                  )}
+                  {draftKind === 'task' && (
+                    <select
+                      aria-label="任务周期"
+                      value={draftScope}
+                      onChange={(e) => setDraftScope(e.target.value as TaskScope)}
+                      className="min-h-11 min-w-0 max-w-[9.5rem] flex-[1.15] rounded-xl
+                        bg-neutral-100 px-2.5 text-[13px] dark:bg-neutral-700"
+                    >
+                      <option value="daily">每日任务</option>
+                      <option value="weekly">每周任务</option>
+                    </select>
+                  )}
+                  <button
+                    onClick={() => void submitDraft()}
+                    disabled={!draft.trim() || submitting}
+                    aria-label="添加"
+                    className="h-11 w-11 shrink-0 rounded-xl bg-[#007aff] text-xl text-white
+                      transition-transform active:scale-95 disabled:opacity-40"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+              <p role="status" className="min-h-5 px-2 pt-1 text-[12px] text-neutral-500">
+                {feedback}
               </p>
-            )}
+              {selectedItems.length > 0 ? (
+                <ul className="mt-2 rounded-2xl bg-white px-3 dark:bg-neutral-800">
+                  {selectedItems.map(itemRow)}
+                </ul>
+              ) : (
+                <p className="mt-3 px-1 text-center text-[13px] text-neutral-400">
+                  这一天暂无安排，可在上方直接添加
+                </p>
+              )}
+            </div>
           </div>
         </>
       ) : (
@@ -500,6 +604,14 @@ export default function Plan() {
           event={editingEvent}
           categories={categories ?? []}
           onClose={() => setEditingEvent(null)}
+        />
+      )}
+      {editingTask && (
+        <TaskEditor
+          item={editingTask}
+          categories={categories ?? []}
+          onStatusChange={(status) => setTaskStatus(editingTask, status)}
+          onClose={() => setEditingTask(null)}
         />
       )}
     </section>
