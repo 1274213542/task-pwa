@@ -66,6 +66,11 @@ export default function App() {
       false
     const update = () => {
       const height = viewport?.height ?? window.innerHeight
+      document.documentElement.style.setProperty('--visual-viewport-height', `${height}px`)
+      document.documentElement.style.setProperty(
+        '--visual-viewport-offset-top',
+        `${viewport?.offsetTop ?? 0}px`,
+      )
       if (!isEditable()) {
         baseline = height
         setKeyboardOpen(false)
@@ -83,16 +88,21 @@ export default function App() {
     const onBlur = () => {
       blurTimer = window.setTimeout(() => setKeyboardOpen(false), 120)
     }
+    update()
     viewport?.addEventListener('resize', update)
+    viewport?.addEventListener('scroll', update)
     window.addEventListener('resize', update)
     document.addEventListener('focusin', onFocus)
     document.addEventListener('focusout', onBlur)
     return () => {
       viewport?.removeEventListener('resize', update)
+      viewport?.removeEventListener('scroll', update)
       window.removeEventListener('resize', update)
       document.removeEventListener('focusin', onFocus)
       document.removeEventListener('focusout', onBlur)
       window.clearTimeout(blurTimer)
+      document.documentElement.style.removeProperty('--visual-viewport-height')
+      document.documentElement.style.removeProperty('--visual-viewport-offset-top')
     }
   }, [])
 
@@ -117,11 +127,11 @@ export default function App() {
   }, [navigate])
 
   return (
-    <div className="flex h-full flex-col lg:flex-row">
+    <div className="app-shell flex h-full flex-col lg:flex-row">
       {/* 桌面端侧栏 / 手机端底部 Tab，同一份导航数据 */}
       <nav
         className={`mobile-nav safe-bottom glass fixed inset-x-0 bottom-0 z-10 border-t
-          border-black/10 bg-white/80 backdrop-blur-xl lg:static lg:flex lg:w-52
+          border-black/10 bg-white/80 backdrop-blur-xl lg:static lg:flex lg:w-56
           lg:flex-col lg:border-t-0 lg:border-r lg:bg-transparent
           lg:backdrop-blur-none dark:border-white/10 dark:bg-black/40 ${
             keyboardOpen ? 'is-keyboard-open' : ''
@@ -134,7 +144,7 @@ export default function App() {
               w-1/4 px-1.5 lg:hidden ${activeTabIndex < 0 ? 'opacity-0' : ''}`}
             style={{ transform: `translate3d(${Math.max(activeTabIndex, 0) * 100}%, 0, 0)` }}
           >
-            <span className="block h-full rounded-[15px] bg-[#007aff]/10 dark:bg-[#0a84ff]/16" />
+            <span className="mobile-tab-indicator-fill block h-full rounded-[14px]" />
           </li>
           {TABS.map((tab, i) => (
             <li key={tab.to} className="lg:w-full">
@@ -146,7 +156,7 @@ export default function App() {
                    gap-0.5 px-3 py-1.5 text-[11px] lg:min-h-11 lg:flex-row lg:justify-start
                    lg:gap-2.5 lg:rounded-xl lg:px-3 lg:text-[15px] ${
                      isActive
-                       ? 'text-[#007aff] lg:bg-[#007aff]/10'
+                       ? 'text-[#2f765f] lg:bg-[#2f765f]/10'
                        : 'text-neutral-500 dark:text-neutral-400'
                    }`
                 }
@@ -172,7 +182,7 @@ export default function App() {
             className={({ isActive }) =>
               `flex min-h-11 items-center gap-2.5 rounded-xl px-3 text-[15px] ${
                 isActive
-                  ? 'bg-[#007aff]/10 text-[#007aff]'
+                  ? 'bg-[#2f765f]/10 text-[#2f765f]'
                   : 'text-neutral-500 dark:text-neutral-400'
               }`
             }
@@ -191,13 +201,14 @@ export default function App() {
       </nav>
 
       <main
+        data-keyboard-open={keyboardOpen}
         className={`safe-top flex-1 overflow-y-auto ${
           keyboardOpen ? 'pb-5' : 'pb-24'
         } lg:pb-8`}
       >
-        <div className="safe-inline mx-auto max-w-2xl pt-2 lg:pt-4">
+        <div className="safe-inline mx-auto max-w-3xl pt-2 lg:pt-5">
           {/* 固定高度的非覆盖状态槽：同步状态永不压住导航或输入。 */}
-          <div className="flex h-7 items-center justify-end" aria-live="polite">
+          <div className="app-status-slot flex h-7 items-center justify-end" aria-live="polite">
             <SyncStatus />
           </div>
           {/* transform/opacity 换页动效可被下一次导航立即打断。 */}

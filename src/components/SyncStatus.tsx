@@ -24,7 +24,7 @@ export default function SyncStatus() {
     case 'pulling':
     case 'pushing':
       label = '正在同步'
-      dot = 'bg-[#007aff] animate-pulse'
+      dot = 'bg-[#2f765f] animate-pulse'
       break
     case 'offline':
       label = '离线使用中'

@@ -2,9 +2,12 @@ import { useEffect, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
   DndContext,
+  DragOverlay,
   type DragEndEvent,
+  type DragStartEvent,
   KeyboardSensor,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   closestCenter,
   useSensor,
   useSensors,
@@ -50,6 +53,7 @@ import {
 } from '../lib/tasks'
 import TaskRow from '../components/TaskRow'
 import RecurrencePicker from '../components/RecurrencePicker'
+import PageHeader from '../components/PageHeader'
 import {
   defaultFixedRecurrence,
   taskScopeOf,
@@ -228,9 +232,10 @@ function SortablePendingRow({
     liStyle: {
       transform: CSS.Transform.toString(transform),
       transition,
-      opacity: isDragging ? 0.6 : 1,
+      opacity: isDragging ? 0.18 : 1,
     },
     dragProps: { ...attributes, ...listeners },
+    dragging: isDragging,
     selected,
     onMetaClick,
   })
@@ -248,6 +253,7 @@ export default function Today() {
   const [submitting, setSubmitting] = useState(false)
   const [showDone, setShowDone] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [activeTaskId, setActiveTaskId] = useState<string | null>(null)
   // 完成感窗口（v4.2 §12）：勾选后原地保留 ~800ms 展示动画，再按策略归置
   const [recentlyDone, setRecentlyDone] = useState<Set<string>>(new Set())
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -264,7 +270,11 @@ export default function Today() {
     }, 800)
   }
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    // 触摸端以长按进入排序；容差允许手指自然微移，同时保留正常纵向滚动。
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 260, tolerance: 8 },
+    }),
     // 键盘拖拽（space 拾起 / 方向键移动 / space 放下）：无障碍 + 可测试
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
@@ -468,7 +478,12 @@ export default function Today() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedIds, pending])
 
+  function onDragStart(e: DragStartEvent) {
+    setActiveTaskId(String(e.active.id))
+  }
+
   function onDragEnd(e: DragEndEvent) {
+    setActiveTaskId(null)
     const { active, over } = e
     if (!over || active.id === over.id) return
     const ids = pending.map((p) => p.task.id)
@@ -484,19 +499,17 @@ export default function Today() {
     )
   }
 
+  const activePending = pending.find((item) => item.task.id === activeTaskId)
+
   return (
-    <section>
-      <div className="flex items-end justify-between gap-3">
-        <div>
-          <p className="text-[13px] font-medium text-neutral-500 dark:text-neutral-400">
-            {scope === 'daily' ? dateLabel : `本周 ${weeklyRangeLabel}`}
-          </p>
-          <h1 className="mt-0.5 text-3xl font-bold tracking-tight">任务</h1>
-        </div>
-        <div
+    <section className="app-page">
+      <PageHeader
+        title="任务"
+        eyebrow={scope === 'daily' ? dateLabel : `本周 ${weeklyRangeLabel}`}
+        actions={<div
           role="tablist"
           aria-label="任务周期"
-          className="flex rounded-xl bg-black/5 p-0.5 text-[13px] dark:bg-white/10"
+          className="segmented-control flex rounded-xl bg-black/5 p-0.5 text-[13px] dark:bg-white/10"
         >
           {(['daily', 'weekly'] as const).map((value) => (
             <button
@@ -506,17 +519,17 @@ export default function Today() {
               onClick={() => switchScope(value)}
               className={`min-h-11 rounded-[10px] px-3.5 font-medium transition ${
                 scope === value
-                  ? 'bg-white text-neutral-900 shadow-sm dark:bg-neutral-700 dark:text-white'
+                  ? 'is-active bg-white text-neutral-900 shadow-sm dark:bg-neutral-700 dark:text-white'
                   : 'text-neutral-500'
               }`}
             >
               {value === 'daily' ? '每日' : '每周'}
             </button>
           ))}
-        </div>
-      </div>
+        </div>}
+      />
 
-      <div className="mt-4 rounded-2xl bg-white/70 p-2 shadow-sm ring-1 ring-black/5 dark:bg-neutral-800/70 dark:ring-white/5">
+      <div className="quick-card mt-4 rounded-2xl bg-white/70 p-2 shadow-sm ring-1 ring-black/5 dark:bg-neutral-800/70 dark:ring-white/5">
         <div className="flex items-center gap-2">
           <textarea
             ref={inputRef}
@@ -538,7 +551,7 @@ export default function Today() {
             onClick={() => void submit()}
             disabled={!title.trim() || submitting}
             aria-label="添加"
-            className="h-11 w-11 shrink-0 rounded-xl bg-[#007aff] text-xl
+            className="primary-action h-11 w-11 shrink-0 rounded-xl bg-[#2f765f] text-xl
               text-white transition active:scale-95 disabled:opacity-40"
           >
             +
@@ -608,13 +621,16 @@ export default function Today() {
             <DndContext
               sensors={sensors}
               collisionDetection={closestCenter}
+              onDragStart={onDragStart}
+              onDragCancel={() => setActiveTaskId(null)}
               onDragEnd={onDragEnd}
+              autoScroll
             >
               <SortableContext
                 items={pending.map((p) => p.task.id)}
                 strategy={verticalListSortingStrategy}
               >
-                <ul className="mt-4 rounded-2xl bg-white px-3 dark:bg-neutral-800">
+                <ul className="list-card mt-4 rounded-2xl bg-white px-3 dark:bg-neutral-800">
                   {pending.map((item) => (
                     <SortablePendingRow
                       key={`${item.task.id}:${item.occurrenceKey}`}
@@ -626,6 +642,17 @@ export default function Today() {
                   ))}
                 </ul>
               </SortableContext>
+              <DragOverlay dropAnimation={{ duration: 180, easing: 'cubic-bezier(.22,.78,.2,1)' }}>
+                {activePending ? (
+                  <div className="drag-overlay-row">
+                    <span className="drag-overlay-check" aria-hidden />
+                    <div className="min-w-0">
+                      <p className="truncate text-[16px] font-medium">{activePending.task.title}</p>
+                      <p className="truncate text-[12px] text-neutral-500">松手保存新顺序</p>
+                    </div>
+                  </div>
+                ) : null}
+              </DragOverlay>
             </DndContext>
           )}
 
@@ -664,7 +691,7 @@ export default function Today() {
 
           {/* 完成后展示策略（v4.2 需求 §1）：keep 原地保留 / collapse 折叠 / hide 隐藏 */}
           {done.length > 0 && policy === 'keep' && (
-            <ul className="mt-3 rounded-2xl bg-white px-3 dark:bg-neutral-800">
+            <ul className="list-card mt-3 rounded-2xl bg-white px-3 dark:bg-neutral-800">
               {done.map((i) => rowFor(i))}
             </ul>
           )}
@@ -677,7 +704,7 @@ export default function Today() {
                 {showDone ? '▾' : '▸'} 已完成 · {done.length}
               </button>
               {showDone && (
-                <ul className="mt-2 rounded-2xl bg-white px-3 dark:bg-neutral-800">
+                <ul className="list-card mt-2 rounded-2xl bg-white px-3 dark:bg-neutral-800">
                   {done.map((i) => rowFor(i))}
                 </ul>
               )}

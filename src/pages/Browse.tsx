@@ -9,6 +9,8 @@ import {
   setCategoryColor,
   softDeleteCategory,
 } from '../lib/categories'
+import PageHeader from '../components/PageHeader'
+import AppIcon from '../components/AppIcon'
 
 const TOKEN_ORDER: ColorToken[] = ['gray', 'blue', 'green', 'orange', 'pink', 'purple']
 
@@ -126,20 +128,21 @@ export default function Browse() {
   }
 
   return (
-    <section>
-      <div className="flex items-start justify-between">
-        <h1 className="text-3xl font-bold tracking-tight">浏览</h1>
-        <Link
+    <section className="app-page">
+      <PageHeader
+        title="浏览"
+        eyebrow="分类与记录"
+        actions={<Link
           to="/settings"
           aria-label="设置"
-          className="rounded-full p-2 text-xl text-neutral-500 dark:text-neutral-400"
+          className="hit-target rounded-full text-neutral-500 dark:text-neutral-400"
         >
-          ⚙︎
-        </Link>
-      </div>
+          <AppIcon name="settings" size={21} />
+        </Link>}
+      />
 
-      <h2 className="mt-6 px-1 text-[13px] font-medium text-neutral-400">分类</h2>
-      <div className="mt-2 overflow-hidden rounded-2xl bg-white dark:bg-neutral-800">
+      <h2 className="section-label mt-6">分类</h2>
+      <div className="list-card mt-2 overflow-hidden rounded-2xl bg-white dark:bg-neutral-800">
         <ul>
           {(categories ?? []).map((c) => (
             <CategoryRow key={c.id} cat={c} taskCount={countByCat.get(c.id) ?? 0} />
@@ -157,14 +160,14 @@ export default function Browse() {
           <button
             onClick={() => void submitCategory()}
             disabled={!newName.trim()}
-            className="text-[15px] font-medium text-[#007aff] disabled:opacity-40"
+            className="text-[15px] font-medium text-[#2f765f] disabled:opacity-40"
           >
             添加
           </button>
         </div>
       </div>
 
-      <h2 className="mt-8 px-1 text-[13px] font-medium text-neutral-400">
+      <h2 className="section-label mt-8">
         已完成记录
       </h2>
       {(records?.length ?? 0) === 0 ? (
@@ -184,7 +187,7 @@ export default function Browse() {
                 weekday: 'short',
               })}
             </p>
-            <ul className="mt-1.5 rounded-2xl bg-white px-4 dark:bg-neutral-800">
+            <ul className="list-card mt-1.5 rounded-2xl bg-white px-4 dark:bg-neutral-800">
               {rs.map((r) => (
                 <li
                   key={r.id}

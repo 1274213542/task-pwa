@@ -11,6 +11,7 @@ import {
   suggestLocationId,
   unmarkPurchased,
 } from '../lib/shopping'
+import PageHeader from '../components/PageHeader'
 
 function ItemRow({
   item,
@@ -111,7 +112,7 @@ function LocationManager({ locations }: { locations: ShoppingLocation[] }) {
   const [draft, setDraft] = useState('')
 
   return (
-    <div className="mt-2 overflow-hidden rounded-2xl bg-white dark:bg-neutral-800">
+    <div className="location-manager list-card mt-2 overflow-hidden rounded-2xl bg-white dark:bg-neutral-800">
       <ul>
         {locations.map((loc) => (
           <li
@@ -194,7 +195,7 @@ function LocationManager({ locations }: { locations: ShoppingLocation[] }) {
             setName('')
           }}
           disabled={!name.trim()}
-          className="min-h-11 px-1 text-[15px] font-medium text-[#007aff] disabled:opacity-40"
+          className="min-h-11 px-1 text-[15px] font-medium text-[#2f765f] disabled:opacity-40"
         >
           添加
         </button>
@@ -301,20 +302,21 @@ export default function Shopping() {
   }
 
   return (
-    <section>
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold tracking-tight">购物</h1>
-        <div
+    <section className="app-page">
+      <PageHeader
+        title="购物"
+        eyebrow={`${pending.length} 件待购`}
+        actions={<div
           role="tablist"
           aria-label="清单视图"
-          className="flex rounded-lg bg-black/5 p-0.5 text-[13px] dark:bg-white/10"
+          className="segmented-control flex rounded-lg bg-black/5 p-0.5 text-[13px] dark:bg-white/10"
         >
           <button
             role="tab"
             aria-selected={grouped}
             onClick={() => switchGrouped(true)}
             className={`min-h-11 rounded-md px-3 py-1 transition ${
-              grouped ? 'bg-white shadow-sm dark:bg-neutral-700' : 'text-neutral-500'
+              grouped ? 'is-active bg-white shadow-sm dark:bg-neutral-700' : 'text-neutral-500'
             }`}
           >
             按地点
@@ -324,17 +326,18 @@ export default function Shopping() {
             aria-selected={!grouped}
             onClick={() => switchGrouped(false)}
             className={`min-h-11 rounded-md px-3 py-1 transition ${
-              !grouped ? 'bg-white shadow-sm dark:bg-neutral-700' : 'text-neutral-500'
+              !grouped ? 'is-active bg-white shadow-sm dark:bg-neutral-700' : 'text-neutral-500'
             }`}
           >
             平铺
           </button>
-        </div>
-      </div>
+        </div>}
+      />
 
-      <div className="mt-5 flex items-center gap-2 rounded-2xl bg-white/70 p-2 shadow-sm
+      <div className="quick-card mt-4 rounded-2xl bg-white/70 p-2 shadow-sm
         ring-1 ring-black/5 dark:bg-neutral-800/70 dark:ring-white/5">
-        <textarea
+        <div className="shopping-composer-row flex items-center gap-2">
+          <textarea
           value={name}
           onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => {
@@ -348,8 +351,8 @@ export default function Shopping() {
           enterKeyHint="done"
           className="min-h-11 min-w-0 flex-1 resize-none bg-transparent px-2 py-2.5
             text-[16px] leading-6 outline-none placeholder:text-neutral-400"
-        />
-        <input
+          />
+          <input
           type="number"
           min={1}
           value={qty}
@@ -358,40 +361,51 @@ export default function Shopping() {
           aria-label="数量"
           className="w-16 rounded-xl bg-neutral-100 px-2 py-2.5 text-center text-[15px]
             outline-none placeholder:text-neutral-400 dark:bg-neutral-800"
-        />
-        <button
+          />
+          <button
           onClick={() => void submit()}
           disabled={!name.trim() || submitting}
           aria-label="添加"
-          className="h-11 w-11 shrink-0 rounded-xl bg-[#007aff] text-xl
+          className="primary-action h-11 w-11 shrink-0 rounded-xl bg-[#2f765f] text-xl
             text-white transition active:scale-95 disabled:opacity-40"
-        >
-          +
-        </button>
+          >
+            +
+          </button>
+        </div>
+        {(locations?.length ?? 0) > 0 && (
+          <div className="shopping-meta-row mt-1 flex items-center gap-2 px-1 pb-1">
+            <span className="shrink-0 text-[12px] font-medium text-neutral-500">购买地点</span>
+            <select
+              aria-label="购买地点"
+              value={locationId}
+              onChange={(e) => {
+                setLocationId(e.target.value)
+                setManualLocation(true)
+              }}
+              className="min-h-10 min-w-0 flex-1 truncate rounded-xl bg-black/[0.035]
+                px-2.5 text-[13px] text-neutral-600 dark:bg-white/[0.07] dark:text-neutral-300"
+            >
+              <option value="">不指定</option>
+              {locations!.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.type === 'online' ? '线上 · ' : '实体 · '}
+                  {l.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
       <p role="status" className="min-h-5 px-2 pt-1 text-[12px] text-neutral-500">
         {feedback}
       </p>
-      {name.trim() && (locations?.length ?? 0) > 0 && (
-        <select
-          aria-label="购买地点"
-          value={locationId}
-          onChange={(e) => {
-            setLocationId(e.target.value)
-            setManualLocation(true)
-          }}
-          className="mt-2 min-h-11 rounded-xl bg-white px-2 py-1.5 text-[13px]
-            text-neutral-500 dark:bg-neutral-800"
-        >
-          <option value="">不指定地点</option>
-          {locations!.map((l) => (
-            <option key={l.id} value={l.id}>
-              {l.type === 'online' ? '🌐 ' : '🏬 '}
-              {l.name}
-            </option>
-          ))}
-        </select>
-      )}
+      <details className="location-management mt-1">
+        <summary className="inline-flex min-h-11 cursor-pointer items-center gap-1 px-1
+          text-[13px] font-medium text-neutral-500">
+          管理购买地点 <span className="tabular text-neutral-400">· {locations?.length ?? 0}</span>
+        </summary>
+        <LocationManager locations={locations ?? []} />
+      </details>
 
       {pending.length === 0 ? (
         <div
@@ -406,7 +420,7 @@ export default function Shopping() {
             <p className="px-1 text-[13px] font-medium text-neutral-400">
               {g.icon} {g.label} · {g.items.length}
             </p>
-            <ul className="mt-1.5 rounded-2xl bg-white px-3 dark:bg-neutral-800">
+            <ul className="list-card mt-1.5 rounded-2xl bg-white px-3 dark:bg-neutral-800">
               {g.items.map((i) => (
                 <ItemRow key={i.id} item={i} />
               ))}
@@ -414,7 +428,7 @@ export default function Shopping() {
           </div>
         ))
       ) : (
-        <ul className="mt-4 rounded-2xl bg-white px-3 dark:bg-neutral-800">
+        <ul className="list-card mt-4 rounded-2xl bg-white px-3 dark:bg-neutral-800">
           {pending.map((i) => (
             <ItemRow key={i.id} item={i} locationLabel={locName(i.locationId)} />
           ))}
@@ -430,7 +444,7 @@ export default function Shopping() {
             {showHistory ? '▾' : '▸'} 已购历史 · {purchased.length}
           </button>
           {showHistory && (
-            <ul className="mt-2 rounded-2xl bg-white px-3 dark:bg-neutral-800">
+            <ul className="list-card mt-2 rounded-2xl bg-white px-3 dark:bg-neutral-800">
               {purchased.slice(0, 30).map((i) => (
                 <ItemRow
                   key={i.id}
@@ -442,9 +456,6 @@ export default function Shopping() {
           )}
         </div>
       )}
-
-      <h2 className="mt-8 px-1 text-[13px] font-medium text-neutral-400">购买地点</h2>
-      <LocationManager locations={locations ?? []} />
     </section>
   )
 }

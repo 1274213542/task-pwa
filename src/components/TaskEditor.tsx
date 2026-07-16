@@ -1,4 +1,5 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { CalItem } from '../lib/calendar'
 import type { Category, TaskScope } from '../lib/db'
 import { softDeleteTask, updateTask } from '../lib/tasks'
@@ -36,6 +37,18 @@ export default function TaskEditor({
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [error, setError] = useState('')
   const savingRef = useRef(false)
+  const dialogRef = useRef<HTMLElement>(null)
+
+  useEffect(() => {
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const frame = window.requestAnimationFrame(() => {
+      dialogRef.current?.focus({ preventScroll: true })
+    })
+    return () => {
+      window.cancelAnimationFrame(frame)
+      previous?.focus({ preventScroll: true })
+    }
+  }, [])
 
   async function save() {
     if (savingRef.current) return
@@ -84,21 +97,23 @@ export default function TaskEditor({
     }
   }
 
-  return (
+  return createPortal(
     <div
       className="modal-backdrop fixed inset-0 z-40 flex items-end justify-center bg-black/25
         px-3 pt-8 backdrop-blur-[2px] lg:items-center"
-      onMouseDown={(event) => event.target === event.currentTarget && onClose()}
+      onPointerDown={(event) => event.target === event.currentTarget && onClose()}
     >
       <section
+        ref={dialogRef}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-labelledby="task-editor-title"
         className="safe-bottom editor-sheet w-full max-w-lg rounded-t-[26px] bg-white px-5
-          pb-5 pt-4 shadow-2xl lg:rounded-[24px] dark:bg-neutral-800"
+          pb-5 pt-4 shadow-2xl outline-none lg:rounded-[24px] dark:bg-neutral-800"
       >
         <div className="mx-auto mb-2 h-1 w-9 rounded-full bg-neutral-300 lg:hidden dark:bg-neutral-600" />
-        <div className="flex items-center justify-between">
+        <div className="editor-sheet-header flex items-center justify-between">
           <button onClick={onClose} className="hit-target text-[15px] text-neutral-500">
             取消
           </button>
@@ -108,7 +123,7 @@ export default function TaskEditor({
           <button
             onClick={() => void save()}
             disabled={saving || !title.trim()}
-            className="hit-target text-[15px] font-semibold text-[#007aff] disabled:opacity-40"
+            className="hit-target text-[15px] font-semibold text-[#2f765f] disabled:opacity-40"
           >
             {saving ? '保存中' : '保存'}
           </button>
@@ -118,7 +133,6 @@ export default function TaskEditor({
           <label className="block text-[12px] font-medium text-neutral-500">
             标题
             <input
-              autoFocus
               value={title}
               onChange={(event) => setTitle(event.target.value)}
               className="field mt-1"
@@ -230,6 +244,7 @@ export default function TaskEditor({
           {error}
         </p>
       </section>
-    </div>
+    </div>,
+    document.body,
   )
 }

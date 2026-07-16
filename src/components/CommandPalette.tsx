@@ -88,7 +88,7 @@ export default function CommandPalette({ onClose }: { onClose: () => void }) {
                 onMouseEnter={() => setCursor(i)}
                 className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2
                   text-left text-[15px] ${
-                    i === cursor ? 'bg-[#007aff]/10 text-[#007aff]' : ''
+                    i === cursor ? 'bg-[#2f765f]/10 text-[#2f765f]' : ''
                   }`}
               >
                 <span aria-hidden className="text-[12px] text-neutral-400">

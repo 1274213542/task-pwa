@@ -5,6 +5,7 @@ import { db } from '../lib/db'
 import { cloudEnabled } from '../config'
 import { ensurePersistentStorage, isStoragePersisted } from '../lib/persistence'
 import { exportBackup, importBackup } from '../lib/backup'
+import PageHeader from '../components/PageHeader'
 
 function downloadJson(json: string, filename: string) {
   const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }))
@@ -95,15 +96,16 @@ export default function Settings() {
   }
 
   return (
-    <section>
-      <div className="flex items-center gap-3">
-        <Link to="/browse" aria-label="返回" className="text-xl text-[#007aff]">
+    <section className="app-page">
+      <PageHeader
+        title="设置"
+        eyebrow="数据与偏好"
+        leading={<Link to="/browse" aria-label="返回" className="hit-target -ml-3 text-2xl text-[#2f765f]">
           ‹
-        </Link>
-        <h1 className="text-3xl font-bold tracking-tight">设置</h1>
-      </div>
+        </Link>}
+      />
 
-      <div className="mt-6 overflow-hidden rounded-xl bg-white dark:bg-neutral-800">
+      <div className="list-card mt-6 overflow-hidden rounded-xl bg-white dark:bg-neutral-800">
         {cloudEnabled && (
           <div
             className="flex items-center justify-between border-b border-black/5 px-4
@@ -117,7 +119,7 @@ export default function Settings() {
             ) : (
               <button
                 onClick={() => void db.cloud.login()}
-                className="rounded-lg bg-[#007aff] px-3 py-1 text-[14px] font-medium
+                className="rounded-lg bg-[#2f765f] px-3 py-1 text-[14px] font-medium
                   text-white active:opacity-80"
               >
                 登录以同步
@@ -175,7 +177,7 @@ export default function Settings() {
         <button
           onClick={requestPersist}
           disabled={request === 'pending'}
-          className="mt-4 w-full rounded-xl bg-[#007aff] py-2.5 text-[15px] font-medium
+          className="primary-action mt-4 w-full rounded-xl bg-[#2f765f] py-2.5 text-[15px] font-medium
             text-white transition active:scale-[0.98] active:opacity-80
             disabled:opacity-50"
         >
@@ -197,18 +199,18 @@ export default function Settings() {
         未启用持久存储时 App 照常使用；系统存储紧张时本地数据有被清除的可能，请保持云端同步并定期备份。
       </p>
 
-      <h2 className="mt-8 px-1 text-[13px] font-medium text-neutral-400">数据备份</h2>
-      <div className="mt-2 overflow-hidden rounded-xl bg-white dark:bg-neutral-800">
+      <h2 className="section-label mt-8">数据备份</h2>
+      <div className="list-card mt-2 overflow-hidden rounded-xl bg-white dark:bg-neutral-800">
         <button
           onClick={() => void doExport()}
           className="w-full border-b border-black/5 px-4 py-3 text-left text-[15px]
-            text-[#007aff] dark:border-white/10"
+            text-[#2f765f] dark:border-white/10"
         >
           导出全部数据（JSON）
         </button>
         <button
           onClick={() => fileRef.current?.click()}
-          className="w-full px-4 py-3 text-left text-[15px] text-[#007aff]"
+          className="w-full px-4 py-3 text-left text-[15px] text-[#2f765f]"
         >
           从备份导入…
         </button>

@@ -18,6 +18,7 @@ import {
 import { parseBatchLines } from '../lib/batch'
 import EventEditor from '../components/EventEditor'
 import TaskEditor, { type EditableTaskStatus } from '../components/TaskEditor'
+import PageHeader from '../components/PageHeader'
 
 const WEEK_LABELS_MON = ['一', '二', '三', '四', '五', '六', '日']
 const WEEK_LABELS_SUN = ['日', '一', '二', '三', '四', '五', '六']
@@ -217,12 +218,12 @@ export default function Plan() {
         className={`calendar-day flex min-h-[76px] min-w-0 flex-col items-stretch
           justify-start rounded-xl px-0.5 pb-1 pt-1 text-[14px] sm:min-h-[92px]
           md:min-h-[112px] md:px-1 ${inMonth ? '' : 'opacity-35'} ${
-            isSelected ? 'is-selected bg-[#007aff]/10' : ''
+            isSelected ? 'is-selected bg-[#2f765f]/10' : ''
           }`}
       >
         <span
           className={`mx-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
-            isToday ? 'bg-[#007aff] font-semibold text-white' : ''
+            isToday ? 'bg-[#2f765f] font-semibold text-white' : ''
           }`}
         >
           {Number(dateISO.slice(8))}
@@ -237,14 +238,14 @@ export default function Plan() {
               ? COLOR_TOKENS[category.colorToken]
               : item.kind === 'event'
                 ? '#ff9500'
-                : '#007aff'
+                : '#2f765f'
             const hiddenAt = index === 1 ? 'hidden sm:flex' : index === 2 ? 'hidden md:flex' : 'flex'
             const resolved = item.kind === 'task' && (item.completed || item.skipped)
             return (
               <span
                 key={`${item.kind}:${item.kind === 'event' ? item.event.id : item.task.id}:${index}`}
                 className={`${hiddenAt} min-w-0 items-center gap-1 rounded-[5px] px-1 py-0.5
-                  text-[9px] leading-[1.25] md:text-[10px] ${
+                  text-[10px] font-medium leading-[1.25] md:text-[11px] ${
                     resolved
                       ? 'bg-neutral-100 text-neutral-400 line-through dark:bg-neutral-700/70'
                       : 'bg-black/[0.035] text-neutral-700 dark:bg-white/[0.07] dark:text-neutral-200'
@@ -259,17 +260,17 @@ export default function Plan() {
             )
           })}
           {items.length > 1 && (
-            <span className="block truncate px-1 text-[9px] leading-3 text-neutral-400 sm:hidden">
+            <span className="block truncate px-1 text-[10px] leading-3 text-neutral-400 sm:hidden">
               另 {items.length - 1} 项
             </span>
           )}
           {items.length > 2 && (
-            <span className="hidden truncate px-1 text-[9px] leading-3 text-neutral-400 sm:block md:hidden">
+            <span className="hidden truncate px-1 text-[10px] leading-3 text-neutral-400 sm:block md:hidden">
               另 {items.length - 2} 项
             </span>
           )}
           {items.length > 3 && (
-            <span className="hidden truncate px-1 text-[9px] leading-3 text-neutral-400 md:block">
+            <span className="hidden truncate px-1 text-[10px] leading-3 text-neutral-400 md:block">
               另 {items.length - 3} 项
             </span>
           )}
@@ -339,7 +340,7 @@ export default function Plan() {
             className={`flex h-[22px] w-[22px] items-center justify-center rounded-full
               border-[1.5px] ${
                 completed
-                  ? 'border-[#007aff] bg-[#007aff] text-white'
+                  ? 'border-[#2f765f] bg-[#2f765f] text-white'
                   : 'border-neutral-300 dark:border-neutral-600'
               }`}
           >
@@ -390,14 +391,15 @@ export default function Plan() {
   const selectedItems = byDay?.get(selected) ?? []
 
   return (
-    <section>
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold tracking-tight">计划</h1>
-        {/* 明确的模式切换控件（v4.2 §10：不用下拉手势） */}
-        <div
+    <section className="app-page">
+      <PageHeader
+        title="计划"
+        eyebrow="日历与安排"
+        actions={(
+          <div
           role="tablist"
           aria-label="视图模式"
-          className="flex rounded-lg bg-black/5 p-0.5 text-[13px] dark:bg-white/10"
+          className="segmented-control flex rounded-lg bg-black/5 p-0.5 text-[13px] dark:bg-white/10"
         >
           {(['month', 'list'] as const).map((m) => (
             <button
@@ -407,21 +409,22 @@ export default function Plan() {
               onClick={() => switchMode(m)}
               className={`min-h-11 rounded-md px-3 py-1 transition ${
                 mode === m
-                  ? 'bg-white shadow-sm dark:bg-neutral-700'
+                  ? 'is-active bg-white shadow-sm dark:bg-neutral-700'
                   : 'text-neutral-500'
               }`}
             >
               {m === 'month' ? '月历' : '列表'}
             </button>
           ))}
-        </div>
-      </div>
+          </div>
+        )}
+      />
 
       {mode === 'month' ? (
         <>
           <div className="mt-4 flex items-center justify-between px-1">
             <p className="text-[17px] font-semibold">{monthLabel}</p>
-            <div className="flex items-center gap-1 text-[#007aff]">
+            <div className="flex items-center gap-1 text-[#2f765f]">
               <button
                 aria-label="上个月"
                 onClick={() => setCursor(cursor.subtract({ months: 1 }))}
@@ -452,7 +455,7 @@ export default function Plan() {
             role="grid"
             aria-label={monthLabel}
             onKeyDown={onGridKeyDown}
-            className="mt-2 rounded-2xl bg-white p-2 dark:bg-neutral-800"
+            className="calendar-card mt-2 rounded-2xl bg-white p-2 dark:bg-neutral-800"
           >
             <div className="grid grid-cols-7 text-center text-[11px] text-neutral-400">
               {weekLabels.map((w) => (
@@ -483,7 +486,7 @@ export default function Plan() {
               </div>
 
               <div
-                className="calendar-composer mt-2 min-w-0 rounded-2xl bg-white/75 p-2.5
+                className="calendar-composer quick-card mt-2 min-w-0 rounded-2xl bg-white/75 p-2.5
                   shadow-sm ring-1 ring-black/5 dark:bg-neutral-800/75 dark:ring-white/5"
               >
                 <textarea
@@ -542,7 +545,7 @@ export default function Plan() {
                     onClick={() => void submitDraft()}
                     disabled={!draft.trim() || submitting}
                     aria-label="添加"
-                    className="h-11 w-11 shrink-0 rounded-xl bg-[#007aff] text-xl text-white
+                    className="primary-action h-11 w-11 shrink-0 rounded-xl bg-[#2f765f] text-xl text-white
                       transition-transform active:scale-95 disabled:opacity-40"
                   >
                     +
@@ -553,7 +556,7 @@ export default function Plan() {
                 {feedback}
               </p>
               {selectedItems.length > 0 ? (
-                <ul className="mt-2 rounded-2xl bg-white px-3 dark:bg-neutral-800">
+                <ul className="list-card mt-2 rounded-2xl bg-white px-3 dark:bg-neutral-800">
                   {selectedItems.map(itemRow)}
                 </ul>
               ) : (
@@ -581,7 +584,7 @@ export default function Plan() {
                     })}
                     {d === todayISO && ' · 今天'}
                   </p>
-                  <ul className="mt-1.5 rounded-2xl bg-white px-3 dark:bg-neutral-800">
+                  <ul className="list-card mt-1.5 rounded-2xl bg-white px-3 dark:bg-neutral-800">
                     {byDay.get(d)!.map(itemRow)}
                   </ul>
                 </div>

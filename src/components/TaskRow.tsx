@@ -25,6 +25,7 @@ export default function TaskRow({
   dragProps,
   selected,
   onMetaClick,
+  dragging,
 }: {
   title: string
   subtitle?: string
@@ -37,6 +38,7 @@ export default function TaskRow({
   dragProps?: Record<string, unknown>
   selected?: boolean // 桌面 ⌘click 多选态
   onMetaClick?: () => void
+  dragging?: boolean
 }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(title)
@@ -65,6 +67,7 @@ export default function TaskRow({
       ref={liRef}
       style={liStyle}
       {...dragProps}
+      data-dragging={dragging || undefined}
       onClick={(e) => {
         if ((e.metaKey || e.ctrlKey) && onMetaClick) {
           e.preventDefault()
@@ -73,8 +76,8 @@ export default function TaskRow({
       }}
       className={`group row-in flex items-center gap-3 border-b border-black/5 px-1
         py-3 last:border-b-0 dark:border-white/10 ${
-          selected ? 'rounded-lg bg-[#007aff]/10 ring-1 ring-[#007aff]/40' : ''
-        }`}
+          selected ? 'rounded-lg bg-[#2f765f]/10 ring-1 ring-[#2f765f]/40' : ''
+        } ${dragProps ? 'task-sortable' : ''}`}
     >
       <button
         aria-label={completed ? '取消完成' : '完成'}
@@ -85,7 +88,7 @@ export default function TaskRow({
           className={`flex h-[24px] w-[24px] items-center justify-center rounded-full
             border-[1.5px] ${
               completed
-                ? 'border-[#007aff] bg-[#007aff] text-white'
+                ? 'border-[#2f765f] bg-[#2f765f] text-white'
                 : 'border-neutral-300 dark:border-neutral-600'
             }`}
         >
