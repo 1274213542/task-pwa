@@ -1373,7 +1373,7 @@ body {
     --dock-inline-gap: max(16px, env(safe-area-inset-left, 0px));
     /* Protect controls with content clearance, not by lifting the visual
        capsule by the entire Home Indicator inset. */
-    --dock-bottom-gap: clamp(10px, env(safe-area-inset-bottom, 10px), 18px);
+    --dock-bottom-gap: max(12px, min(24px, env(safe-area-inset-bottom, 12px)));
     --nav-content-clearance: calc(
       var(--dock-visual-height) + var(--dock-bottom-gap) + var(--space-5)
     );
