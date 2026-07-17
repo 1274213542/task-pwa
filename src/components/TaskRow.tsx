@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import type { ColorToken, MarkerSymbol } from '../lib/db'
 import MarkerIcon from './MarkerIcon'
 import AppIcon from './AppIcon'
+import { MOTION } from '../lib/motion'
 
 export interface RowActions {
   onToggle: () => void
@@ -33,6 +35,7 @@ export default function TaskRow({
   selected,
   onMetaClick,
   dragging,
+  motionId,
 }: {
   title: string
   subtitle?: string
@@ -42,13 +45,15 @@ export default function TaskRow({
   completed: boolean
   overdue?: boolean
   actions: RowActions
-  liRef?: (el: HTMLLIElement | null) => void
+  liRef?: (el: HTMLElement | null) => void
   liStyle?: React.CSSProperties
   dragProps?: Record<string, unknown>
   selected?: boolean
   onMetaClick?: () => void
   dragging?: boolean
+  motionId: string
 }) {
+  const reduceMotion = useReducedMotion()
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(title)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -72,25 +77,34 @@ export default function TaskRow({
   }
 
   return (
-    <li
-      ref={liRef}
-      style={liStyle}
-      {...dragProps}
-      data-color-token={colorToken}
-      data-feature-tone={featureTone}
-      data-completed={completed || undefined}
-      data-overdue={overdue || undefined}
-      data-dragging={dragging || undefined}
-      onClick={(event) => {
-        if ((event.metaKey || event.ctrlKey) && onMetaClick) {
-          event.preventDefault()
-          onMetaClick()
-        }
-      }}
-      className={`task-card row-in ${selected ? 'is-selected' : ''} ${
-        dragProps ? 'task-sortable' : ''
-      }`}
+    <motion.li
+      layout="position"
+      layoutId={motionId}
+      initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 10, scale: 0.99 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={reduceMotion ? { opacity: 0 } : { opacity: 0, x: -12, scale: 0.97 }}
+      transition={reduceMotion ? MOTION.reduced : MOTION.list}
+      className="task-card-shell"
     >
+      <div
+        ref={liRef}
+        style={liStyle}
+        {...dragProps}
+        data-color-token={colorToken}
+        data-feature-tone={featureTone}
+        data-completed={completed || undefined}
+        data-overdue={overdue || undefined}
+        data-dragging={dragging || undefined}
+        onClick={(event) => {
+          if ((event.metaKey || event.ctrlKey) && onMetaClick) {
+            event.preventDefault()
+            onMetaClick()
+          }
+        }}
+        className={`task-card ${selected ? 'is-selected' : ''} ${
+          dragProps ? 'task-sortable' : ''
+        }`}
+      >
       <button
         type="button"
         onClick={actions.onToggle}
@@ -150,8 +164,19 @@ export default function TaskRow({
         </button>
       </div>
 
+      <AnimatePresence initial={false}>
       {menuOpen && (
-        <div className="task-card-menu" role="group" aria-label="任务操作菜单">
+        <motion.div
+          key="task-menu"
+          initial={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.94, y: -4 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.94, y: -4 }}
+          transition={reduceMotion ? MOTION.reduced : MOTION.control}
+          style={{ transformOrigin: 'top right' }}
+          className="task-card-menu"
+          role="group"
+          aria-label="任务操作菜单"
+        >
           {actions.onRename && (
             <button
               type="button"
@@ -209,8 +234,10 @@ export default function TaskRow({
               删除
             </button>
           )}
-        </div>
+        </motion.div>
       )}
-    </li>
+      </AnimatePresence>
+      </div>
+    </motion.li>
   )
 }

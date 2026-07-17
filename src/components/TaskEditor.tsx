@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
 import type { CalItem } from '../lib/calendar'
 import type { Category, ColorToken, MarkerSymbol, TaskScope } from '../lib/db'
 import { softDeleteTask, updateTask } from '../lib/tasks'
 import { taskScopeOf } from '../lib/taskPeriods'
 import VisualPicker from './VisualPicker'
+import GestureSheet, { type GestureSheetHandle } from './GestureSheet'
 
 export type EditableTaskStatus = 'pending' | 'completed' | 'skipped'
 
@@ -41,6 +41,7 @@ export default function TaskEditor({
   const [error, setError] = useState('')
   const savingRef = useRef(false)
   const dialogRef = useRef<HTMLElement>(null)
+  const sheetRef = useRef<GestureSheetHandle>(null)
 
   useEffect(() => {
     document.body.classList.add('editor-open')
@@ -76,7 +77,7 @@ export default function TaskEditor({
         markerSymbol,
       })
       if (status !== originalStatus) await onStatusChange(status)
-      onClose()
+      sheetRef.current?.close()
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : '保存失败，请重试')
     } finally {
@@ -95,7 +96,7 @@ export default function TaskEditor({
     setSaving(true)
     try {
       await softDeleteTask(task.id)
-      onClose()
+      sheetRef.current?.close()
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : '删除失败，请重试')
     } finally {
@@ -104,24 +105,17 @@ export default function TaskEditor({
     }
   }
 
-  return createPortal(
-    <div
-      className="modal-backdrop modal-backdrop-task fixed inset-0 z-40 flex items-end justify-center bg-black/25
-        px-3 pt-8 backdrop-blur-[2px] lg:items-center"
-      onPointerDown={(event) => event.target === event.currentTarget && onClose()}
+  return (
+    <GestureSheet
+      ref={sheetRef}
+      dialogRef={dialogRef}
+      labelledBy="task-editor-title"
+      onClose={onClose}
+      className="safe-bottom editor-sheet editor-sheet-task w-full max-w-lg rounded-t-[26px] bg-white px-5
+        pb-5 pt-1 shadow-2xl outline-none lg:rounded-[24px] lg:pt-4 dark:bg-neutral-800"
     >
-      <section
-        ref={dialogRef}
-        tabIndex={-1}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="task-editor-title"
-        className="safe-bottom editor-sheet editor-sheet-task w-full max-w-lg rounded-t-[26px] bg-white px-5
-          pb-5 pt-4 shadow-2xl outline-none lg:rounded-[24px] dark:bg-neutral-800"
-      >
-        <div className="mx-auto mb-2 h-1 w-9 rounded-full bg-neutral-300 lg:hidden dark:bg-neutral-600" />
         <div className="editor-sheet-header flex items-center justify-between">
-          <button onClick={onClose} className="hit-target text-[15px] text-neutral-500">
+          <button onClick={() => sheetRef.current?.close()} className="hit-target text-[15px] text-neutral-500">
             取消
           </button>
           <h2 id="task-editor-title" className="text-[17px] font-semibold">
@@ -256,8 +250,6 @@ export default function TaskEditor({
         <p role="status" className="mt-2 min-h-5 text-[13px] text-red-500">
           {error}
         </p>
-      </section>
-    </div>,
-    document.body,
+    </GestureSheet>
   )
 }

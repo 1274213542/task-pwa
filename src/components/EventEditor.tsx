@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
 import { Temporal } from 'temporal-polyfill'
 import type {
   CalendarEvent,
@@ -9,6 +8,7 @@ import type {
 } from '../lib/db'
 import { updateEvent } from '../lib/events'
 import VisualPicker from './VisualPicker'
+import GestureSheet, { type GestureSheetHandle } from './GestureSheet'
 
 function localTime(event: CalendarEvent): string {
   if (!event.startAt) return ''
@@ -39,6 +39,7 @@ export default function EventEditor({
   const [error, setError] = useState('')
   const savingRef = useRef(false)
   const dialogRef = useRef<HTMLElement>(null)
+  const sheetRef = useRef<GestureSheetHandle>(null)
 
   useEffect(() => {
     document.body.classList.add('editor-open')
@@ -73,7 +74,7 @@ export default function EventEditor({
         visualToken,
         markerSymbol,
       })
-      onClose()
+      sheetRef.current?.close()
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : '保存失败，请重试')
     } finally {
@@ -82,24 +83,17 @@ export default function EventEditor({
     }
   }
 
-  return createPortal(
-    <div
-      className="modal-backdrop modal-backdrop-event fixed inset-0 z-40 flex items-end justify-center bg-black/25
-        px-3 pt-8 backdrop-blur-[2px] lg:items-center"
-      onPointerDown={(e) => e.target === e.currentTarget && onClose()}
+  return (
+    <GestureSheet
+      ref={sheetRef}
+      dialogRef={dialogRef}
+      labelledBy="event-editor-title"
+      onClose={onClose}
+      className="safe-bottom editor-sheet editor-sheet-event w-full max-w-lg rounded-t-[26px] bg-white px-5 pb-5
+        pt-1 shadow-2xl outline-none lg:rounded-[24px] lg:pt-4 dark:bg-neutral-800"
     >
-      <section
-        ref={dialogRef}
-        tabIndex={-1}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="event-editor-title"
-        className="safe-bottom editor-sheet editor-sheet-event w-full max-w-lg rounded-t-[26px] bg-white px-5 pb-5
-          pt-4 shadow-2xl outline-none lg:rounded-[24px] dark:bg-neutral-800"
-      >
-        <div className="mx-auto mb-2 h-1 w-9 rounded-full bg-neutral-300 lg:hidden dark:bg-neutral-600" />
         <div className="editor-sheet-header flex items-center justify-between">
-          <button onClick={onClose} className="hit-target text-[15px] text-neutral-500">
+          <button onClick={() => sheetRef.current?.close()} className="hit-target text-[15px] text-neutral-500">
             取消
           </button>
           <h2 id="event-editor-title" className="text-[17px] font-semibold">
@@ -194,8 +188,6 @@ export default function EventEditor({
         <p role="status" className="mt-2 min-h-5 text-[13px] text-red-500">
           {error}
         </p>
-      </section>
-    </div>,
-    document.body,
+    </GestureSheet>
   )
 }

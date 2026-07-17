@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
+import { AnimatePresence, LayoutGroup } from 'motion/react'
 import {
   DndContext,
   DragOverlay,
@@ -20,7 +21,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { FOCUS_QUICK_ADD_EVENT } from '../App'
+import { FOCUS_QUICK_ADD_EVENT } from '../lib/appEvents'
 import {
   db,
   type Category,
@@ -75,7 +76,7 @@ interface TodayItem {
 }
 
 type TaskRowProjectionExtra = {
-  liRef?: (el: HTMLLIElement | null) => void
+  liRef?: (el: HTMLElement | null) => void
   liStyle?: React.CSSProperties
   dragProps?: Record<string, unknown>
   dragging?: boolean
@@ -471,6 +472,7 @@ export default function Today() {
         completed={item.completed}
         overdue={item.overdue}
         actions={actionsFor(item)}
+        motionId={`task:${item.task.id}:${item.occurrenceKey}`}
         {...extra}
       />
     )
@@ -709,7 +711,7 @@ export default function Today() {
           <span>在上方添加普通任务或会按周期更新的固定任务</span>
         </div>
       ) : (
-        <>
+        <LayoutGroup id={`task-layout-${scope}`}>
           {pending.length > 0 && (
             <DndContext
               sensors={sensors}
@@ -724,6 +726,7 @@ export default function Today() {
                 strategy={verticalListSortingStrategy}
               >
                 <ul className="task-card-list task-compact-list">
+                  <AnimatePresence initial={false} mode="popLayout">
                   {pending.map((item) => (
                     <SortablePendingRow
                       key={`${item.task.id}:${item.occurrenceKey}`}
@@ -733,6 +736,7 @@ export default function Today() {
                       onMetaClick={() => toggleSelect(item.task.id)}
                     />
                   ))}
+                  </AnimatePresence>
                 </ul>
               </SortableContext>
               <DragOverlay dropAnimation={{ duration: 180, easing: 'cubic-bezier(.22,.78,.2,1)' }}>
@@ -785,7 +789,9 @@ export default function Today() {
           {/* 完成后展示策略（v4.2 需求 §1）：keep 原地保留 / collapse 折叠 / hide 隐藏 */}
           {done.length > 0 && policy === 'keep' && (
             <ul className="task-card-list completed-card-list mt-3">
-              {done.map((i) => rowFor(i))}
+              <AnimatePresence initial={false} mode="popLayout">
+                {done.map((i) => rowFor(i))}
+              </AnimatePresence>
             </ul>
           )}
           {done.length > 0 && policy === 'collapse' && (
@@ -803,13 +809,15 @@ export default function Today() {
               </button>
               {showDone && (
                 <ul className="task-card-list completed-card-list mt-2">
-                  {done.map((i) => rowFor(i))}
+                  <AnimatePresence initial={false} mode="popLayout">
+                    {done.map((i) => rowFor(i))}
+                  </AnimatePresence>
                 </ul>
               )}
             </div>
           )}
           {/* hide：不渲染，已完成记录页可查 */}
-        </>
+        </LayoutGroup>
       )}
     </section>
   )

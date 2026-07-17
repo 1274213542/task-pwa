@@ -19,6 +19,7 @@
     "dexie-cloud-addon": "^4.4.13",
     "dexie-react-hooks": "^4.4.0",
     "fractional-indexing": "^4.0.0",
+    "motion": "^12.42.2",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-router-dom": "^7.18.1",

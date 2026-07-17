@@ -1,10 +1,13 @@
 import { useRegisterSW } from 'virtual:pwa-register/react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { MOTION } from '../lib/motion'
 
 /**
  * SW 更新策略（v4.2 §4）：提示用户、确认后刷新，不强制。
  * 数据全在 IndexedDB，SW 切换不触及数据；表单草稿由本地兜底（MS1 起）。
  */
 export default function UpdateToast() {
+  const reduceMotion = useReducedMotion()
   const {
     needRefresh: [needRefresh, setNeedRefresh],
     updateServiceWorker,
@@ -24,12 +27,16 @@ export default function UpdateToast() {
     },
   })
 
-  if (!needRefresh) return null
-
   return (
-    <div
+    <AnimatePresence initial={false}>
+    {needRefresh && <motion.div
+      key="update-toast"
       role="status"
-      className="safe-bottom glass slide-up fixed inset-x-4 bottom-20 z-20 mx-auto
+      initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 18, scale: 0.98 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 18, scale: 0.98 }}
+      transition={reduceMotion ? MOTION.reduced : MOTION.control}
+      className="safe-bottom glass fixed inset-x-4 bottom-20 z-20 mx-auto
         flex max-w-md items-center justify-between gap-3 rounded-2xl
         bg-neutral-900/90 px-4 py-3 text-white shadow-lg backdrop-blur lg:bottom-6"
     >
@@ -49,6 +56,7 @@ export default function UpdateToast() {
           立即更新
         </button>
       </div>
-    </div>
+    </motion.div>}
+    </AnimatePresence>
   )
 }

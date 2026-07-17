@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import {
   Navigate,
   NavLink,
@@ -8,12 +9,6 @@ import {
   useLocation,
   useNavigate,
 } from 'react-router-dom'
-import Today from './pages/Today'
-import Plan from './pages/Plan'
-import Shopping from './pages/Shopping'
-import Browse from './pages/Browse'
-import Overview from './pages/Overview'
-import Settings from './pages/Settings'
 import UpdateToast from './components/UpdateToast'
 import SyncStatus from './components/SyncStatus'
 import CommandPalette from './components/CommandPalette'
@@ -22,6 +17,19 @@ import { ensurePersistentStorage } from './lib/persistence'
 import { db } from './lib/db'
 import MarkerIcon from './components/MarkerIcon'
 import DesktopSidebarExtras from './components/DesktopSidebarExtras'
+import {
+  MOTION,
+  directionalPageVariants,
+  reducedPageVariants,
+} from './lib/motion'
+import { FOCUS_QUICK_ADD_EVENT } from './lib/appEvents'
+
+const Overview = lazy(() => import('./pages/Overview'))
+const Today = lazy(() => import('./pages/Today'))
+const Plan = lazy(() => import('./pages/Plan'))
+const Shopping = lazy(() => import('./pages/Shopping'))
+const Browse = lazy(() => import('./pages/Browse'))
+const Settings = lazy(() => import('./pages/Settings'))
 
 const TABS = [
   { to: '/overview', label: '总览', icon: 'dashboard', tone: 'overview' },
@@ -31,9 +39,14 @@ const TABS = [
 ] as const
 
 const LAST_ROUTE_KEY = 'lastRoute'
-
-/** 通知当前页聚焦快速添加输入框（⌘N） */
-export const FOCUS_QUICK_ADD_EVENT = 'focus-quick-add'
+const ROUTE_RANK: Record<string, number> = {
+  '/overview': 0,
+  '/today': 1,
+  '/plan': 2,
+  '/shopping': 3,
+  '/browse': 4,
+  '/settings': 5,
+}
 
 export default function App() {
   const location = useLocation()
@@ -41,15 +54,12 @@ export default function App() {
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [keyboardOpen, setKeyboardOpen] = useState(false)
   const mainRef = useRef<HTMLElement>(null)
+  const reduceMotion = useReducedMotion()
   const prefs = useLiveQuery(() => db.syncedPreferences.get('#prefs'), [])
   const activeTabIndex = TABS.findIndex((tab) => location.pathname === tab.to)
-  const previousTabIndex = useRef(activeTabIndex)
-  const pageDirection =
-    activeTabIndex >= 0 && previousTabIndex.current >= 0
-      ? activeTabIndex >= previousTabIndex.current
-        ? 'page-forward'
-        : 'page-back'
-      : 'page-fade'
+  const currentRouteRank = ROUTE_RANK[location.pathname] ?? 0
+  const previousRouteRank = useRef(currentRouteRank)
+  const pageDirection = currentRouteRank >= previousRouteRank.current ? 1 : -1
 
   useEffect(() => {
     void ensurePersistentStorage()
@@ -69,8 +79,8 @@ export default function App() {
   }, [location.pathname])
 
   useEffect(() => {
-    previousTabIndex.current = activeTabIndex
-  }, [activeTabIndex])
+    previousRouteRank.current = currentRouteRank
+  }, [currentRouteRank])
 
   // iOS 键盘出现时暂时收起底部栏，为输入区留下完整的可视高度。
   useEffect(() => {
@@ -180,7 +190,9 @@ export default function App() {
           <p className="desktop-brand-date">{todayLabel}</p>
         </div>
         <ul className="mobile-nav-list relative grid lg:flex lg:flex-col lg:gap-2 lg:px-4">
-          {TABS.map((tab, i) => (
+          {TABS.map((tab, i) => {
+            const isCurrent = location.pathname === tab.to
+            return (
             <li key={tab.to} className={`mobile-nav-item mobile-nav-item-${i} lg:w-full`}>
               <NavLink
                 to={tab.to}
@@ -195,19 +207,28 @@ export default function App() {
                    }`
                 }
               >
-                <span className="mobile-tab-icon flex items-center justify-center">
+                {isCurrent && (
+                  <motion.span
+                    layoutId="persistent-nav-selection"
+                    className="nav-active-surface"
+                    transition={reduceMotion ? MOTION.reduced : MOTION.control}
+                    aria-hidden
+                  />
+                )}
+                <span className="mobile-tab-icon relative z-[1] flex items-center justify-center">
                   <AppIcon name={tab.icon as AppIconName} size={22} />
                 </span>
-                <span className="mobile-tab-label">{tab.label}</span>
+                <span className="mobile-tab-label relative z-[1]">{tab.label}</span>
                 <kbd
-                  className="ml-auto hidden text-[11px] text-neutral-300 lg:inline
+                  className="relative z-[1] ml-auto hidden text-[11px] text-neutral-300 lg:inline
                     dark:text-neutral-600"
                 >
                   ⌘{i + 1}
                 </kbd>
               </NavLink>
             </li>
-          ))}
+            )
+          })}
           <li className="mobile-primary-slot lg:hidden">
             <button
               type="button"
@@ -255,24 +276,46 @@ export default function App() {
           <div className="app-status-slot flex h-7 items-center justify-end" aria-live="polite">
             <SyncStatus />
           </div>
-          {/* transform/opacity 换页动效可被下一次导航立即打断。 */}
-          <div key={location.pathname} className={`page-in ${pageDirection}`}>
-            <Routes>
-              <Route path="/" element={<Navigate to="/overview" replace />} />
-              <Route path="/overview" element={<Overview />} />
-              <Route path="/today" element={<Today />} />
-              <Route path="/plan" element={<Plan />} />
-              <Route path="/shopping" element={<Shopping />} />
-              <Route path="/browse" element={<Browse />} />
-              <Route path="/settings" element={<Settings />} />
-              <Route path="*" element={<Navigate to="/overview" replace />} />
-            </Routes>
+          <div className="motion-route-viewport">
+            <AnimatePresence initial={false} custom={pageDirection} mode="popLayout">
+              <motion.div
+                key={location.pathname}
+                custom={pageDirection}
+                variants={reduceMotion ? reducedPageVariants : directionalPageVariants}
+                initial="enter"
+                animate="center"
+                exit="exit"
+                transition={reduceMotion ? MOTION.reduced : MOTION.route}
+                className="motion-route-page"
+              >
+                <Suspense
+                  fallback={
+                    <div className="route-loading" role="status" aria-label="正在打开页面">
+                      <span />
+                    </div>
+                  }
+                >
+                  <Routes location={location}>
+                    <Route path="/" element={<Navigate to="/overview" replace />} />
+                    <Route path="/overview" element={<Overview />} />
+                    <Route path="/today" element={<Today />} />
+                    <Route path="/plan" element={<Plan />} />
+                    <Route path="/shopping" element={<Shopping />} />
+                    <Route path="/browse" element={<Browse />} />
+                    <Route path="/settings" element={<Settings />} />
+                    <Route path="*" element={<Navigate to="/overview" replace />} />
+                  </Routes>
+                </Suspense>
+              </motion.div>
+            </AnimatePresence>
           </div>
         </div>
       </main>
 
       <UpdateToast />
-      {paletteOpen && <CommandPalette onClose={() => setPaletteOpen(false)} />}
+      <AnimatePresence initial={false}>
+        {paletteOpen && <CommandPalette onClose={() => setPaletteOpen(false)} />}
+      </AnimatePresence>
     </div>
   )
 }

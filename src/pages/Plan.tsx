@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { Temporal } from 'temporal-polyfill'
 import {
   db,
@@ -26,11 +27,17 @@ import TaskEditor, { type EditableTaskStatus } from '../components/TaskEditor'
 import PageHeader from '../components/PageHeader'
 import AppIcon from '../components/AppIcon'
 import MarkerIcon from '../components/MarkerIcon'
-import { FOCUS_QUICK_ADD_EVENT } from '../App'
+import { FOCUS_QUICK_ADD_EVENT } from '../lib/appEvents'
+import {
+  MOTION,
+  directionalPageVariants,
+  reducedPageVariants,
+} from '../lib/motion'
 
 const WEEK_LABELS_MON = ['一', '二', '三', '四', '五', '六', '日']
 const WEEK_LABELS_SUN = ['日', '一', '二', '三', '四', '五', '六']
 type PlanMode = 'month' | 'week' | 'agenda'
+const MODE_ORDER: Record<PlanMode, number> = { month: 0, week: 1, agenda: 2 }
 
 function weekStart(dateISO: string, weekStartsOn: 1 | 0) {
   const date = Temporal.PlainDate.from(dateISO)
@@ -44,6 +51,7 @@ function dateLabel(dateISO: string, options?: Intl.DateTimeFormatOptions) {
 
 export default function Plan() {
   const todayISO = todayLocalISO()
+  const reduceMotion = useReducedMotion()
   const [mode, setMode] = useState<PlanMode>(() => {
     const stored = localStorage.getItem('planMode')
     return stored === 'week' || stored === 'agenda'
@@ -56,6 +64,9 @@ export default function Plan() {
     Temporal.PlainDate.from(todayISO).with({ day: 1 }),
   )
   const [selected, setSelected] = useState(todayISO)
+  const [modeDirection, setModeDirection] = useState(1)
+  const [periodDirection, setPeriodDirection] = useState(1)
+  const [dayDirection, setDayDirection] = useState(1)
   const [draft, setDraft] = useState('')
   const [draftKind, setDraftKind] = useState<'event' | 'task'>('event')
   const [draftTime, setDraftTime] = useState('')
@@ -146,6 +157,7 @@ export default function Plan() {
   }, [mode, selected])
 
   function switchMode(next: PlanMode) {
+    setModeDirection(next === mode ? modeDirection : MODE_ORDER[next] > MODE_ORDER[mode] ? 1 : -1)
     setMode(next)
     localStorage.setItem('planMode', next)
     window.requestAnimationFrame(() => {
@@ -261,9 +273,11 @@ export default function Plan() {
   }
 
   function selectDay(dateISO: string) {
+    setDayDirection(dateISO >= selected ? 1 : -1)
     setSelected(dateISO)
     const next = Temporal.PlainDate.from(dateISO)
     if (next.year !== cursor.year || next.month !== cursor.month) {
+      setPeriodDirection(next.toString() >= cursor.toString() ? 1 : -1)
       setCursor(next.with({ day: 1 }))
     }
     window.requestAnimationFrame(() => {
@@ -292,6 +306,7 @@ export default function Plan() {
   }
 
   function changePeriod(delta: number) {
+    setPeriodDirection(delta >= 0 ? 1 : -1)
     if (mode === 'month') setCursor(cursor.add({ months: delta }))
     else {
       const next = Temporal.PlainDate.from(selected).add({ days: delta * 7 })
@@ -301,6 +316,8 @@ export default function Plan() {
   }
 
   function returnToday() {
+    setDayDirection(todayISO >= selected ? 1 : -1)
+    setPeriodDirection(todayISO >= cursor.toString() ? 1 : -1)
     setSelected(todayISO)
     setCursor(Temporal.PlainDate.from(todayISO).with({ day: 1 }))
   }
@@ -427,7 +444,17 @@ export default function Plan() {
 
   const dayPanel = (
     <div ref={dayPanelRef} className="calendar-day-panel scroll-mb-28">
-      <div key={selected} className="day-panel-in">
+      <AnimatePresence initial={false} custom={dayDirection} mode="popLayout">
+      <motion.div
+        key={selected}
+        custom={dayDirection}
+        variants={reduceMotion ? reducedPageVariants : directionalPageVariants}
+        initial="enter"
+        animate="center"
+        exit="exit"
+        transition={reduceMotion ? MOTION.reduced : MOTION.calendar}
+        className="day-panel-motion"
+      >
         <div className="day-panel-heading">
           <div>
             <p>当天安排</p>
@@ -509,7 +536,8 @@ export default function Plan() {
             <span>这一天暂无安排</span>
           </div>
         )}
-      </div>
+      </motion.div>
+      </AnimatePresence>
     </div>
   )
 
@@ -578,7 +606,18 @@ export default function Plan() {
         )}
       />
 
+      <AnimatePresence initial={false} custom={modeDirection} mode="popLayout">
       {mode !== 'agenda' && (
+        <motion.div
+          key={mode}
+          custom={modeDirection}
+          variants={reduceMotion ? reducedPageVariants : directionalPageVariants}
+          initial="enter"
+          animate="center"
+          exit="exit"
+          transition={reduceMotion ? MOTION.reduced : MOTION.route}
+          className="plan-mode-stage"
+        >
         <div className="plan-workspace">
           <div className="plan-calendar-column">
             <div className="calendar-toolbar">
@@ -597,15 +636,37 @@ export default function Plan() {
               </div>
             </div>
 
+            <AnimatePresence initial={false} custom={periodDirection} mode="popLayout">
             {mode === 'month' ? (
-              <div role="grid" aria-label={monthLabel} onKeyDown={onGridKeyDown} className="calendar-card">
+              <motion.div
+                key={`month:${cursor.toString()}`}
+                custom={periodDirection}
+                variants={reduceMotion ? reducedPageVariants : directionalPageVariants}
+                initial="enter"
+                animate="center"
+                exit="exit"
+                transition={reduceMotion ? MOTION.reduced : MOTION.calendar}
+                role="grid"
+                aria-label={monthLabel}
+                onKeyDown={onGridKeyDown}
+                className="calendar-card calendar-period-stage"
+              >
                 <div className="calendar-week-labels">
                   {weekLabels.map((label) => <span key={label}>{label}</span>)}
                 </div>
                 <div className="calendar-month-grid">{grid.map(dayCell)}</div>
-              </div>
+              </motion.div>
             ) : (
-              <>
+              <motion.div
+                key={`week:${weekDates[0]}`}
+                custom={periodDirection}
+                variants={reduceMotion ? reducedPageVariants : directionalPageVariants}
+                initial="enter"
+                animate="center"
+                exit="exit"
+                transition={reduceMotion ? MOTION.reduced : MOTION.calendar}
+                className="calendar-period-stage"
+              >
               <div className="mobile-week-timeline" aria-label={`${weekLabel} 时间安排`}>
                 <div className="mobile-week-strip">
                   {weekDates.map((date, index) => (
@@ -622,6 +683,17 @@ export default function Plan() {
                   ))}
                 </div>
                 <div className="mobile-timeline-list">
+                  <AnimatePresence initial={false} custom={dayDirection} mode="popLayout">
+                  <motion.div
+                    key={selected}
+                    custom={dayDirection}
+                    variants={reduceMotion ? reducedPageVariants : directionalPageVariants}
+                    initial="enter"
+                    animate="center"
+                    exit="exit"
+                    transition={reduceMotion ? MOTION.reduced : MOTION.calendar}
+                    className="mobile-timeline-items"
+                  >
                   {selectedItems.length > 0 ? selectedItems.map((item, index) => {
                     const visual = itemVisual(item)
                     const source = item.kind === 'event' ? item.event : item.task
@@ -654,6 +726,8 @@ export default function Plan() {
                   }) : (
                     <div className="mobile-timeline-empty">选择上方日期或添加新安排</div>
                   )}
+                  </motion.div>
+                  </AnimatePresence>
                 </div>
               </div>
               <div ref={weekBoardRef} className="week-board-shell desktop-week-board">
@@ -711,13 +785,25 @@ export default function Plan() {
                   })}
                 </div>
               </div>
-              </>
+              </motion.div>
             )}
+            </AnimatePresence>
           </div>
         </div>
+        </motion.div>
       )}
 
       {mode === 'agenda' && (
+        <motion.div
+          key="agenda"
+          custom={modeDirection}
+          variants={reduceMotion ? reducedPageVariants : directionalPageVariants}
+          initial="enter"
+          animate="center"
+          exit="exit"
+          transition={reduceMotion ? MOTION.reduced : MOTION.route}
+          className="plan-mode-stage"
+        >
         <div className="agenda-layout">
           <div className="agenda-day-focus">{dayPanel}</div>
           <div className="agenda-hero">
@@ -746,7 +832,9 @@ export default function Plan() {
             )}
           </div>
         </div>
+        </motion.div>
       )}
+      </AnimatePresence>
 
       {editingEvent && (
         <EventEditor event={editingEvent} categories={categories ?? []} onClose={() => setEditingEvent(null)} />

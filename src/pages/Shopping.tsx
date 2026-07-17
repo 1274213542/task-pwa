@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
+import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from 'motion/react'
 import { db, type ShoppingItem, type ShoppingLocation } from '../lib/db'
 import {
   addItems,
@@ -16,7 +17,8 @@ import AppIcon from '../components/AppIcon'
 import MarkerIcon from '../components/MarkerIcon'
 import type { ColorToken } from '../lib/db'
 import MobilePageHeader from '../components/MobilePageHeader'
-import { FOCUS_QUICK_ADD_EVENT } from '../App'
+import { FOCUS_QUICK_ADD_EVENT } from '../lib/appEvents'
+import { MOTION } from '../lib/motion'
 
 const SHOPPING_TONES: ColorToken[] = ['green', 'blue', 'purple', 'orange', 'pink']
 
@@ -29,11 +31,18 @@ function ItemRow({
   locationLabel?: string
   tone?: ColorToken
 }) {
+  const reduceMotion = useReducedMotion()
   const [confirming, setConfirming] = useState(false)
   const purchased = item.purchaseStatus === 'purchased'
 
   return (
-    <li
+    <motion.li
+      layout="position"
+      layoutId={`shopping:${item.id}`}
+      initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 8, scale: 0.99 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={reduceMotion ? { opacity: 0 } : { opacity: 0, x: -10, scale: 0.97 }}
+      transition={reduceMotion ? MOTION.reduced : MOTION.list}
       data-color-token={tone}
       data-completed={purchased || undefined}
       className="shopping-card row-in flex items-center gap-3"
@@ -105,7 +114,7 @@ function ItemRow({
           <AppIcon name="close" size={19} />
         </button>
       )}
-    </li>
+    </motion.li>
   )
 }
 
@@ -447,6 +456,7 @@ export default function Shopping() {
         <LocationManager locations={locations ?? []} />
       </details>
 
+      <LayoutGroup id="shopping-layout">
       {pending.length === 0 ? (
         <div
           className="shopping-empty-state mt-6"
@@ -467,14 +477,17 @@ export default function Shopping() {
               <span className="shopping-group-count">{g.items.length}</span>
             </p>
             <ul className="shopping-card-list mt-1.5">
+              <AnimatePresence initial={false} mode="popLayout">
               {g.items.map((i, index) => (
                 <ItemRow key={i.id} item={i} tone={SHOPPING_TONES[index % SHOPPING_TONES.length]} />
               ))}
+              </AnimatePresence>
             </ul>
           </div>
         ))
       ) : (
         <ul className="shopping-card-list mt-4">
+          <AnimatePresence initial={false} mode="popLayout">
           {pending.map((i, index) => (
             <ItemRow
               key={i.id}
@@ -483,6 +496,7 @@ export default function Shopping() {
               tone={SHOPPING_TONES[index % SHOPPING_TONES.length]}
             />
           ))}
+          </AnimatePresence>
         </ul>
       )}
 
@@ -497,6 +511,7 @@ export default function Shopping() {
           </button>
           {showHistory && (
             <ul className="shopping-card-list is-history mt-2">
+              <AnimatePresence initial={false} mode="popLayout">
               {purchased.slice(0, 30).map((i, index) => (
                 <ItemRow
                   key={i.id}
@@ -505,10 +520,12 @@ export default function Shopping() {
                   tone={SHOPPING_TONES[index % SHOPPING_TONES.length]}
                 />
               ))}
+              </AnimatePresence>
             </ul>
           )}
         </div>
       )}
+      </LayoutGroup>
     </section>
   )
 }

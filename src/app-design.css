@@ -28,7 +28,15 @@
   --ui-shadow: 0 14px 32px rgb(31 33 29 / 0.07);
   --ui-shadow-float: 0 18px 42px rgb(31 33 29 / 0.16);
   --ui-ease: cubic-bezier(.2, .78, .2, 1);
-  --ui-spring: cubic-bezier(.2, .9, .24, 1.08);
+  --ui-spring: cubic-bezier(.2, .78, .2, 1);
+  --motion-press-response: 100ms;
+  --motion-control-response: 180ms;
+  --motion-page-response: 340ms;
+  --motion-sheet-response: 320ms;
+  --motion-list-response: 320ms;
+  --motion-calendar-response: 300ms;
+  --motion-decelerate: cubic-bezier(.16, 1, .3, 1);
+  --motion-return: cubic-bezier(.32, .72, 0, 1);
 
   --app-bg: var(--ui-bg);
   --surface: var(--ui-soft);
@@ -593,7 +601,7 @@ select:focus-visible {
 .task-filter-pill,
 .task-fixed-pill {
   min-width: 128px;
-  min-height: 42px;
+  min-height: 44px;
   border-radius: 17px;
   background: var(--ui-soft);
   padding: 0 8px 0 14px;
@@ -625,16 +633,26 @@ select:focus-visible {
 .task-card::before,
 .task-card::after { display: none !important; }
 .task-card-check {
+  position: relative;
   display: flex;
-  width: 30px;
-  height: 30px;
+  width: 44px;
+  height: 44px;
   align-items: center;
   justify-content: center;
-  border: 1.5px solid color-mix(in srgb, var(--item-color) 72%, var(--ui-muted));
-  border-radius: 50%;
+  margin: -7px;
+  border: 0;
   color: var(--ui-ink);
 }
-.task-card[data-completed='true'] .task-card-check { border-color: var(--ui-dark); background: var(--ui-dark); color: #fff; }
+.task-card-check::before {
+  position: absolute;
+  inset: 7px;
+  border: 1.5px solid color-mix(in srgb, var(--item-color) 72%, var(--ui-muted));
+  border-radius: 50%;
+  content: '';
+}
+.task-card-check > * { position: relative; z-index: 1; }
+.task-card[data-completed='true'] .task-card-check { color: #fff; }
+.task-card[data-completed='true'] .task-card-check::before { border-color: var(--ui-dark); background: var(--ui-dark); }
 .task-card-copy { display: flex; min-width: 0; flex-direction: column; gap: 4px; }
 .task-card-title-button,
 .task-card-title-input {
@@ -657,7 +675,9 @@ select:focus-visible {
 .task-card-meta span { overflow: hidden; text-overflow: ellipsis; }
 .task-card-tail { display: flex; align-items: center; gap: 5px; }
 .task-card-done-label { color: var(--ui-muted); font-size: 9px; }
-.task-card-open { display: flex; width: 38px; height: 38px; align-items: center; justify-content: center; border-radius: 50%; background: color-mix(in srgb, var(--ui-surface) 78%, transparent); color: var(--ui-ink); }
+.task-card-open { position: relative; display: flex; width: 44px; height: 44px; align-items: center; justify-content: center; margin: -3px; border-radius: 50%; background: transparent; color: var(--ui-ink); }
+.task-card-open::before { position: absolute; inset: 3px; border-radius: 50%; background: color-mix(in srgb, var(--ui-surface) 78%, transparent); content: ''; }
+.task-card-open > * { position: relative; z-index: 1; }
 .task-card-open:active { transform: scale(.9); }
 .task-card[data-completed='true'] { opacity: .58; background: var(--ui-soft) !important; }
 .task-card.is-selected,
@@ -910,4 +930,193 @@ select:focus-visible {
     animation-iteration-count: 1 !important;
     transition-duration: .01ms !important;
   }
+}
+
+/* --------------------------------------------------------------------------
+   Physical interaction core — /apple-design
+   Motion-driven elements use live spring values in React. CSS is retained for
+   immediate pointer-down feedback and non-gesture color changes only.
+   -------------------------------------------------------------------------- */
+
+.motion-route-viewport {
+  position: relative;
+  min-height: calc(100dvh - 4rem);
+  overflow-x: clip;
+}
+
+.motion-route-page,
+.plan-mode-stage,
+.calendar-period-stage,
+.day-panel-motion,
+.mobile-timeline-items {
+  width: 100%;
+  transform-origin: center top;
+}
+
+.route-loading {
+  display: grid;
+  min-height: min(56vh, 560px);
+  place-items: center;
+}
+
+.route-loading > span {
+  width: 22px;
+  height: 22px;
+  border: 2px solid color-mix(in srgb, var(--ui-muted) 22%, transparent);
+  border-top-color: var(--ui-ink);
+  border-radius: 999px;
+  animation: route-loading-spin .72s linear infinite;
+}
+
+@keyframes route-loading-spin { to { transform: rotate(1turn); } }
+
+.nav-active-surface {
+  position: absolute;
+  inset: 5px;
+  z-index: 0;
+  border-radius: 16px;
+  background: rgb(255 255 255 / .095);
+  pointer-events: none;
+}
+
+.task-card-shell {
+  min-width: 0;
+  list-style: none;
+}
+
+.task-card-shell > .task-card {
+  width: 100%;
+  height: 100%;
+}
+
+.mobile-timeline-items {
+  display: grid;
+}
+
+.editor-sheet-handle {
+  display: flex;
+  width: 64px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto;
+  border-radius: 999px;
+  cursor: grab;
+  touch-action: none;
+}
+
+.editor-sheet-handle:active { cursor: grabbing; }
+
+.editor-sheet-handle > span {
+  width: 36px;
+  height: 4px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ui-muted) 38%, transparent);
+}
+
+.modal-backdrop,
+.editor-sheet,
+.page-header,
+.quick-card,
+.calendar-card,
+.browse-layout,
+.calendar-day-panel,
+.location-management,
+.record-groups,
+.row-in,
+.day-panel-in,
+.task-composer-card,
+.shopping-composer-card,
+.task-card-menu,
+.pop-in,
+.slide-up {
+  animation: none !important;
+}
+
+.editor-sheet {
+  will-change: transform;
+}
+
+.modal-backdrop {
+  contain: strict;
+}
+
+.mobile-tab-link,
+.mobile-primary-add,
+.task-round-action,
+.task-filter-pill,
+.calendar-day,
+.calendar-panel-action button,
+.mobile-week-strip button,
+.mobile-shopping-view-switch button,
+.task-card-check,
+.task-card-open,
+.calendar-item-check,
+.calendar-item-edit,
+.calendar-item-delete {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-tab-link:active,
+.task-filter-pill:active,
+.calendar-day:active,
+.mobile-week-strip button:active,
+.mobile-shopping-view-switch button:active {
+  transition-duration: var(--motion-press-response) !important;
+}
+
+body.editor-open .app-shell main {
+  transition-duration: var(--motion-sheet-response);
+  transition-timing-function: var(--motion-return);
+}
+
+@media (min-width: 1024px) {
+  .nav-active-surface {
+    inset: 0;
+    border-radius: 18px;
+    background: var(--ui-surface);
+    box-shadow: 0 5px 16px rgb(33 35 31 / .06);
+  }
+
+  .mobile-tab-link.is-active {
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  .editor-sheet-handle { display: none; }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .sync-status,
+  .editor-sheet-header,
+  .glass {
+    background: var(--ui-surface) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .route-loading > span {
+    animation: none;
+    border-color: var(--ui-muted);
+    opacity: .55;
+  }
+}
+
+@media (prefers-contrast: more) {
+  .sync-status,
+  .editor-sheet,
+  .editor-sheet-header,
+  .mobile-nav {
+    border: 1px solid currentColor !important;
+    background: var(--ui-surface) !important;
+    color: var(--ui-ink) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+}
+
+@media (update: slow) {
+  .editor-sheet { will-change: auto; }
 }
