@@ -472,7 +472,6 @@ export default function Today() {
         completed={item.completed}
         overdue={item.overdue}
         actions={actionsFor(item)}
-        motionId={`task:${item.task.id}:${item.occurrenceKey}`}
         {...extra}
       />
     )

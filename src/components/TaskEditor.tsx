@@ -44,14 +44,12 @@ export default function TaskEditor({
   const sheetRef = useRef<GestureSheetHandle>(null)
 
   useEffect(() => {
-    document.body.classList.add('editor-open')
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null
     const frame = window.requestAnimationFrame(() => {
       dialogRef.current?.focus({ preventScroll: true })
     })
     return () => {
       window.cancelAnimationFrame(frame)
-      document.body.classList.remove('editor-open')
       previous?.focus({ preventScroll: true })
     }
   }, [])

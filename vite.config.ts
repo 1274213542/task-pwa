@@ -19,7 +19,9 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // 保持旧页面与旧缓存成套运行；用户确认后再一次性接管并刷新，
+      // 避免后台自动激活新 SW 时清理旧的按页资源造成空白页。
+      registerType: 'prompt',
       includeAssets: ['icons/apple-touch-icon.png'],
       manifest: {
         name: '任务计划',

@@ -38,10 +38,9 @@ function ItemRow({
   return (
     <motion.li
       layout="position"
-      layoutId={`shopping:${item.id}`}
-      initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 8, scale: 0.99 }}
+      initial={false}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={reduceMotion ? { opacity: 0 } : { opacity: 0, x: -10, scale: 0.97 }}
+      exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.98 }}
       transition={reduceMotion ? MOTION.reduced : MOTION.list}
       data-color-token={tone}
       data-completed={purchased || undefined}

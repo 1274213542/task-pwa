@@ -1,6 +1,6 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { motion, useReducedMotion } from 'motion/react'
 import {
   Navigate,
   NavLink,
@@ -17,19 +17,15 @@ import { ensurePersistentStorage } from './lib/persistence'
 import { db } from './lib/db'
 import MarkerIcon from './components/MarkerIcon'
 import DesktopSidebarExtras from './components/DesktopSidebarExtras'
-import {
-  MOTION,
-  directionalPageVariants,
-  reducedPageVariants,
-} from './lib/motion'
+import { MOTION } from './lib/motion'
 import { FOCUS_QUICK_ADD_EVENT } from './lib/appEvents'
-
-const Overview = lazy(() => import('./pages/Overview'))
-const Today = lazy(() => import('./pages/Today'))
-const Plan = lazy(() => import('./pages/Plan'))
-const Shopping = lazy(() => import('./pages/Shopping'))
-const Browse = lazy(() => import('./pages/Browse'))
-const Settings = lazy(() => import('./pages/Settings'))
+import { applyVisualPreferences, storeVisualPreferences } from './lib/visualPreferences'
+import Overview from './pages/Overview'
+import Today from './pages/Today'
+import Plan from './pages/Plan'
+import Shopping from './pages/Shopping'
+import Browse from './pages/Browse'
+import Settings from './pages/Settings'
 
 const TABS = [
   { to: '/overview', label: '总览', icon: 'dashboard', tone: 'overview' },
@@ -66,12 +62,10 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    const root = document.documentElement
-    root.dataset.uiTheme = prefs?.uiTheme ?? 'violet-lime'
-    root.dataset.appearance = prefs?.theme ?? 'system'
-    if (prefs?.actionColor) root.dataset.actionColor = prefs.actionColor
-    else delete root.dataset.actionColor
-  }, [prefs?.actionColor, prefs?.theme, prefs?.uiTheme])
+    if (!prefs) return
+    applyVisualPreferences(prefs)
+    storeVisualPreferences(prefs)
+  }, [prefs])
 
   useEffect(() => {
     localStorage.setItem(LAST_ROUTE_KEY, location.pathname)
@@ -190,8 +184,11 @@ export default function App() {
           <p className="desktop-brand-date">{todayLabel}</p>
         </div>
         <ul className="mobile-nav-list relative grid lg:flex lg:flex-col lg:gap-2 lg:px-4">
+          <span
+            aria-hidden
+            className={`nav-active-surface nav-active-index-${activeTabIndex}`}
+          />
           {TABS.map((tab, i) => {
-            const isCurrent = location.pathname === tab.to
             return (
             <li key={tab.to} className={`mobile-nav-item mobile-nav-item-${i} lg:w-full`}>
               <NavLink
@@ -207,14 +204,6 @@ export default function App() {
                    }`
                 }
               >
-                {isCurrent && (
-                  <motion.span
-                    layoutId="persistent-nav-selection"
-                    className="nav-active-surface"
-                    transition={reduceMotion ? MOTION.reduced : MOTION.control}
-                    aria-hidden
-                  />
-                )}
                 <span className="mobile-tab-icon relative z-[1] flex items-center justify-center">
                   <AppIcon name={tab.icon as AppIconName} size={22} />
                 </span>
@@ -277,45 +266,30 @@ export default function App() {
             <SyncStatus />
           </div>
           <div className="motion-route-viewport">
-            <AnimatePresence initial={false} custom={pageDirection} mode="popLayout">
-              <motion.div
-                key={location.pathname}
-                custom={pageDirection}
-                variants={reduceMotion ? reducedPageVariants : directionalPageVariants}
-                initial="enter"
-                animate="center"
-                exit="exit"
-                transition={reduceMotion ? MOTION.reduced : MOTION.route}
-                className="motion-route-page"
-              >
-                <Suspense
-                  fallback={
-                    <div className="route-loading" role="status" aria-label="正在打开页面">
-                      <span />
-                    </div>
-                  }
-                >
-                  <Routes location={location}>
-                    <Route path="/" element={<Navigate to="/overview" replace />} />
-                    <Route path="/overview" element={<Overview />} />
-                    <Route path="/today" element={<Today />} />
-                    <Route path="/plan" element={<Plan />} />
-                    <Route path="/shopping" element={<Shopping />} />
-                    <Route path="/browse" element={<Browse />} />
-                    <Route path="/settings" element={<Settings />} />
-                    <Route path="*" element={<Navigate to="/overview" replace />} />
-                  </Routes>
-                </Suspense>
-              </motion.div>
-            </AnimatePresence>
+            <motion.div
+              key={location.pathname}
+              initial={reduceMotion ? false : { x: pageDirection * 8 }}
+              animate={{ x: 0 }}
+              transition={reduceMotion ? MOTION.reduced : MOTION.route}
+              className="motion-route-page"
+            >
+              <Routes location={location}>
+                <Route path="/" element={<Navigate to="/overview" replace />} />
+                <Route path="/overview" element={<Overview />} />
+                <Route path="/today" element={<Today />} />
+                <Route path="/plan" element={<Plan />} />
+                <Route path="/shopping" element={<Shopping />} />
+                <Route path="/browse" element={<Browse />} />
+                <Route path="/settings" element={<Settings />} />
+                <Route path="*" element={<Navigate to="/overview" replace />} />
+              </Routes>
+            </motion.div>
           </div>
         </div>
       </main>
 
       <UpdateToast />
-      <AnimatePresence initial={false}>
-        {paletteOpen && <CommandPalette onClose={() => setPaletteOpen(false)} />}
-      </AnimatePresence>
+      {paletteOpen && <CommandPalette onClose={() => setPaletteOpen(false)} />}
     </div>
   )
 }

@@ -11,6 +11,7 @@ import { UI_THEMES } from '../lib/themes'
 import type { UIThemeId } from '../lib/db'
 import { COLOR_TOKEN_ORDER } from '../lib/themes'
 import MobilePageHeader from '../components/MobilePageHeader'
+import { previewVisualPreferences } from '../lib/visualPreferences'
 
 function downloadJson(json: string, filename: string) {
   const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }))
@@ -131,12 +132,13 @@ export default function Settings() {
               type="button"
               aria-pressed={(prefs?.uiTheme ?? 'violet-lime') === theme.id}
               className="theme-choice"
-              onClick={() =>
+              onClick={() => {
+                previewVisualPreferences({ uiTheme: theme.id as UIThemeId })
                 void db.syncedPreferences.update('#prefs', {
                   uiTheme: theme.id as UIThemeId,
                   updatedAt: new Date().toISOString(),
                 })
-              }
+              }}
             >
               <span className="theme-swatches" aria-hidden>
                 {theme.swatches.map((color) => (
@@ -161,12 +163,13 @@ export default function Settings() {
               key={appearance}
               type="button"
               aria-pressed={(prefs?.theme ?? 'system') === appearance}
-              onClick={() =>
+              onClick={() => {
+                previewVisualPreferences({ theme: appearance })
                 void db.syncedPreferences.update('#prefs', {
                   theme: appearance,
                   updatedAt: new Date().toISOString(),
                 })
-              }
+              }}
             >
               {appearance === 'system' ? '跟随系统' : appearance === 'light' ? '浅色' : '深色'}
             </button>
@@ -183,12 +186,13 @@ export default function Settings() {
               className="action-color-default"
               aria-label="使用主题默认按钮颜色"
               aria-pressed={!prefs?.actionColor}
-              onClick={() =>
+              onClick={() => {
+                previewVisualPreferences({ actionColor: undefined })
                 void db.syncedPreferences.update('#prefs', {
                   actionColor: undefined,
                   updatedAt: new Date().toISOString(),
                 })
-              }
+              }}
             />
             {COLOR_TOKEN_ORDER.map((token) => (
               <button
@@ -197,12 +201,13 @@ export default function Settings() {
                 data-color-token={token}
                 aria-label={`使用 ${token} 按钮颜色`}
                 aria-pressed={prefs?.actionColor === token}
-                onClick={() =>
+                onClick={() => {
+                  previewVisualPreferences({ actionColor: token })
                   void db.syncedPreferences.update('#prefs', {
                     actionColor: token,
                     updatedAt: new Date().toISOString(),
                   })
-                }
+                }}
               />
             ))}
           </div>

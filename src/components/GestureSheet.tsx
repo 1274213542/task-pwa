@@ -64,7 +64,6 @@ const GestureSheet = forwardRef<GestureSheetHandle, GestureSheetProps>(
     function close(velocity = 0) {
       if (closed.current) return
       closing.current = true
-      document.body.classList.remove('editor-open')
       stopRunning()
 
       if (reduceMotion) {
@@ -115,7 +114,6 @@ const GestureSheet = forwardRef<GestureSheetHandle, GestureSheetProps>(
     }, [mobile, reduceMotion, scrimOpacity, y])
 
     function onDragStart() {
-      if (closing.current) document.body.classList.add('editor-open')
       closing.current = false
       stopRunning()
     }

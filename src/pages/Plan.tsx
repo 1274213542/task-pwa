@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { motion, useReducedMotion } from 'motion/react'
 import { Temporal } from 'temporal-polyfill'
 import {
   db,
@@ -28,11 +28,7 @@ import PageHeader from '../components/PageHeader'
 import AppIcon from '../components/AppIcon'
 import MarkerIcon from '../components/MarkerIcon'
 import { FOCUS_QUICK_ADD_EVENT } from '../lib/appEvents'
-import {
-  MOTION,
-  directionalPageVariants,
-  reducedPageVariants,
-} from '../lib/motion'
+import { MOTION } from '../lib/motion'
 
 const WEEK_LABELS_MON = ['一', '二', '三', '四', '五', '六', '日']
 const WEEK_LABELS_SUN = ['日', '一', '二', '三', '四', '五', '六']
@@ -444,14 +440,10 @@ export default function Plan() {
 
   const dayPanel = (
     <div ref={dayPanelRef} className="calendar-day-panel scroll-mb-28">
-      <AnimatePresence initial={false} custom={dayDirection} mode="popLayout">
       <motion.div
         key={selected}
-        custom={dayDirection}
-        variants={reduceMotion ? reducedPageVariants : directionalPageVariants}
-        initial="enter"
-        animate="center"
-        exit="exit"
+        initial={reduceMotion ? false : { x: dayDirection * 6 }}
+        animate={{ x: 0 }}
         transition={reduceMotion ? MOTION.reduced : MOTION.calendar}
         className="day-panel-motion"
       >
@@ -537,7 +529,6 @@ export default function Plan() {
           </div>
         )}
       </motion.div>
-      </AnimatePresence>
     </div>
   )
 
@@ -606,15 +597,11 @@ export default function Plan() {
         )}
       />
 
-      <AnimatePresence initial={false} custom={modeDirection} mode="popLayout">
       {mode !== 'agenda' && (
         <motion.div
           key={mode}
-          custom={modeDirection}
-          variants={reduceMotion ? reducedPageVariants : directionalPageVariants}
-          initial="enter"
-          animate="center"
-          exit="exit"
+          initial={reduceMotion ? false : { x: modeDirection * 8 }}
+          animate={{ x: 0 }}
           transition={reduceMotion ? MOTION.reduced : MOTION.route}
           className="plan-mode-stage"
         >
@@ -636,15 +623,11 @@ export default function Plan() {
               </div>
             </div>
 
-            <AnimatePresence initial={false} custom={periodDirection} mode="popLayout">
             {mode === 'month' ? (
               <motion.div
                 key={`month:${cursor.toString()}`}
-                custom={periodDirection}
-                variants={reduceMotion ? reducedPageVariants : directionalPageVariants}
-                initial="enter"
-                animate="center"
-                exit="exit"
+                initial={reduceMotion ? false : { x: periodDirection * 8 }}
+                animate={{ x: 0 }}
                 transition={reduceMotion ? MOTION.reduced : MOTION.calendar}
                 role="grid"
                 aria-label={monthLabel}
@@ -659,11 +642,8 @@ export default function Plan() {
             ) : (
               <motion.div
                 key={`week:${weekDates[0]}`}
-                custom={periodDirection}
-                variants={reduceMotion ? reducedPageVariants : directionalPageVariants}
-                initial="enter"
-                animate="center"
-                exit="exit"
+                initial={reduceMotion ? false : { x: periodDirection * 8 }}
+                animate={{ x: 0 }}
                 transition={reduceMotion ? MOTION.reduced : MOTION.calendar}
                 className="calendar-period-stage"
               >
@@ -683,14 +663,10 @@ export default function Plan() {
                   ))}
                 </div>
                 <div className="mobile-timeline-list">
-                  <AnimatePresence initial={false} custom={dayDirection} mode="popLayout">
                   <motion.div
                     key={selected}
-                    custom={dayDirection}
-                    variants={reduceMotion ? reducedPageVariants : directionalPageVariants}
-                    initial="enter"
-                    animate="center"
-                    exit="exit"
+                    initial={reduceMotion ? false : { x: dayDirection * 6 }}
+                    animate={{ x: 0 }}
                     transition={reduceMotion ? MOTION.reduced : MOTION.calendar}
                     className="mobile-timeline-items"
                   >
@@ -727,7 +703,6 @@ export default function Plan() {
                     <div className="mobile-timeline-empty">选择上方日期或添加新安排</div>
                   )}
                   </motion.div>
-                  </AnimatePresence>
                 </div>
               </div>
               <div ref={weekBoardRef} className="week-board-shell desktop-week-board">
@@ -787,7 +762,6 @@ export default function Plan() {
               </div>
               </motion.div>
             )}
-            </AnimatePresence>
           </div>
         </div>
         </motion.div>
@@ -796,11 +770,8 @@ export default function Plan() {
       {mode === 'agenda' && (
         <motion.div
           key="agenda"
-          custom={modeDirection}
-          variants={reduceMotion ? reducedPageVariants : directionalPageVariants}
-          initial="enter"
-          animate="center"
-          exit="exit"
+          initial={reduceMotion ? false : { x: modeDirection * 8 }}
+          animate={{ x: 0 }}
           transition={reduceMotion ? MOTION.reduced : MOTION.route}
           className="plan-mode-stage"
         >
@@ -834,7 +805,6 @@ export default function Plan() {
         </div>
         </motion.div>
       )}
-      </AnimatePresence>
 
       {editingEvent && (
         <EventEditor event={editingEvent} categories={categories ?? []} onClose={() => setEditingEvent(null)} />

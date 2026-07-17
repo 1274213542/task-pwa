@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { motion, useReducedMotion } from 'motion/react'
 import { db } from '../lib/db'
-import { MOTION } from '../lib/motion'
 
 const PAGES = [
   { label: '今天', to: '/today' },
@@ -15,7 +13,6 @@ const PAGES = [
 
 /** ⌘K 命令面板（MS7 精简版）：页面跳转 + 任务搜索 */
 export default function CommandPalette({ onClose }: { onClose: () => void }) {
-  const reduceMotion = useReducedMotion()
   const [query, setQuery] = useState('')
   const [cursor, setCursor] = useState(0)
   const navigate = useNavigate()
@@ -53,24 +50,14 @@ export default function CommandPalette({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <motion.div
+    <div
       role="dialog"
       aria-label="命令面板"
       onClick={onClose}
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={reduceMotion ? MOTION.reduced : MOTION.control}
-      className="fixed inset-0 z-30 flex items-start justify-center bg-black/30 pt-[15vh]
-        backdrop-blur-sm"
+      className="fixed inset-0 z-30 flex items-start justify-center bg-black/30 pt-[15vh]"
     >
-      <motion.div
+      <div
         onClick={(e) => e.stopPropagation()}
-        initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -10, scale: 0.96 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -10, scale: 0.96 }}
-        transition={reduceMotion ? MOTION.reduced : MOTION.control}
-        style={{ transformOrigin: '50% 15%' }}
         className="command-palette-surface w-full max-w-md overflow-hidden rounded-2xl bg-white
           shadow-2xl dark:bg-neutral-800"
       >
@@ -122,7 +109,7 @@ export default function CommandPalette({ onClose }: { onClose: () => void }) {
         >
           ↑↓ 选择 · ↵ 前往 · esc 关闭
         </p>
-      </motion.div>
-    </motion.div>
+      </div>
+    </div>
   )
 }

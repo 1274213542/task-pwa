@@ -1,15 +1,12 @@
 import { useObservable } from 'dexie-react-hooks'
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { db } from '../lib/db'
 import { cloudEnabled } from '../config'
-import { MOTION } from '../lib/motion'
 
 /**
  * 同步状态条（v4.2 §3）：已同步 / 正在同步 / 离线使用中 / 同步失败。
  * 轻量展示，永不打断操作；纯本地模式（未配置云）不渲染。
  */
 export default function SyncStatus() {
-  const reduceMotion = useReducedMotion()
   const syncState = useObservable(db.cloud.syncState)
   const user = useObservable(db.cloud.currentUser)
 
@@ -42,7 +39,7 @@ export default function SyncStatus() {
   }
 
   return (
-    <motion.div
+    <div
       role="status"
       aria-label={label}
       data-state={tone}
@@ -52,17 +49,7 @@ export default function SyncStatus() {
         dark:text-neutral-300 dark:ring-white/10"
     >
       <span className="sync-dot h-1.5 w-1.5 rounded-full" aria-hidden />
-      <AnimatePresence initial={false} mode="popLayout">
-        <motion.span
-          key={label}
-          initial={{ opacity: 0, y: reduceMotion ? 0 : 3 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: reduceMotion ? 0 : -3 }}
-          transition={reduceMotion ? MOTION.reduced : MOTION.control}
-        >
-          {label}
-        </motion.span>
-      </AnimatePresence>
-    </motion.div>
+      <span>{label}</span>
+    </div>
   )
 }
