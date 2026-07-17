@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Temporal } from 'temporal-polyfill'
 import { db, type ColorToken } from '../lib/db'
@@ -9,6 +9,7 @@ import MobilePageHeader from '../components/MobilePageHeader'
 import PageHeader from '../components/PageHeader'
 import AppIcon from '../components/AppIcon'
 import MarkerIcon from '../components/MarkerIcon'
+import { FOCUS_QUICK_ADD_EVENT } from '../lib/appEvents'
 
 function labelDate(dateISO: string, options: Intl.DateTimeFormatOptions) {
   return new Date(`${dateISO}T00:00:00`).toLocaleDateString('zh-CN', options)
@@ -24,6 +25,7 @@ function itemColor(item: CalItem): ColorToken {
 }
 
 export default function Overview() {
+  const navigate = useNavigate()
   const today = todayLocalISO()
   const snapshot = useLiveQuery(async () => {
     const [tasks, records, events, shopping] = await Promise.all([
@@ -77,9 +79,19 @@ export default function Overview() {
   ).length ?? 0
   const todayTotal = view?.todayItems.length ?? 0
 
+  function openTaskComposer() {
+    navigate('/today')
+    window.setTimeout(() => window.dispatchEvent(new CustomEvent(FOCUS_QUICK_ADD_EVENT)), 60)
+  }
+
   return (
     <section className="app-page page-overview">
-      <MobilePageHeader title="总览" eyebrow={todayLabel} />
+      <MobilePageHeader
+        title="总览"
+        eyebrow={todayLabel}
+        onPrimary={openTaskComposer}
+        primaryLabel="新增任务"
+      />
       <PageHeader
         title="总览"
         eyebrow={todayLabel}

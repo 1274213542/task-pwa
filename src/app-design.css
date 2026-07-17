@@ -1480,32 +1480,6 @@ body {
     white-space: nowrap;
   }
 
-  /* Quick add remains available, but floats above the capsule so it cannot
-     force a fifth navigation column or make the dock visually heavy. */
-  .mobile-primary-slot {
-    position: absolute;
-    top: -48px;
-    right: 2px;
-    z-index: 2;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .mobile-primary-add {
-    width: 40px !important;
-    height: 40px !important;
-    min-width: 40px;
-    min-height: 40px;
-    border: 0 !important;
-    border-radius: 50% !important;
-    background: var(--ui-ink) !important;
-    color: var(--ui-surface) !important;
-    box-shadow: 0 2px 7px rgb(24 27 23 / .14) !important;
-    transition: transform 160ms cubic-bezier(.2, .8, .2, 1), box-shadow 160ms ease !important;
-  }
-  .mobile-primary-add:active { transform: scale(.92); box-shadow: none !important; }
-  .mobile-primary-add svg { width: 20px !important; height: 20px !important; }
-
   .mobile-nav.is-keyboard-open {
     transform: translate3d(-50%, calc(100% + 18px), 0) !important;
   }

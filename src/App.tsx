@@ -260,18 +260,6 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey)
   }, [navigate])
 
-  function focusPrimaryAdd() {
-    if (activeTabIndex <= 0) {
-      navigate('/today')
-      window.setTimeout(
-        () => window.dispatchEvent(new CustomEvent(FOCUS_QUICK_ADD_EVENT)),
-        60,
-      )
-      return
-    }
-    window.dispatchEvent(new CustomEvent(FOCUS_QUICK_ADD_EVENT))
-  }
-
   function beginRouteDrag(event: React.PointerEvent<HTMLDivElement>) {
     if (
       reduceMotion ||
@@ -365,16 +353,6 @@ export default function App() {
             </li>
             )
           })}
-          <li className="mobile-primary-slot lg:hidden">
-            <button
-              type="button"
-              aria-label="快速新增"
-              onClick={focusPrimaryAdd}
-              className="mobile-primary-add"
-            >
-              <AppIcon name="plus" size={28} />
-            </button>
-          </li>
         </ul>
         <DesktopSidebarExtras />
         {/* 桌面侧栏底部：设置 + 快捷键提示 */}
