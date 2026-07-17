@@ -26,12 +26,9 @@ const stamp = () => new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div
-      className="flex items-center justify-between border-b border-black/5 px-4 py-3
-        last:border-b-0 dark:border-white/10"
-    >
-      <span className="text-[15px]">{label}</span>
-      <span className="text-[15px] text-neutral-500 dark:text-neutral-400">{value}</span>
+    <div className="settings-data-row border-b border-black/5 last:border-b-0 dark:border-white/10">
+      <span className="settings-data-label">{label}</span>
+      <span className="settings-data-value">{value}</span>
     </div>
   )
 }
@@ -216,19 +213,16 @@ export default function Settings() {
 
       <div className="list-card settings-data-card mt-6 overflow-hidden rounded-xl bg-white dark:bg-neutral-800">
         {cloudEnabled && (
-          <div
-            className="flex items-center justify-between border-b border-black/5 px-4
-              py-3 dark:border-white/10"
-          >
-            <span className="text-[15px]">同步账号</span>
+          <div className="settings-data-row border-b border-black/5 dark:border-white/10">
+            <span className="settings-data-label">同步账号</span>
             {user?.isLoggedIn ? (
-              <span className="text-[15px] text-neutral-500 dark:text-neutral-400">
+              <span className="settings-data-value">
                 {user.email ?? user.userId}
               </span>
             ) : (
               <button
                 onClick={() => void db.cloud.login()}
-                className="settings-login min-h-9 rounded-full px-3 text-[14px]
+                className="settings-login settings-data-inline-action min-h-9 rounded-full px-3 text-[14px]
                   active:opacity-80"
               >
                 登录以同步
@@ -236,11 +230,8 @@ export default function Settings() {
             )}
           </div>
         )}
-        <div
-          className="flex items-center justify-between border-b border-black/5 px-4
-            py-3 dark:border-white/10"
-        >
-          <span className="text-[15px]">完成后的任务</span>
+        <div className="settings-data-row border-b border-black/5 dark:border-white/10">
+          <span className="settings-data-label">完成后的任务</span>
           <select
             aria-label="完成后的任务展示方式"
             value={prefs?.defaultCompletedDisplay ?? 'keep'}
@@ -253,7 +244,7 @@ export default function Settings() {
                 updatedAt: new Date().toISOString(),
               })
             }
-            className="rounded-lg bg-neutral-100 px-2 py-1 text-[14px]
+            className="settings-completed-select rounded-lg bg-neutral-100 px-2 py-1 text-[14px]
               dark:bg-neutral-700"
           >
             <option value="keep">保留在列表</option>
@@ -286,8 +277,8 @@ export default function Settings() {
         <button
           onClick={requestPersist}
           disabled={request === 'pending'}
-          className="primary-action mt-4 w-full rounded-xl py-2.5 text-[15px] font-medium
-            transition active:scale-[0.98] active:opacity-80
+          className="settings-persist-action mt-4 text-[15px] font-medium
+            active:scale-[0.98] active:opacity-80
             disabled:opacity-50"
         >
           {request === 'pending' ? '请求中…' : '请求持久存储'}
@@ -296,7 +287,7 @@ export default function Settings() {
 
       {request === 'denied' && (
         <p
-          className="mt-3 rounded-xl bg-amber-500/10 px-4 py-3 text-[13px] leading-relaxed
+          className="settings-persist-note mt-3 rounded-xl bg-amber-500/10 px-4 py-3 text-[13px] leading-relaxed
             text-amber-600 dark:text-amber-400"
         >
           Safari 本次未授予。iOS 不弹授权窗口，而是按你对这个 App
@@ -304,7 +295,7 @@ export default function Settings() {
         </p>
       )}
 
-      <p className="mt-4 px-1 text-[13px] leading-relaxed text-neutral-400">
+      <p className="settings-storage-help mt-4 px-1 text-[13px] leading-relaxed text-neutral-400">
         未启用持久存储时 App 照常使用；系统存储紧张时本地数据有被清除的可能，请保持云端同步并定期备份。
       </p>
 

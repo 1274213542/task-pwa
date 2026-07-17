@@ -268,6 +268,9 @@ export default function Today() {
   const [showDone, setShowDone] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null)
+  // A task menu is a page-level transient surface: task rows never own an
+  // independent open state, so menus cannot accumulate on top of each other.
+  const [openMenuTaskId, setOpenMenuTaskId] = useState<string | null>(null)
   // 完成感窗口（v4.2 §12）：勾选后原地保留 ~800ms 展示动画，再按策略归置
   const [recentlyDone, setRecentlyDone] = useState<Set<string>>(new Set())
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -297,11 +300,29 @@ export default function Today() {
   // ⌘N：聚焦快速添加（App 层广播）
   useEffect(() => {
     const focus = () => {
+      setOpenMenuTaskId(null)
       setComposerOpen(true)
       window.requestAnimationFrame(() => inputRef.current?.focus())
     }
     window.addEventListener(FOCUS_QUICK_ADD_EVENT, focus)
     return () => window.removeEventListener(FOCUS_QUICK_ADD_EVENT, focus)
+  }, [])
+
+  useEffect(() => {
+    const closeMenu = () => setOpenMenuTaskId(null)
+    const closeWhenHidden = () => {
+      if (document.visibilityState !== 'visible') closeMenu()
+    }
+    // Capture catches the actual scrolling element on both Safari and the PWA
+    // shell without changing the list's own scroll physics.
+    window.addEventListener('scroll', closeMenu, true)
+    window.addEventListener('blur', closeMenu)
+    document.addEventListener('visibilitychange', closeWhenHidden)
+    return () => {
+      window.removeEventListener('scroll', closeMenu, true)
+      window.removeEventListener('blur', closeMenu)
+      document.removeEventListener('visibilitychange', closeWhenHidden)
+    }
   }, [])
 
   useEffect(() => {
@@ -342,6 +363,7 @@ export default function Today() {
   const weeklyRangeLabel = `${weekStartISO(todayISO).slice(5).replace('-', '/')} – ${weekEndISO(todayISO).slice(5).replace('-', '/')}`
 
   function switchScope(next: TaskScope) {
+    setOpenMenuTaskId(null)
     setScope(next)
     localStorage.setItem('taskScope', next)
     if (fixed) setRecurrence(defaultFixedRecurrence(next))
@@ -349,6 +371,7 @@ export default function Today() {
   }
 
   function setTaskType(nextFixed: boolean) {
+    setOpenMenuTaskId(null)
     setFixed(nextFixed)
     setRecurrence(nextFixed ? defaultFixedRecurrence(scope) : undefined)
   }
@@ -357,6 +380,7 @@ export default function Today() {
     if (submittingRef.current || !title.trim()) return
     submittingRef.current = true
     setSubmitting(true)
+    setOpenMenuTaskId(null)
     setFeedback('')
     try {
       const count = await addTasks(
@@ -396,7 +420,8 @@ export default function Today() {
   function actionsFor(item: TodayItem) {
     const { task } = item
     return {
-      onToggle: () =>
+      onToggle: () => {
+        setOpenMenuTaskId(null)
         void guarded(async () => {
           if (!item.completed) holdInPlace(`${task.id}:${item.occurrenceKey}`)
           if (item.kind === 'single') {
@@ -409,23 +434,13 @@ export default function Today() {
             if (item.completed) await undoAfterCompletion(task)
             else await resolveAfterCompletion(task, 'completed')
           }
-        }),
+        })
+      },
       onSkip:
         item.kind === 'single' || item.completed || item.conflict
           ? undefined
-          : () =>
-              void guarded(async () => {
-                if (item.kind === 'fixed') {
-                  await skipFixedOccurrence(task, item.occurrenceDate)
-                } else {
-                  await resolveAfterCompletion(task, 'skipped')
-                }
-              }),
-      // 两步确认由 TaskRow 承担；周期任务额外提供"仅本次"（=跳过本期）
-      onDelete: () => void softDeleteTask(task.id),
-      onDeleteOnce:
-        task.recurrence && !item.completed && !item.conflict
-          ? () =>
+          : () => {
+              setOpenMenuTaskId(null)
               void guarded(async () => {
                 if (item.kind === 'fixed') {
                   await skipFixedOccurrence(task, item.occurrenceDate)
@@ -433,10 +448,31 @@ export default function Today() {
                   await resolveAfterCompletion(task, 'skipped')
                 }
               })
+            },
+      // 两步确认由 TaskRow 承担；周期任务额外提供"仅本次"（=跳过本期）
+      onDelete: () => {
+        setOpenMenuTaskId(null)
+        void softDeleteTask(task.id)
+      },
+      onDeleteOnce:
+        task.recurrence && !item.completed && !item.conflict
+          ? () => {
+              setOpenMenuTaskId(null)
+              void guarded(async () => {
+                if (item.kind === 'fixed') {
+                  await skipFixedOccurrence(task, item.occurrenceDate)
+                } else {
+                  await resolveAfterCompletion(task, 'skipped')
+                }
+              })
+            }
           : undefined,
       onRename:
         item.kind === 'single' || !item.completed
-          ? (t: string) => void renameTask(task.id, t)
+          ? (t: string) => {
+              setOpenMenuTaskId(null)
+              void renameTask(task.id, t)
+            }
           : undefined,
     }
   }
@@ -445,6 +481,7 @@ export default function Today() {
     item: TodayItem,
     extra: TaskRowProjectionExtra = {},
   ) {
+    const itemMenuId = keyOf(item)
     const cat = item.task.categoryId ? catMap.get(item.task.categoryId) : undefined
     const catText = cat ? cat.name : undefined
     const subtitle =
@@ -472,6 +509,12 @@ export default function Today() {
         completed={item.completed}
         overdue={item.overdue}
         actions={actionsFor(item)}
+        menuOpen={openMenuTaskId === itemMenuId}
+        menuId={`task-menu-${item.task.id}-${item.occurrenceKey}`}
+        onMenuToggle={() =>
+          setOpenMenuTaskId((current) => (current === itemMenuId ? null : itemMenuId))
+        }
+        onMenuClose={() => setOpenMenuTaskId(null)}
         {...extra}
       />
     )
@@ -521,6 +564,7 @@ export default function Today() {
   }, [selectedIds, pending])
 
   function onDragStart(e: DragStartEvent) {
+    setOpenMenuTaskId(null)
     setActiveTaskId(String(e.active.id))
   }
 
@@ -553,7 +597,10 @@ export default function Today() {
             type="button"
             aria-label={composerOpen ? '收起新增任务' : '新增任务'}
             aria-expanded={composerOpen}
-            onClick={() => setComposerOpen((open) => !open)}
+            onClick={() => {
+              setOpenMenuTaskId(null)
+              setComposerOpen((open) => !open)
+            }}
             className="task-round-action task-round-action-primary"
           >
             <AppIcon name={composerOpen ? 'close' : 'plus'} size={24} />
@@ -575,7 +622,10 @@ export default function Today() {
             type="button"
             aria-label={composerOpen ? '收起新增任务' : '新增任务'}
             aria-expanded={composerOpen}
-            onClick={() => setComposerOpen((open) => !open)}
+            onClick={() => {
+              setOpenMenuTaskId(null)
+              setComposerOpen((open) => !open)
+            }}
             className="task-round-action task-round-action-primary"
           >
             <AppIcon name={composerOpen ? 'close' : 'plus'} size={28} />
@@ -725,7 +775,7 @@ export default function Today() {
                 strategy={verticalListSortingStrategy}
               >
                 <ul className="task-card-list task-compact-list">
-                  <AnimatePresence initial={false} mode="popLayout">
+                  <AnimatePresence initial={false}>
                   {pending.map((item) => (
                     <SortablePendingRow
                       key={`${item.task.id}:${item.occurrenceKey}`}
@@ -788,7 +838,7 @@ export default function Today() {
           {/* 完成后展示策略（v4.2 需求 §1）：keep 原地保留 / collapse 折叠 / hide 隐藏 */}
           {done.length > 0 && policy === 'keep' && (
             <ul className="task-card-list completed-card-list mt-3">
-              <AnimatePresence initial={false} mode="popLayout">
+              <AnimatePresence initial={false}>
                 {done.map((i) => rowFor(i))}
               </AnimatePresence>
             </ul>
@@ -808,7 +858,7 @@ export default function Today() {
               </button>
               {showDone && (
                 <ul className="task-card-list completed-card-list mt-2">
-                  <AnimatePresence initial={false} mode="popLayout">
+                  <AnimatePresence initial={false}>
                     {done.map((i) => rowFor(i))}
                   </AnimatePresence>
                 </ul>

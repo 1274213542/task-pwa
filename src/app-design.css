@@ -1350,3 +1350,317 @@ body {
 
   .mobile-nav-material { background: var(--ui-dark) !important; }
 }
+
+/* --------------------------------------------------------------------------
+   iPhone device corrections — persistent floating dock, transient menus and
+   settings rows. These rules deliberately sit last: older visual iterations
+   used a full-width dark dock and a generic circular .primary-action. */
+
+@media (max-width: 1023px) {
+  :root {
+    /* Uber reference, measured from its 1206 px / 3x recording: a 62–63 CSS px
+       visual dock, plus a small intentional gap outside the Home Indicator. */
+    --dock-visual-height: 62px;
+    --dock-inline-gap: max(16px, env(safe-area-inset-left, 0px));
+    --dock-bottom-gap: max(10px, calc(env(safe-area-inset-bottom, 0px) + 8px));
+    --nav-content-clearance: calc(
+      var(--dock-visual-height) + var(--dock-bottom-gap) + var(--space-5)
+    );
+  }
+
+  .mobile-nav {
+    inset:
+      auto
+      max(16px, env(safe-area-inset-right, 0px))
+      var(--dock-bottom-gap)
+      max(16px, env(safe-area-inset-left, 0px)) !important;
+    width: auto !important;
+    height: var(--dock-visual-height) !important;
+    min-height: var(--dock-visual-height) !important;
+    border-radius: calc(var(--dock-visual-height) / 2) !important;
+    overflow: visible !important;
+    transform: translate3d(0, 0, 0);
+    contain: layout style;
+  }
+
+  .mobile-nav-material {
+    inset: 0;
+    border: 1px solid color-mix(in srgb, var(--ui-ink) 10%, transparent);
+    border-radius: inherit;
+    background: var(--ui-surface);
+    background: color-mix(in srgb, var(--ui-surface) 96%, transparent);
+    box-shadow: 0 5px 16px rgb(24 27 23 / .10);
+  }
+
+  @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .mobile-nav-material {
+      background: color-mix(in srgb, var(--ui-surface) 86%, transparent);
+      backdrop-filter: blur(14px) saturate(112%);
+      -webkit-backdrop-filter: blur(14px) saturate(112%);
+    }
+  }
+
+  .mobile-nav-list {
+    height: 100% !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 4px 6px !important;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    align-items: stretch;
+  }
+
+  .mobile-nav-item { min-width: 0; }
+
+  .nav-active-surface {
+    top: 4px !important;
+    left: 6px !important;
+    width: calc((100% - 12px) / 5) !important;
+    height: calc(100% - 8px) !important;
+    border-radius: 22px !important;
+    background: color-mix(in srgb, var(--ui-ink) 7%, var(--ui-surface)) !important;
+    box-shadow: none !important;
+    opacity: 1;
+    will-change: transform;
+    transition: transform 220ms cubic-bezier(.22, .78, .24, 1), opacity 120ms ease !important;
+  }
+
+  .nav-active-index--1 { opacity: 0; }
+
+  .mobile-tab-link {
+    z-index: 1;
+    min-width: 0;
+    min-height: 54px !important;
+    gap: 1px !important;
+    padding: 0 2px !important;
+    color: var(--ui-muted) !important;
+    transition: color 180ms ease, transform 120ms ease !important;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .mobile-tab-link:active { transform: scale(.96); }
+  .mobile-tab-link.is-active { color: var(--ui-ink) !important; }
+
+  .mobile-tab-icon { width: 20px; height: 20px; }
+  .mobile-tab-icon svg { width: 20px !important; height: 20px !important; stroke-linecap: round; stroke-linejoin: round; }
+  .mobile-tab-label {
+    display: block !important;
+    max-width: 100%;
+    overflow: hidden;
+    color: inherit;
+    font-size: 10px !important;
+    font-weight: 560;
+    line-height: 12px;
+    letter-spacing: -.01em;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobile-primary-slot { display: flex; align-items: center; justify-content: center; }
+  .mobile-primary-add {
+    width: 44px !important;
+    height: 44px !important;
+    min-width: 44px;
+    min-height: 44px;
+    border: 0 !important;
+    border-radius: 50% !important;
+    background: var(--ui-ink) !important;
+    color: var(--ui-surface) !important;
+    box-shadow: 0 2px 7px rgb(24 27 23 / .14) !important;
+    transition: transform 160ms cubic-bezier(.2, .8, .2, 1), box-shadow 160ms ease !important;
+  }
+  .mobile-primary-add:active { transform: scale(.92); box-shadow: none !important; }
+  .mobile-primary-add svg { width: 22px !important; height: 22px !important; }
+
+  .mobile-nav.is-keyboard-open {
+    transform: translate3d(0, calc(100% + 18px), 0) !important;
+  }
+
+  .app-shell main { padding-bottom: var(--nav-content-clearance) !important; }
+
+  /* Once the menu is portalled, cards can own and clip their paint area again.
+     This removes the Safari compositing leak that left a violet first-card
+     layer below the filter rail after a route/scope transition. */
+  .page-tasks .task-card-list {
+    position: relative;
+    isolation: isolate;
+  }
+
+  .task-card-shell {
+    position: relative;
+    z-index: 0;
+    isolation: isolate;
+  }
+
+  .task-card {
+    contain: paint;
+    isolation: isolate;
+    overflow: hidden !important;
+  }
+
+  .task-card::before,
+  .task-card::after {
+    display: none !important;
+    content: none !important;
+  }
+
+  .task-card-title-button {
+    appearance: none;
+    border: 0;
+    text-decoration: none;
+  }
+
+  /* A single compact action sheet is more reliable than a row-anchored menu
+     on the narrow iPhone list: it cannot cover the next task's more button.
+     Desktop keeps the anchored popover declared below. */
+  .task-card-menu {
+    top: auto !important;
+    right: 16px !important;
+    bottom: calc(var(--dock-visual-height) + var(--dock-bottom-gap) + 12px) !important;
+    left: 16px !important;
+    width: auto !important;
+    max-width: none;
+    transform-origin: center bottom !important;
+  }
+}
+
+/* A single fixed portal menu, above task rows but below genuine modal sheets.
+   It never changes a card's dimensions or list layout. */
+.task-card-menu {
+  position: fixed !important;
+  z-index: 30 !important;
+  display: grid;
+  width: min(196px, calc(100vw - 16px));
+  min-width: 0 !important;
+  gap: 2px;
+  padding: 6px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--ui-ink) 10%, transparent);
+  border-radius: 17px !important;
+  background: var(--ui-surface);
+  box-shadow: 0 10px 24px rgb(24 27 23 / .14) !important;
+  transform-origin: var(--menu-origin, right top);
+}
+
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .task-card-menu {
+    background: color-mix(in srgb, var(--ui-surface) 90%, transparent);
+    backdrop-filter: blur(10px) saturate(110%);
+    -webkit-backdrop-filter: blur(10px) saturate(110%);
+  }
+}
+
+.task-card-menu > button {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  gap: 10px;
+  border-radius: 12px;
+  padding: 0 11px;
+  color: var(--ui-ink);
+  font-size: .9375rem;
+  font-weight: 600;
+  text-align: left;
+  transition: background-color 120ms ease, transform 120ms ease;
+}
+.task-card-menu > button:active { transform: scale(.98); background: var(--ui-secondary-soft); }
+.task-card-menu > button.is-danger { color: #c34437; }
+
+/* Settings: metadata rows may wrap as groups, never one Chinese glyph at a
+   time. The persistence CTA is intentionally no longer a circular action. */
+.settings-data-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+  gap: 12px;
+  padding: 12px 16px;
+}
+.settings-data-label {
+  flex: 1 1 10rem;
+  min-width: 0;
+  color: var(--ui-ink);
+  font-size: .9375rem;
+  line-height: 1.35;
+  white-space: nowrap;
+  word-break: keep-all;
+  overflow-wrap: normal;
+}
+.settings-data-value {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 62%;
+  color: var(--ui-muted);
+  font-size: .9375rem;
+  line-height: 1.35;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.settings-data-inline-action { flex: 0 0 auto; white-space: nowrap; }
+.settings-completed-select {
+  flex: 0 1 62%;
+  min-width: 0;
+  max-width: 62%;
+  min-height: 38px;
+  color: var(--ui-ink);
+  white-space: nowrap;
+  word-break: keep-all;
+}
+.settings-persist-action {
+  display: flex !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  border: 0 !important;
+  border-radius: 16px !important;
+  padding: 11px 16px !important;
+  background: var(--action-fill) !important;
+  color: var(--action-ink) !important;
+  box-shadow: 0 5px 12px color-mix(in srgb, var(--action-fill) 24%, transparent) !important;
+  font-size: .9375rem;
+  line-height: 1.25;
+  white-space: nowrap;
+  word-break: keep-all;
+  overflow-wrap: normal;
+}
+.settings-persist-note { position: static !important; width: 100%; clear: both; }
+.settings-storage-help { max-width: 44rem; }
+.settings-data-action {
+  min-height: 48px;
+  white-space: nowrap;
+  word-break: keep-all;
+}
+
+@media (max-width: 430px) {
+  .settings-data-row {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .settings-data-label { flex-basis: 100%; }
+  .settings-data-value,
+  .settings-completed-select,
+  .settings-data-inline-action {
+    flex-basis: 100%;
+    max-width: 100%;
+    text-align: left;
+  }
+  .settings-completed-select { width: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-active-surface,
+  .mobile-tab-link,
+  .mobile-primary-add,
+  .task-card-menu,
+  .task-card-menu > button { transition: none !important; }
+}
+
+@media (prefers-reduced-transparency: reduce), (update: slow) {
+  .mobile-nav-material,
+  .task-card-menu {
+    background: var(--ui-surface) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+}

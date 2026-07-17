@@ -174,9 +174,8 @@ export default function App() {
             keyboardOpen ? 'is-keyboard-open' : ''
           }`}
       >
-        {/* The dock's material reaches the physical screen edge. Its controls live
-            in the row above the safe area, so iOS does not receive two safe-area
-            compensations from the shell and the navigation itself. */}
+        {/* A stable, floating material shell. The visual gap below it is page
+            background; safe-area compensation is applied once to its position. */}
         <span className="mobile-nav-material" aria-hidden="true" />
         <div className="desktop-sidebar-brand hidden lg:block">
           <div className="desktop-brand-mark">
