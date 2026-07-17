@@ -1021,24 +1021,10 @@ select:focus-visible {
   background: color-mix(in srgb, var(--ui-muted) 38%, transparent);
 }
 
-.modal-backdrop,
-.editor-sheet,
-.page-header,
-.quick-card,
-.calendar-card,
-.browse-layout,
-.calendar-day-panel,
-.location-management,
-.record-groups,
-.row-in,
-.day-panel-in,
-.task-composer-card,
-.shopping-composer-card,
-.task-card-menu,
-.pop-in,
-.slide-up {
-  animation: none !important;
-}
+/* Normal devices use the transform/opacity keyframes declared in index.css.
+   The previous global animation:none override made mobile interaction feel
+   static even though route Motion animations were still running. Slow-update
+   and reduced-motion media queries below remain the safety fallback. */
 
 .editor-sheet {
   will-change: transform;
@@ -1378,30 +1364,26 @@ body {
 
 @media (max-width: 1023px) {
   :root {
-    /* Uber reference, measured from its 1206 px / 3x recording: a 62–63 CSS px
-       visual dock, plus a small intentional gap outside the Home Indicator. */
-    --dock-visual-height: 62px;
+    /* Uber reference: a compact ~300px x 48px capsule at a 390px viewport,
+       with a small intentional gap outside the Home Indicator. */
+    --dock-visual-height: 48px;
     --dock-inline-gap: max(16px, env(safe-area-inset-left, 0px));
     /* Protect controls with content clearance, not by lifting the visual
        capsule by the entire Home Indicator inset. */
-    --dock-bottom-gap: max(12px, min(24px, env(safe-area-inset-bottom, 12px)));
+    --dock-bottom-gap: max(12px, min(18px, env(safe-area-inset-bottom, 12px)));
     --nav-content-clearance: calc(
       var(--dock-visual-height) + var(--dock-bottom-gap) + var(--space-5)
     );
   }
 
   .mobile-nav {
-    inset:
-      auto
-      max(16px, env(safe-area-inset-right, 0px))
-      var(--dock-bottom-gap)
-      max(16px, env(safe-area-inset-left, 0px)) !important;
-    width: auto !important;
+    inset: auto auto var(--dock-bottom-gap) 50% !important;
+    width: min(300px, calc(100vw - 32px)) !important;
     height: var(--dock-visual-height) !important;
     min-height: var(--dock-visual-height) !important;
     border-radius: calc(var(--dock-visual-height) / 2) !important;
     overflow: visible !important;
-    transform: translate3d(0, 0, 0);
+    transform: translate3d(-50%, 0, 0);
     contain: layout style;
     transition: none !important;
   }
@@ -1443,19 +1425,23 @@ body {
     height: 100% !important;
     min-height: 0 !important;
     margin: 0 !important;
-    padding: 4px 6px !important;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    padding: 3px 4px !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     align-items: stretch;
   }
 
   .mobile-nav-item { min-width: 0; }
+  .mobile-nav-item-0 { grid-column: 1; }
+  .mobile-nav-item-1 { grid-column: 2; }
+  .mobile-nav-item-2 { grid-column: 3; }
+  .mobile-nav-item-3 { grid-column: 4; }
 
   .nav-active-surface {
-    top: 4px !important;
-    left: 6px !important;
-    width: calc((100% - 12px) / 5) !important;
-    height: calc(100% - 8px) !important;
-    border-radius: 22px !important;
+    top: 3px !important;
+    left: 4px !important;
+    width: calc((100% - 8px) / 4) !important;
+    height: calc(100% - 6px) !important;
+    border-radius: 21px !important;
     background: color-mix(in srgb, var(--ui-ink) 7%, var(--ui-surface)) !important;
     box-shadow: none !important;
     opacity: 1;
@@ -1468,7 +1454,7 @@ body {
   .mobile-tab-link {
     z-index: 1;
     min-width: 0;
-    min-height: 54px !important;
+    min-height: 42px !important;
     gap: 1px !important;
     padding: 0 2px !important;
     color: var(--ui-muted) !important;
@@ -1479,8 +1465,8 @@ body {
   .mobile-tab-link:active { transform: scale(.96); }
   .mobile-tab-link.is-active { color: var(--ui-ink) !important; }
 
-  .mobile-tab-icon { width: 20px; height: 20px; }
-  .mobile-tab-icon svg { width: 20px !important; height: 20px !important; stroke-linecap: round; stroke-linejoin: round; }
+  .mobile-tab-icon { width: 18px; height: 18px; }
+  .mobile-tab-icon svg { width: 18px !important; height: 18px !important; stroke-linecap: round; stroke-linejoin: round; }
   .mobile-tab-label {
     display: block !important;
     max-width: 100%;
@@ -1494,12 +1480,22 @@ body {
     white-space: nowrap;
   }
 
-  .mobile-primary-slot { display: flex; align-items: center; justify-content: center; }
+  /* Quick add remains available, but floats above the capsule so it cannot
+     force a fifth navigation column or make the dock visually heavy. */
+  .mobile-primary-slot {
+    position: absolute;
+    top: -48px;
+    right: 2px;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
   .mobile-primary-add {
-    width: 44px !important;
-    height: 44px !important;
-    min-width: 44px;
-    min-height: 44px;
+    width: 40px !important;
+    height: 40px !important;
+    min-width: 40px;
+    min-height: 40px;
     border: 0 !important;
     border-radius: 50% !important;
     background: var(--ui-ink) !important;
@@ -1508,10 +1504,10 @@ body {
     transition: transform 160ms cubic-bezier(.2, .8, .2, 1), box-shadow 160ms ease !important;
   }
   .mobile-primary-add:active { transform: scale(.92); box-shadow: none !important; }
-  .mobile-primary-add svg { width: 22px !important; height: 22px !important; }
+  .mobile-primary-add svg { width: 20px !important; height: 20px !important; }
 
   .mobile-nav.is-keyboard-open {
-    transform: translate3d(0, calc(100% + 18px), 0) !important;
+    transform: translate3d(-50%, calc(100% + 18px), 0) !important;
   }
 
   .app-shell main { padding-bottom: var(--nav-content-clearance) !important; }
