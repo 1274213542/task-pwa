@@ -390,7 +390,10 @@ export default function App() {
             <AppIcon name="settings" size={19} /> 设置
           </NavLink>
           <button
-            onClick={() => setPaletteOpen(true)}
+            onClick={() => {
+              window.dispatchEvent(new Event(CLOSE_TASK_MENU_EVENT))
+              setPaletteOpen(true)
+            }}
             className="mt-1 flex min-h-11 w-full items-center gap-2.5 rounded-xl px-3
               text-[13px] text-neutral-400"
           >
