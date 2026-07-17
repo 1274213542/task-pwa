@@ -952,6 +952,15 @@ select:focus-visible {
 .motion-route-page {
   grid-area: 1 / 1;
   min-width: 0;
+  /* Framer Motion owns the route transform. Never let a legacy utility
+     transition the same node (or layout properties) a second time. */
+  transition: none !important;
+}
+
+.motion-route-viewport,
+.mobile-nav-list,
+.mobile-nav-material {
+  transition: none !important;
 }
 
 .nav-active-surface {
@@ -1320,6 +1329,8 @@ body {
   border-bottom: 1px solid var(--material-line-light);
 }
 
+/* DESKTOP LAYOUT (1024px+): sidebar and full calendar workspace. The mobile
+   dock material is intentionally hidden at this breakpoint. */
 @media (min-width: 1024px) {
   .mobile-nav-material { display: none; }
 
@@ -1361,7 +1372,7 @@ body {
 }
 
 /* --------------------------------------------------------------------------
-   iPhone device corrections — persistent floating dock, transient menus and
+   MOBILE LAYOUT (0–1023px) — persistent floating dock, transient menus and
    settings rows. These rules deliberately sit last: older visual iterations
    used a full-width dark dock and a generic circular .primary-action. */
 
@@ -1401,6 +1412,11 @@ body {
     border-radius: inherit;
     background: var(--ui-surface);
     background: color-mix(in srgb, var(--ui-surface) 96%, transparent);
+    /* Keep the material declaration on the final mobile selector too. Safari
+       uses the prefixed path; unsupported engines retain the opaque surface
+       fallback instead of flashing while a filter is negotiated. */
+    backdrop-filter: blur(14px) saturate(112%);
+    -webkit-backdrop-filter: blur(14px) saturate(112%);
     box-shadow: 0 5px 16px rgb(24 27 23 / .10);
   }
 

@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react'
 import { useRegisterSW } from 'virtual:pwa-register/react'
 
 /**
- * SW 更新策略（v4.2 §4）：提示用户、确认后刷新，不强制。
- * 数据全在 IndexedDB，SW 切换不触及数据；表单草稿由本地兜底（MS1 起）。
+ * SW 更新策略：构建产物自动接管；保留此提示作为不支持自动接管浏览器
+ * 的安全回退。数据全在 IndexedDB，SW 切换不触及用户数据。
  */
 export default function UpdateToast() {
   const [registration, setRegistration] = useState<ServiceWorkerRegistration>()

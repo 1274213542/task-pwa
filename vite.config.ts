@@ -19,9 +19,9 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
-      // 保持旧页面与旧缓存成套运行；用户确认后再一次性接管并刷新，
-      // 避免后台自动激活新 SW 时清理旧的按页资源造成空白页。
-      registerType: 'prompt',
+      // Shell 资源可安全自动接管；任务、购物和日历数据在 IndexedDB，
+      // 不由 Service Worker 清理。这样安装版 PWA 不会长期停留在旧 hash。
+      registerType: 'autoUpdate',
       includeAssets: ['icons/apple-touch-icon.png'],
       manifest: {
         name: '任务计划',
