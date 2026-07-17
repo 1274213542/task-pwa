@@ -1,6 +1,14 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { motion, useReducedMotion } from 'motion/react'
+import {
+  AnimatePresence,
+  animate,
+  motion,
+  useDragControls,
+  useMotionValue,
+  useReducedMotion,
+  type PanInfo,
+} from 'motion/react'
 import {
   Navigate,
   NavLink,
@@ -17,8 +25,13 @@ import { ensurePersistentStorage } from './lib/persistence'
 import { db } from './lib/db'
 import MarkerIcon from './components/MarkerIcon'
 import DesktopSidebarExtras from './components/DesktopSidebarExtras'
-import { MOTION } from './lib/motion'
-import { FOCUS_QUICK_ADD_EVENT } from './lib/appEvents'
+import {
+  MOTION,
+  directionalSurfaceVariants,
+  projectVelocity,
+  type DirectionalMotionContext,
+} from './lib/motion'
+import { CLOSE_TASK_MENU_EVENT, FOCUS_QUICK_ADD_EVENT } from './lib/appEvents'
 import { applyVisualPreferences, storeVisualPreferences } from './lib/visualPreferences'
 import Overview from './pages/Overview'
 import Today from './pages/Today'
@@ -44,18 +57,53 @@ const ROUTE_RANK: Record<string, number> = {
   '/settings': 5,
 }
 
+function tabIndexFor(pathname: string) {
+  return TABS.findIndex((tab) => tab.to === pathname)
+}
+
+function isRouteSwipeTarget(target: EventTarget | null) {
+  return target instanceof Element && Boolean(target.closest([
+    'button',
+    'a',
+    'input',
+    'textarea',
+    'select',
+    '[contenteditable="true"]',
+    '[data-no-route-swipe]',
+    '.task-sortable',
+    '.calendar-card',
+    '.week-board-shell',
+    '.mobile-week-timeline',
+  ].join(',')))
+}
+
 export default function App() {
   const location = useLocation()
   const navigate = useNavigate()
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [keyboardOpen, setKeyboardOpen] = useState(false)
   const mainRef = useRef<HTMLElement>(null)
+  const navListRef = useRef<HTMLUListElement>(null)
+  const previousPath = useRef(location.pathname)
+  const routeVelocity = useRef(0)
+  const routeScrollPositions = useRef(new Map<string, number>())
+  const navPositioned = useRef(false)
+  const navXAnimation = useRef<ReturnType<typeof animate> | null>(null)
+  const navYAnimation = useRef<ReturnType<typeof animate> | null>(null)
+  const pageDragControls = useDragControls()
+  const navX = useMotionValue(0)
+  const navY = useMotionValue(0)
   const reduceMotion = useReducedMotion()
   const prefs = useLiveQuery(() => db.syncedPreferences.get('#prefs'), [])
   const activeTabIndex = TABS.findIndex((tab) => location.pathname === tab.to)
   const currentRouteRank = ROUTE_RANK[location.pathname] ?? 0
-  const previousRouteRank = useRef(currentRouteRank)
-  const pageDirection = currentRouteRank >= previousRouteRank.current ? 1 : -1
+  const previousRouteRank = ROUTE_RANK[previousPath.current] ?? currentRouteRank
+  const pageDirection: 1 | -1 = currentRouteRank >= previousRouteRank ? 1 : -1
+  const previousTabIndex = tabIndexFor(previousPath.current)
+  const routeMotion: DirectionalMotionContext = {
+    direction: pageDirection,
+    kind: activeTabIndex >= 0 && previousTabIndex >= 0 ? 'tab' : 'push',
+  }
 
   useEffect(() => {
     void ensurePersistentStorage()
@@ -67,14 +115,79 @@ export default function App() {
     storeVisualPreferences(prefs)
   }, [prefs])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     localStorage.setItem(LAST_ROUTE_KEY, location.pathname)
-    mainRef.current?.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+    const oldPath = previousPath.current
+    if (oldPath !== location.pathname) {
+      // <main> owns scrolling; animated route surfaces are presentation
+      // layers and never have a useful scrollTop of their own.
+      if (mainRef.current) {
+        routeScrollPositions.current.set(oldPath, mainRef.current.scrollTop)
+      }
+      const nextTop = routeScrollPositions.current.get(location.pathname) ?? 0
+      window.requestAnimationFrame(() => {
+        mainRef.current?.scrollTo({ top: nextTop, left: 0, behavior: 'auto' })
+      })
+    }
   }, [location.pathname])
 
   useEffect(() => {
-    previousRouteRank.current = currentRouteRank
-  }, [currentRouteRank])
+    previousPath.current = location.pathname
+    routeVelocity.current = 0
+  }, [location.pathname])
+
+  useLayoutEffect(() => {
+    const list = navListRef.current
+    if (!list || activeTabIndex < 0) return
+
+    const updateIndicator = () => {
+      const item = list.querySelector<HTMLElement>(
+        `.mobile-nav-item-${activeTabIndex}`,
+      )
+      const surface = list.querySelector<HTMLElement>('.nav-active-surface')
+      if (!item || !surface) return
+
+      const desktop = window.matchMedia('(min-width: 1024px)').matches
+      const targetX = desktop ? 0 : item.offsetLeft - surface.offsetLeft
+      const targetY = desktop ? item.offsetTop - surface.offsetTop : 0
+      if (!navPositioned.current || reduceMotion) {
+        navX.jump(targetX)
+        navY.jump(targetY)
+        navPositioned.current = true
+        return
+      }
+
+      const xVelocity = navX.getVelocity()
+      const yVelocity = navY.getVelocity()
+      navXAnimation.current?.stop()
+      navYAnimation.current?.stop()
+      navXAnimation.current = animate(navX, targetX, {
+        ...MOTION.nav,
+        velocity: xVelocity,
+      })
+      navYAnimation.current = animate(navY, targetY, {
+        ...MOTION.nav,
+        velocity: yVelocity,
+      })
+    }
+
+    updateIndicator()
+    const observer = new ResizeObserver(updateIndicator)
+    observer.observe(list)
+    window.addEventListener('orientationchange', updateIndicator)
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('orientationchange', updateIndicator)
+    }
+  }, [activeTabIndex, navX, navY, reduceMotion])
+
+  useEffect(
+    () => () => {
+      navXAnimation.current?.stop()
+      navYAnimation.current?.stop()
+    },
+    [],
+  )
 
   // iOS 键盘出现时暂时收起底部栏，为输入区留下完整的可视高度。
   useEffect(() => {
@@ -133,6 +246,7 @@ export default function App() {
       if (!mod) return
       if (e.key === 'k') {
         e.preventDefault()
+        window.dispatchEvent(new Event(CLOSE_TASK_MENU_EVENT))
         setPaletteOpen((o) => !o)
       } else if (e.key >= '1' && e.key <= '4') {
         e.preventDefault()
@@ -156,6 +270,31 @@ export default function App() {
       return
     }
     window.dispatchEvent(new CustomEvent(FOCUS_QUICK_ADD_EVENT))
+  }
+
+  function beginRouteDrag(event: React.PointerEvent<HTMLDivElement>) {
+    if (
+      reduceMotion ||
+      activeTabIndex < 0 ||
+      window.innerWidth >= 1024 ||
+      event.clientX < 24 ||
+      isRouteSwipeTarget(event.target)
+    ) return
+    pageDragControls.start(event)
+  }
+
+  function finishRouteDrag(_: PointerEvent, info: PanInfo) {
+    if (activeTabIndex < 0) return
+    const projected = info.offset.x + projectVelocity(info.velocity.x, 0.99)
+    const threshold = Math.min(92, window.innerWidth * 0.2)
+    if (Math.abs(projected) < threshold && Math.abs(info.velocity.x) < 560) return
+
+    const delta = projected < 0 ? 1 : -1
+    const targetIndex = activeTabIndex + delta
+    const target = TABS[targetIndex]
+    if (!target) return
+    routeVelocity.current = info.velocity.x
+    navigate(target.to)
   }
 
   const todayLabel = new Intl.DateTimeFormat('zh-CN', {
@@ -184,10 +323,17 @@ export default function App() {
           <p className="desktop-brand-name">Task Schedule</p>
           <p className="desktop-brand-date">{todayLabel}</p>
         </div>
-        <ul className="mobile-nav-list relative grid lg:flex lg:flex-col lg:gap-2 lg:px-4">
-          <span
+        <ul
+          ref={navListRef}
+          className="mobile-nav-list relative grid lg:flex lg:flex-col lg:gap-2 lg:px-4"
+        >
+          <motion.span
             aria-hidden
-            className={`nav-active-surface nav-active-index-${activeTabIndex}`}
+            data-visible={activeTabIndex >= 0 || undefined}
+            className="nav-active-surface"
+            style={{ x: navX, y: navY }}
+            animate={{ opacity: activeTabIndex >= 0 ? 1 : 0 }}
+            transition={reduceMotion ? MOTION.reduced : MOTION.control}
           />
           {TABS.map((tab, i) => {
             return (
@@ -267,24 +413,46 @@ export default function App() {
             <SyncStatus />
           </div>
           <div className="motion-route-viewport">
-            <motion.div
-              key={location.pathname}
-              initial={reduceMotion ? false : { x: pageDirection * 8 }}
-              animate={{ x: 0 }}
-              transition={reduceMotion ? MOTION.reduced : MOTION.route}
-              className="motion-route-page"
-            >
-              <Routes location={location}>
-                <Route path="/" element={<Navigate to="/overview" replace />} />
-                <Route path="/overview" element={<Overview />} />
-                <Route path="/today" element={<Today />} />
-                <Route path="/plan" element={<Plan />} />
-                <Route path="/shopping" element={<Shopping />} />
-                <Route path="/browse" element={<Browse />} />
-                <Route path="/settings" element={<Settings />} />
-                <Route path="*" element={<Navigate to="/overview" replace />} />
-              </Routes>
-            </motion.div>
+            <AnimatePresence initial={false} custom={routeMotion} mode="sync">
+              <motion.div
+                key={location.pathname}
+                data-route={location.pathname}
+                custom={routeMotion}
+                variants={directionalSurfaceVariants}
+                initial={reduceMotion ? false : 'enter'}
+                animate="center"
+                exit={reduceMotion ? undefined : 'exit'}
+                transition={
+                  reduceMotion
+                    ? MOTION.reduced
+                    : {
+                        ...(routeMotion.kind === 'push' ? MOTION.push : MOTION.route),
+                        velocity: routeVelocity.current,
+                      }
+                }
+                drag={!reduceMotion && activeTabIndex >= 0 ? 'x' : false}
+                dragControls={pageDragControls}
+                dragListener={false}
+                dragConstraints={{ left: 0, right: 0 }}
+                dragElastic={0.18}
+                dragMomentum={false}
+                dragDirectionLock
+                onPointerDownCapture={beginRouteDrag}
+                onDragEnd={finishRouteDrag}
+                className="motion-route-page"
+              >
+                <Routes location={location}>
+                  <Route path="/" element={<Navigate to="/overview" replace />} />
+                  <Route path="/overview" element={<Overview />} />
+                  <Route path="/today" element={<Today />} />
+                  <Route path="/plan" element={<Plan />} />
+                  <Route path="/shopping" element={<Shopping />} />
+                  <Route path="/browse" element={<Browse />} />
+                  <Route path="/settings" element={<Settings />} />
+                  <Route path="*" element={<Navigate to="/overview" replace />} />
+                </Routes>
+              </motion.div>
+            </AnimatePresence>
           </div>
         </div>
       </main>

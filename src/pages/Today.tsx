@@ -21,7 +21,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { FOCUS_QUICK_ADD_EVENT } from '../lib/appEvents'
+import { CLOSE_TASK_MENU_EVENT, FOCUS_QUICK_ADD_EVENT } from '../lib/appEvents'
 import {
   db,
   type Category,
@@ -306,6 +306,12 @@ export default function Today() {
     }
     window.addEventListener(FOCUS_QUICK_ADD_EVENT, focus)
     return () => window.removeEventListener(FOCUS_QUICK_ADD_EVENT, focus)
+  }, [])
+
+  useEffect(() => {
+    const closeMenu = () => setOpenMenuTaskId(null)
+    window.addEventListener(CLOSE_TASK_MENU_EVENT, closeMenu)
+    return () => window.removeEventListener(CLOSE_TASK_MENU_EVENT, closeMenu)
   }, [])
 
   useEffect(() => {
