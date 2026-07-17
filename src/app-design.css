@@ -1458,7 +1458,9 @@ body {
     gap: 1px !important;
     padding: 0 2px !important;
     color: var(--ui-muted) !important;
-    transition: color 180ms ease, transform 120ms ease !important;
+    transition:
+      color 250ms cubic-bezier(.2, .8, .2, 1),
+      transform 120ms ease !important;
     -webkit-tap-highlight-color: transparent;
   }
 
