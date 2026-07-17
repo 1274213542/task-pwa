@@ -169,13 +169,15 @@ export default function App() {
       {/* 桌面端侧栏 / 手机端底部 Tab，同一份导航数据 */}
       <nav
         data-tone={TABS[activeTabIndex]?.tone ?? 'neutral'}
-        className={`mobile-nav safe-bottom glass fixed inset-x-0 bottom-0 z-10 border-t
-          border-black/10 bg-white/80 backdrop-blur-xl lg:static lg:flex lg:w-56
-          lg:flex-col lg:border-t-0 lg:border-r lg:bg-transparent
-          lg:backdrop-blur-none dark:border-white/10 dark:bg-black/40 ${
+        className={`mobile-nav fixed inset-x-0 bottom-0 z-10 lg:static lg:flex lg:w-56
+          lg:flex-col lg:border-r ${
             keyboardOpen ? 'is-keyboard-open' : ''
           }`}
       >
+        {/* The dock's material reaches the physical screen edge. Its controls live
+            in the row above the safe area, so iOS does not receive two safe-area
+            compensations from the shell and the navigation itself. */}
+        <span className="mobile-nav-material" aria-hidden="true" />
         <div className="desktop-sidebar-brand hidden lg:block">
           <div className="desktop-brand-mark">
             <MarkerIcon symbol="flower" color="green" size={30} />

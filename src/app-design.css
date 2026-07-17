@@ -1111,3 +1111,242 @@ body.editor-open .app-shell main {
 @media (update: slow) {
   .editor-sheet { will-change: auto; }
 }
+
+/* --------------------------------------------------------------------------
+   Stable material, safe area, and typography system
+
+   This final layer deliberately owns the mobile dock. Earlier reference
+   experiments lifted the entire dock by the safe-area inset *and* padded its
+   content by the same inset, while the content canvas added a third reserve.
+   On a physical iPhone that made the Home Indicator region read as a detached
+   blank strip. Keep one full-width material layer at the screen edge, then
+   reserve the safe area only below the interactive row.
+   -------------------------------------------------------------------------- */
+
+:root {
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
+  --gutter-mobile: 16px;
+  --gutter-desktop: 28px;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --nav-row-height: 64px;
+  --nav-content-clearance: calc(var(--nav-row-height) + var(--safe-bottom) + var(--space-4));
+  --type-page-mobile: 1.375rem;
+  --type-page-desktop: clamp(2rem, 3vw, 2.7rem);
+  --type-section: 1.125rem;
+  --type-card-title: 1rem;
+  --type-body: .9375rem;
+  --type-meta: .75rem;
+  --leading-page: 1.08;
+  --leading-body: 1.45;
+  --leading-meta: 1.3;
+  --material-nav: var(--ui-dark);
+  --material-surface: var(--ui-surface);
+  --material-line-dark: rgb(255 255 255 / .16);
+  --material-line-light: rgb(29 30 27 / .09);
+}
+
+body {
+  line-height: var(--leading-body);
+  font-kerning: normal;
+  text-rendering: optimizeLegibility;
+}
+
+.page-title {
+  font-size: var(--type-page-desktop);
+  line-height: var(--leading-page);
+  letter-spacing: -.035em;
+}
+
+.page-eyebrow,
+.section-kicker,
+.section-label,
+.mobile-page-heading p {
+  font-size: var(--type-meta);
+  line-height: var(--leading-meta);
+  font-weight: 650;
+  letter-spacing: .025em;
+}
+
+.mobile-page-heading h1 {
+  font-size: var(--type-page-mobile);
+  line-height: var(--leading-page);
+  font-weight: 700;
+  letter-spacing: -.028em;
+}
+
+.task-card-title,
+.calendar-item-title,
+.shopping-item-title {
+  font-size: var(--type-card-title);
+  line-height: 1.28;
+  font-weight: 680;
+  letter-spacing: -.016em;
+}
+
+.task-card-meta,
+.calendar-item-meta,
+.shopping-item-meta,
+.task-card-subtitle {
+  font-size: var(--type-meta);
+  line-height: var(--leading-meta);
+}
+
+@media (max-width: 1023px) {
+  .app-shell {
+    min-height: 100svh;
+    min-height: 100dvh;
+  }
+
+  .mobile-nav {
+    inset: auto 0 0 !important;
+    width: 100% !important;
+    height: calc(var(--nav-row-height) + var(--safe-bottom)) !important;
+    min-height: calc(var(--nav-row-height) + var(--safe-bottom)) !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    isolation: isolate;
+    transform: translate3d(0, 0, 0);
+  }
+
+  .mobile-nav-material {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    display: block;
+    pointer-events: none;
+    border-top: 1px solid var(--material-line-dark);
+    border-radius: 28px 28px 0 0;
+    background: var(--material-nav);
+    box-shadow: 0 -8px 22px rgb(23 24 22 / .08);
+  }
+
+  @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .mobile-nav-material {
+      background: color-mix(in srgb, var(--ui-dark) 82%, transparent);
+      backdrop-filter: blur(14px) saturate(118%);
+      -webkit-backdrop-filter: blur(14px) saturate(118%);
+    }
+  }
+
+  .mobile-nav-list {
+    position: relative;
+    z-index: 1;
+    width: auto;
+    height: var(--nav-row-height);
+    min-height: var(--nav-row-height) !important;
+    margin: 0 max(12px, env(safe-area-inset-right)) var(--safe-bottom) max(12px, env(safe-area-inset-left));
+    padding: 6px 8px !important;
+  }
+
+  .app-shell main {
+    padding-bottom: var(--nav-content-clearance) !important;
+  }
+
+  .app-shell main::after {
+    display: none !important;
+    height: 0 !important;
+    content: none !important;
+  }
+
+  .app-page {
+    padding-bottom: var(--space-5) !important;
+  }
+
+  .safe-inline {
+    padding-inline: max(var(--gutter-mobile), env(safe-area-inset-left)) max(var(--gutter-mobile), env(safe-area-inset-right));
+  }
+
+  .mobile-nav.is-keyboard-open {
+    transform: translate3d(0, calc(100% + var(--safe-bottom)), 0) !important;
+  }
+
+  .mobile-page-header {
+    min-height: 68px;
+    gap: var(--space-3);
+    padding-block: var(--space-2) var(--space-3);
+  }
+
+  .mobile-page-avatar,
+  .mobile-page-primary,
+  .mobile-page-secondary {
+    width: 44px;
+    height: 44px;
+  }
+}
+
+/* Materials are limited to floating controls and sheets; task cards stay solid
+   so lists remain legible and inexpensive to composite on iPhone Safari. */
+.glass,
+.editor-sheet {
+  background: var(--material-surface) !important;
+  border-color: var(--material-line-light) !important;
+}
+
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass,
+  .editor-sheet {
+    background: color-mix(in srgb, var(--ui-surface) 90%, transparent) !important;
+    backdrop-filter: blur(12px) saturate(115%);
+    -webkit-backdrop-filter: blur(12px) saturate(115%);
+  }
+}
+
+.editor-sheet {
+  box-shadow: 0 -12px 36px rgb(23 24 22 / .14) !important;
+}
+
+.editor-sheet-header {
+  background: color-mix(in srgb, var(--ui-surface) 86%, transparent) !important;
+  border-bottom: 1px solid var(--material-line-light);
+}
+
+@media (min-width: 1024px) {
+  .mobile-nav-material { display: none; }
+
+  .mobile-nav {
+    height: auto !important;
+    min-height: 0 !important;
+    isolation: auto;
+    background: transparent !important;
+  }
+
+  .app-shell main { padding-bottom: 0 !important; }
+
+  .safe-inline { padding-inline: var(--gutter-desktop); }
+}
+
+@media (prefers-reduced-transparency: reduce), (update: slow) {
+  .mobile-nav-material,
+  .glass,
+  .editor-sheet {
+    background: var(--ui-surface) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  .mobile-nav-material {
+    background: var(--ui-dark) !important;
+  }
+}
+
+@media (prefers-contrast: more) {
+  .mobile-nav,
+  .mobile-nav-material {
+    border-color: currentColor !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  .mobile-nav-material { background: var(--ui-dark) !important; }
+}
