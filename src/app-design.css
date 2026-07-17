@@ -1428,6 +1428,17 @@ body {
     }
   }
 
+  /* LightningCSS intentionally folds the two declarations above to the
+     WebKit spelling when both are in the same rule. Keep a standards-only
+     branch for Chrome/Firefox, while Safari continues to use its prefixed
+     implementation. Both branches share the same opaque fallback. */
+  @supports (backdrop-filter: blur(1px)) and (not (-webkit-backdrop-filter: blur(1px))) {
+    .mobile-nav-material {
+      background: color-mix(in srgb, var(--ui-surface) 86%, transparent);
+      backdrop-filter: blur(14px) saturate(112%);
+    }
+  }
+
   .mobile-nav-list {
     height: 100% !important;
     min-height: 0 !important;
