@@ -422,7 +422,18 @@ select,
 .editor-sheet,
 .command-palette-surface {
   border: 1px solid var(--ds-border) !important;
-  background: var(--ui-surface) !important;
+  background: var(--ds-glass-toolbar) !important;
+  backdrop-filter: blur(var(--ds-glass-blur-small)) saturate(112%);
+  -webkit-backdrop-filter: blur(var(--ds-glass-blur-small)) saturate(112%);
+}
+
+/* Keep both spellings in the unguarded production rule. Unsupported engines
+   ignore the filter and retain the high-opacity material fallback; Safari and
+   Chromium no longer depend on optimizer-specific @supports rewriting. */
+.mobile-nav-material {
+  background: var(--ds-glass-nav) !important;
+  backdrop-filter: blur(var(--ds-glass-blur-nav)) saturate(118%);
+  -webkit-backdrop-filter: blur(var(--ds-glass-blur-nav)) saturate(118%);
 }
 
 @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
@@ -822,7 +833,9 @@ select:focus {
     inset: 0 !important;
     border: 1px solid var(--ds-border-strong) !important;
     border-radius: inherit !important;
-    background: var(--ui-surface) !important;
+    background: var(--ds-glass-nav) !important;
+    backdrop-filter: blur(var(--ds-glass-blur-nav)) saturate(118%);
+    -webkit-backdrop-filter: blur(var(--ds-glass-blur-nav)) saturate(118%);
     box-shadow: var(--ds-shadow-float) !important;
   }
 
@@ -1014,6 +1027,31 @@ select:focus {
   .overview-utility-links a:hover {
     transform: translateY(-1px);
     box-shadow: var(--ds-shadow-card);
+  }
+}
+
+/* Lightning CSS emits the WebKit spelling for the shared rule. This branch
+   keeps the standards spelling for engines that expose only backdrop-filter;
+   Safari continues to use the prefixed 16px declaration above. */
+@supports (backdrop-filter: blur(1px)) and (not (-webkit-backdrop-filter: blur(1px))) {
+  .mobile-nav-material {
+    backdrop-filter: blur(var(--ds-glass-blur-nav)) saturate(118%);
+  }
+
+  .mobile-page-header,
+  .task-mobile-toolbar,
+  .task-filter-shell,
+  .segmented-control,
+  .mobile-shopping-view-switch,
+  .finance-mode-switch,
+  .finance-inline-switch,
+  .appearance-control,
+  .quick-card,
+  .task-card-menu,
+  .shopping-move-menu,
+  .editor-sheet,
+  .command-palette-surface {
+    backdrop-filter: blur(var(--ds-glass-blur-small)) saturate(112%);
   }
 }
 
