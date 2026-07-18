@@ -1154,3 +1154,1060 @@ select:focus {
     height: 72px;
   }
 }
+
+/* -----------------------------------------------------------------------
+   Neutral foundation — July 2026
+
+   The product deliberately stops using color as a page-layout mechanism.
+   Feature data may still carry color tokens, but the base UI projects every
+   card through one quiet canvas/surface hierarchy. This section is last so it
+   also neutralizes older page-specific experiments without changing data.
+   ----------------------------------------------------------------------- */
+
+:root {
+  --neutral-canvas: #f3f4f2;
+  --neutral-surface: #fff;
+  --neutral-control: #f7f7f5;
+  --neutral-selected: #eeefea;
+  --neutral-line: #e7e8e5;
+  --neutral-ink: #111;
+  --neutral-muted: #6f7275;
+  --neutral-faint: #9a9da0;
+  --neutral-disabled: #c5c7c8;
+  --neutral-action: #171817;
+  --neutral-status: #8f9390;
+}
+
+/* Existing theme choices remain functional without reintroducing colored
+   cards: they only nudge the neutral canvas temperature in this base pass. */
+:root[data-ui-theme='aqua-garden'] {
+  --neutral-canvas: #f2f5f3;
+}
+
+:root[data-ui-theme='mono-green'] {
+  --neutral-canvas: #f4f4f1;
+}
+
+:root[data-ui-theme='soft-mix'] {
+  --neutral-canvas: #f5f3f4;
+}
+
+:root:not([data-appearance='dark']):not([data-appearance='system']) {
+  --ui-bg: var(--neutral-canvas);
+  --ui-surface: var(--neutral-surface);
+  --ui-soft: var(--neutral-control);
+  --ui-soft-2: var(--neutral-selected);
+  --ui-ink: var(--neutral-ink);
+  --ui-muted: var(--neutral-muted);
+  --ui-faint: var(--neutral-faint);
+  --ui-line: var(--neutral-line);
+  --ui-accent: var(--neutral-action);
+  --ui-accent-soft: var(--neutral-selected);
+  --ui-secondary: var(--neutral-selected);
+  --ui-secondary-soft: var(--neutral-control);
+  --ui-dark: var(--neutral-action);
+  --action-fill: var(--neutral-action) !important;
+  --action-ink: #fff !important;
+  --card-gray: var(--neutral-surface);
+  --card-blue: var(--neutral-surface);
+  --card-green: var(--neutral-surface);
+  --card-orange: var(--neutral-surface);
+  --card-pink: var(--neutral-surface);
+  --card-purple: var(--neutral-surface);
+  --token-gray: var(--neutral-status);
+  --token-blue: var(--neutral-status);
+  --token-green: var(--neutral-status);
+  --token-orange: var(--neutral-status);
+  --token-pink: var(--neutral-status);
+  --token-purple: var(--neutral-status);
+  --ds-border: var(--neutral-line);
+  --ds-border-strong: #d9dbd7;
+  --ds-control-bg: var(--neutral-control);
+  --ds-shadow-card: 0 6px 20px rgb(0 0 0 / 0.045);
+  --ds-shadow-float: 0 1px 0 rgb(255 255 255 / 0.72) inset,
+    0 10px 28px rgb(20 21 20 / 0.085);
+  --ds-glass-nav: rgb(255 255 255 / 0.86);
+  --ds-glass-toolbar: rgb(255 255 255 / 0.9);
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: light) {
+  :root[data-appearance='system'] {
+    --ui-bg: var(--neutral-canvas);
+    --ui-surface: var(--neutral-surface);
+    --ui-soft: var(--neutral-control);
+    --ui-soft-2: var(--neutral-selected);
+    --ui-ink: var(--neutral-ink);
+    --ui-muted: var(--neutral-muted);
+    --ui-faint: var(--neutral-faint);
+    --ui-line: var(--neutral-line);
+    --ui-accent: var(--neutral-action);
+    --ui-accent-soft: var(--neutral-selected);
+    --ui-secondary: var(--neutral-selected);
+    --ui-secondary-soft: var(--neutral-control);
+    --ui-dark: var(--neutral-action);
+    --action-fill: var(--neutral-action) !important;
+    --action-ink: #fff !important;
+    --card-gray: var(--neutral-surface);
+    --card-blue: var(--neutral-surface);
+    --card-green: var(--neutral-surface);
+    --card-orange: var(--neutral-surface);
+    --card-pink: var(--neutral-surface);
+    --card-purple: var(--neutral-surface);
+    --token-gray: var(--neutral-status);
+    --token-blue: var(--neutral-status);
+    --token-green: var(--neutral-status);
+    --token-orange: var(--neutral-status);
+    --token-pink: var(--neutral-status);
+    --token-purple: var(--neutral-status);
+    --ds-border: var(--neutral-line);
+    --ds-border-strong: #d9dbd7;
+    --ds-control-bg: var(--neutral-control);
+    --ds-shadow-card: 0 6px 20px rgb(0 0 0 / 0.045);
+    --ds-shadow-float: 0 1px 0 rgb(255 255 255 / 0.72) inset,
+      0 10px 28px rgb(20 21 20 / 0.085);
+    --ds-glass-nav: rgb(255 255 255 / 0.86);
+    --ds-glass-toolbar: rgb(255 255 255 / 0.9);
+    color-scheme: light;
+  }
+}
+
+[data-color-token] {
+  --item-card: var(--ui-surface) !important;
+  --item-color: var(--neutral-status) !important;
+}
+
+.marker-icon {
+  color: var(--neutral-status) !important;
+}
+
+/* A single surface hierarchy: quiet canvas, white grouped surfaces and pale
+   controls. Color is no longer allowed to describe whole content sections. */
+.overview-hero,
+.overview-metric,
+.overview-today-list,
+.overview-calendar-strip,
+.overview-upcoming,
+.overview-utility-links a,
+.task-card,
+.task-card[data-feature-tone],
+.quick-card,
+.calendar-card,
+.calendar-day-panel,
+.calendar-work-panel,
+.calendar-item-card,
+.mobile-week-timeline,
+.mobile-timeline-event,
+.mobile-timeline-event[data-feature-tone],
+.week-event,
+.agenda-hero,
+.shopping-group-section,
+.shopping-card,
+.finance-current-summary article,
+.finance-range-panel,
+.finance-editor,
+.finance-category-manager,
+.finance-breakdowns > section,
+.finance-records,
+.location-manager,
+.settings-theme-section,
+.settings-data-card,
+.settings-wage-section {
+  border: 1px solid var(--ds-border) !important;
+  background: var(--ui-surface) !important;
+  color: var(--ui-ink) !important;
+  box-shadow: var(--ds-shadow-card) !important;
+}
+
+.task-card,
+.calendar-item-card,
+.mobile-timeline-event,
+.week-event,
+.shopping-card {
+  box-shadow: none !important;
+}
+
+.overview-hero h2,
+.overview-hero p,
+.overview-hero span,
+.overview-hero-progress,
+.agenda-hero h2,
+.agenda-hero span {
+  color: var(--ui-ink) !important;
+}
+
+.overview-hero-progress {
+  border-color: var(--ds-border) !important;
+  background: var(--ui-soft) !important;
+}
+
+.overview-metric-finance {
+  background: var(--ui-surface) !important;
+}
+
+.overview-today-list li,
+.overview-upcoming li {
+  min-height: 54px;
+  border-top: 1px solid var(--ds-border);
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+
+.overview-today-list li:first-child,
+.overview-upcoming li:first-child {
+  border-top: 0;
+}
+
+.task-empty-state,
+.shopping-empty-state,
+.browse-empty-state,
+.calendar-empty-day,
+.calendar-empty-agenda {
+  border: 1px solid var(--ds-border) !important;
+  background: var(--ui-surface) !important;
+  color: var(--ui-muted) !important;
+  box-shadow: none !important;
+}
+
+/* Clear page headers. The decorative app/check emblem is removed in markup;
+   only a true back action is allowed to occupy the leading slot. */
+.mobile-page-header,
+.task-mobile-toolbar,
+.plan-mobile-header {
+  min-height: 74px;
+  margin: 0 !important;
+  padding: var(--ds-space-3) 0 var(--ds-space-4) !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.mobile-page-header {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.mobile-page-header.has-leading {
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+}
+
+.mobile-page-heading h1,
+.task-mobile-brand h1,
+.plan-mobile-heading h1 {
+  font-size: 1.5rem;
+  font-weight: 720;
+  letter-spacing: -0.035em;
+  text-align: left;
+}
+
+.mobile-page-heading p,
+.task-mobile-brand p,
+.plan-mobile-heading p {
+  margin-bottom: 2px;
+  color: var(--ui-muted);
+  font-size: 0.75rem;
+  font-weight: 620;
+}
+
+.mobile-page-heading,
+.plan-mobile-heading {
+  text-align: left;
+}
+
+.mobile-page-primary,
+.task-round-action-primary,
+.plan-mobile-add {
+  background: var(--ui-dark) !important;
+  color: #fff !important;
+}
+
+.mobile-page-secondary,
+.task-round-action-settings,
+.mobile-page-avatar,
+.plan-mobile-profile {
+  border: 1px solid var(--ds-border) !important;
+  background: var(--ui-surface) !important;
+  color: var(--ui-ink) !important;
+}
+
+.plan-mobile-header {
+  grid-template-columns: minmax(0, 1fr) 44px;
+}
+
+.task-mobile-brand {
+  gap: 0;
+}
+
+/* Segmented and filter controls share one neutral selected state. */
+.plan-mobile-mode-switch,
+.mobile-shopping-view-switch,
+.finance-mode-switch,
+.segmented-control,
+.task-filter-shell,
+.finance-inline-switch {
+  border: 1px solid var(--ds-border) !important;
+  background: var(--ui-surface) !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.plan-mobile-mode-switch button[aria-selected='true'],
+.mobile-shopping-view-switch button[aria-selected='true'],
+.finance-mode-switch button[aria-selected='true'],
+.segmented-control button[aria-selected='true'],
+.segmented-control button.is-active,
+.finance-inline-switch button[aria-pressed='true'] {
+  background: var(--ui-soft) !important;
+  color: var(--ui-ink) !important;
+  box-shadow: none !important;
+}
+
+.task-filter-shell {
+  min-height: 52px;
+  margin: 0 !important;
+  padding: 4px !important;
+}
+
+.task-filter-icon,
+.task-filter-pill,
+.task-fixed-pill {
+  min-height: 42px;
+  border: 0 !important;
+  background: var(--ui-soft) !important;
+  color: var(--ui-muted) !important;
+}
+
+.task-filter-pill {
+  min-width: 116px;
+}
+
+.task-filter-pill[aria-selected='true'] {
+  background: var(--ui-selected, var(--neutral-selected)) !important;
+  color: var(--ui-ink) !important;
+}
+
+.task-filter-pill strong,
+.task-filter-pill[aria-selected='true'] strong {
+  background: var(--ui-surface) !important;
+  color: var(--ui-ink) !important;
+}
+
+.task-fixed-pill {
+  min-width: 110px;
+  margin-left: 4px;
+}
+
+.task-date-context {
+  display: none !important;
+}
+
+.task-progress-line {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 3px 0;
+  color: var(--ui-muted);
+  font-size: 0.75rem;
+  font-weight: 580;
+}
+
+.task-progress-line i {
+  color: var(--ui-faint);
+  font-style: normal;
+}
+
+/* Compact composers: the primary action belongs to the field, not to a large
+   detached color bubble. */
+.task-composer-card,
+.shopping-composer-card,
+.calendar-composer {
+  border: 1px solid var(--ds-border) !important;
+  background: var(--ui-surface) !important;
+  padding: 10px !important;
+  box-shadow: var(--ds-shadow-card) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.task-composer-card > .flex:first-child,
+.shopping-composer-row {
+  position: relative;
+  align-items: stretch !important;
+}
+
+.shopping-composer-row {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 72px;
+  grid-template-rows: 42px 42px;
+  gap: 6px !important;
+}
+
+.task-composer-card textarea,
+.shopping-composer-card textarea,
+.calendar-composer textarea {
+  min-height: 82px !important;
+  border: 1px solid transparent !important;
+  background: var(--ui-soft) !important;
+  padding: 12px 54px 12px 13px !important;
+}
+
+.task-composer-card > .flex:first-child > .primary-action,
+.shopping-composer-row > .primary-action {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+}
+
+.shopping-composer-row > textarea {
+  grid-row: 1 / span 2;
+  padding-right: 12px !important;
+}
+
+.shopping-composer-row > input {
+  width: 100% !important;
+  min-height: 42px !important;
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.shopping-composer-row > .primary-action {
+  position: static !important;
+  width: 100% !important;
+  height: 42px !important;
+  grid-column: 2;
+  grid-row: 2;
+  border-radius: var(--ds-radius-compact) !important;
+}
+
+.primary-action,
+.finance-submit,
+.finance-header-add,
+.settings-wage-control button {
+  background: var(--ui-dark) !important;
+  color: #fff !important;
+}
+
+.primary-action:disabled {
+  background: var(--ui-soft-2) !important;
+  color: var(--ui-faint) !important;
+  opacity: 1 !important;
+}
+
+.batch-input-hint {
+  margin: 6px 4px 3px;
+  color: var(--ui-muted);
+  font-size: 0.72rem;
+}
+
+.mobile-composer-hint {
+  display: none;
+}
+
+/* Task rows: completion is expressed by the check control, never by a colored
+   card fill. */
+.task-card,
+.task-card[data-completed='true'] {
+  border: 1px solid var(--ds-border) !important;
+  background: var(--ui-surface) !important;
+}
+
+.task-card[data-completed='true'] {
+  opacity: 0.62;
+}
+
+.task-card-check::before {
+  border-color: var(--ui-muted) !important;
+  background: var(--ui-surface);
+}
+
+.task-card[data-completed='true'] .task-card-check::before {
+  border-color: var(--ui-dark) !important;
+  background: var(--ui-dark) !important;
+}
+
+.task-card-open::before {
+  border: 1px solid var(--ds-border);
+  background: var(--ui-surface) !important;
+}
+
+/* Month overview: visible circles are reserved for selection/today; event
+   presence is a small dot under the numeral. */
+.calendar-toolbar > div:first-child {
+  min-height: 40px;
+  border: 0 !important;
+  background: transparent !important;
+  padding: 0 !important;
+}
+
+.calendar-toolbar > div:first-child > span {
+  display: none;
+}
+
+.calendar-toolbar h2 {
+  font-size: 1.15rem;
+}
+
+.calendar-panel-action {
+  gap: 4px;
+  border: 0 !important;
+  background: transparent !important;
+  padding: 0 !important;
+}
+
+.calendar-panel-action button {
+  min-width: 38px;
+  min-height: 38px;
+  border: 1px solid var(--ds-border) !important;
+  background: var(--ui-surface) !important;
+  color: var(--ui-ink) !important;
+}
+
+.calendar-panel-action button:nth-child(2) {
+  min-width: 54px;
+  border-color: var(--ui-dark) !important;
+  background: var(--ui-dark) !important;
+  color: #fff !important;
+}
+
+.calendar-card {
+  padding: 12px 9px 14px !important;
+}
+
+.calendar-day {
+  position: relative;
+  background: transparent !important;
+}
+
+.calendar-date-number,
+.calendar-day[data-has-items='true'] .calendar-date-number {
+  background: transparent !important;
+  color: var(--ui-ink) !important;
+  box-shadow: none !important;
+}
+
+.calendar-date-number[data-today='true'] {
+  background: transparent !important;
+  color: var(--ui-ink) !important;
+  box-shadow: inset 0 0 0 1.5px var(--ui-dark) !important;
+}
+
+.calendar-day[data-selected='true'] .calendar-date-number,
+.calendar-day[data-selected='true'] .calendar-date-number[data-today='true'] {
+  background: var(--ui-dark) !important;
+  color: #fff !important;
+  box-shadow: none !important;
+}
+
+.calendar-day[data-has-items='true']::after {
+  position: absolute;
+  bottom: 2px;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--ui-muted);
+  content: '';
+  transform: translateX(-50%);
+}
+
+.calendar-day[data-outside='true'] .calendar-date-number {
+  color: var(--ui-faint) !important;
+}
+
+.calendar-day-panel {
+  padding: 14px !important;
+}
+
+.calendar-day-panel .calendar-empty-day {
+  min-height: 108px !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+
+.calendar-work-panel {
+  margin: 8px 0;
+  border-radius: var(--ds-radius-control) !important;
+  padding: 8px 10px !important;
+  box-shadow: none !important;
+}
+
+.calendar-work-panel > header > div {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.calendar-work-panel header strong {
+  margin: 0;
+}
+
+.day-panel-heading-actions button {
+  border: 1px solid var(--ds-border);
+  background: var(--ui-soft) !important;
+  color: var(--ui-ink) !important;
+}
+
+.calendar-selection-summary {
+  margin-top: 10px;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-card);
+  background: var(--ui-surface);
+  padding: 12px 14px;
+  box-shadow: var(--ds-shadow-card);
+}
+
+.calendar-selection-summary header,
+.calendar-selection-summary header > div,
+.calendar-selection-summary li button {
+  display: flex;
+}
+
+.calendar-selection-summary header {
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.calendar-selection-summary header > div,
+.calendar-selection-summary li button {
+  min-width: 0;
+  flex-direction: column;
+}
+
+.calendar-selection-summary header strong {
+  font-size: 0.9rem;
+}
+
+.calendar-selection-summary header span,
+.calendar-selection-summary li small {
+  color: var(--ui-muted);
+  font-size: 0.7rem;
+}
+
+.calendar-selection-summary header button {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  gap: 4px;
+  border-radius: var(--ds-radius-compact);
+  background: var(--ui-soft);
+  padding: 0 11px;
+  font-size: 0.75rem;
+  font-weight: 650;
+}
+
+.calendar-selection-summary ul {
+  margin-top: 8px;
+  border-top: 1px solid var(--ds-border);
+}
+
+.calendar-selection-summary li button {
+  width: 100%;
+  min-height: 46px;
+  justify-content: center;
+  border-bottom: 1px solid var(--ds-border);
+  text-align: left;
+}
+
+.calendar-selection-summary li:last-child button {
+  border-bottom: 0;
+}
+
+.agenda-hero {
+  min-height: 74px;
+  padding: 14px 16px !important;
+  box-shadow: none !important;
+}
+
+.agenda-hero .marker-icon {
+  display: none;
+}
+
+.agenda-hero h2 {
+  font-size: 1.3rem;
+}
+
+.calendar-empty-agenda {
+  min-height: 180px !important;
+}
+
+.calendar-empty-agenda .marker-icon {
+  display: none;
+}
+
+.task-empty-state span,
+.shopping-empty-state span,
+.calendar-empty-day span,
+.calendar-empty-agenda span,
+.overview-empty,
+.finance-empty {
+  color: var(--ui-muted) !important;
+  opacity: 1 !important;
+}
+
+/* Grouped shopping: one white location card, flat rows inside it. */
+.shopping-group-section {
+  padding: 8px 12px !important;
+}
+
+.shopping-group-title {
+  min-height: 44px;
+  border-bottom: 1px solid var(--ds-border);
+  padding: 0 2px;
+}
+
+.shopping-group-count {
+  border-radius: var(--ds-radius-pill);
+  background: var(--ui-soft);
+  padding: 5px 8px;
+}
+
+.shopping-group-section .shopping-card-list {
+  gap: 0 !important;
+}
+
+.shopping-group-section .shopping-card {
+  min-height: 62px !important;
+  border: 0 !important;
+  border-top: 1px solid var(--ds-border) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  padding-inline: 2px !important;
+}
+
+.shopping-group-section .shopping-card:first-child {
+  border-top: 0 !important;
+}
+
+.shopping-group-empty,
+.shopping-group-empty-action {
+  width: 100%;
+  min-height: 48px;
+  border: 0;
+  border-radius: 0 !important;
+  background: transparent;
+  color: var(--ui-muted);
+  font-size: 0.75rem;
+}
+
+.shopping-group-empty {
+  border: 1px dashed var(--ds-border) !important;
+  border-radius: var(--ds-radius-control) !important;
+}
+
+.shopping-group-empty-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 4px;
+  text-align: left;
+}
+
+.shopping-group-empty-action strong {
+  color: var(--ui-ink);
+  font-weight: 650;
+}
+
+.location-management > summary {
+  border: 1px solid var(--ds-border) !important;
+  background: var(--ui-surface) !important;
+  color: var(--ui-ink) !important;
+  padding-inline: 12px !important;
+}
+
+/* Finance: equal white data surfaces, a collapsible range control and the
+   record list immediately after the optional editor. */
+.finance-current-summary article:nth-child(1),
+.finance-current-summary article:nth-child(2),
+.finance-current-summary article:nth-child(3) {
+  background: var(--ui-surface) !important;
+}
+
+.finance-current-summary article {
+  min-height: 104px;
+}
+
+.finance-range-panel {
+  padding: 12px 14px !important;
+}
+
+.finance-range-panel > summary {
+  display: grid;
+  min-height: 44px;
+  grid-template-columns: auto minmax(0, 1fr) 24px;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.finance-range-panel > summary::-webkit-details-marker {
+  display: none;
+}
+
+.finance-range-panel > summary span {
+  color: var(--ui-muted);
+  font-size: 0.72rem;
+}
+
+.finance-range-panel > summary strong {
+  overflow: hidden;
+  font-size: 0.85rem;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.finance-range-panel[open] > summary svg {
+  transform: rotate(180deg);
+}
+
+.finance-range-fields {
+  margin-top: 8px;
+  border-top: 1px solid var(--ds-border);
+  padding-top: 10px;
+}
+
+.finance-records {
+  margin-top: 10px;
+}
+
+.settings-wage-section {
+  display: grid;
+  gap: 12px;
+  margin-top: 20px;
+  border-radius: var(--ds-radius-card) !important;
+  padding: 16px;
+}
+
+.settings-wage-section > div:first-child {
+  display: grid;
+  gap: 2px;
+}
+
+.settings-wage-section h2 {
+  font-size: var(--ds-type-section);
+}
+
+.settings-wage-section small,
+.settings-inline-feedback {
+  color: var(--ui-muted);
+  font-size: 0.72rem;
+}
+
+.settings-wage-control {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-wage-control button {
+  min-height: 44px;
+  border-radius: var(--ds-radius-compact);
+  padding: 0 14px;
+  font-weight: 650;
+}
+
+.settings-inline-feedback:empty {
+  display: none;
+}
+
+/* The scroll viewport owns exactly one dock clearance. The retired pseudo
+   spacer caused device-dependent double compensation on iPhone. */
+.app-shell main::after {
+  display: none !important;
+  height: 0 !important;
+  content: none !important;
+}
+
+@media (max-width: 1023px) {
+  :root {
+    --dock-visual-height: 68px;
+    --dock-bottom-gap: max(10px, env(safe-area-inset-bottom, 0px));
+    --nav-content-clearance: calc(
+      var(--dock-visual-height) + var(--dock-bottom-gap) + 28px
+    );
+  }
+
+  .app-shell main {
+    scroll-padding-bottom: var(--nav-content-clearance);
+    padding-bottom: var(--nav-content-clearance) !important;
+  }
+
+  .app-page {
+    padding-bottom: 24px !important;
+  }
+
+  .mobile-nav {
+    width: min(334px, calc(100vw - 32px)) !important;
+  }
+
+  .mobile-nav-material {
+    border-color: var(--ds-border) !important;
+    background: var(--ds-glass-nav) !important;
+    box-shadow: 0 1px 0 rgb(255 255 255 / 0.78) inset,
+      0 9px 24px rgb(20 21 20 / 0.09) !important;
+    backdrop-filter: blur(14px) saturate(108%);
+    -webkit-backdrop-filter: blur(14px) saturate(108%);
+  }
+
+  .mobile-nav-list {
+    padding: 5px !important;
+  }
+
+  .nav-active-surface {
+    top: 5px !important;
+    left: 5px !important;
+    width: calc((100% - 10px) / 5) !important;
+    height: calc(100% - 10px) !important;
+    background: var(--neutral-selected) !important;
+  }
+
+  .mobile-tab-link {
+    min-height: 58px !important;
+    gap: 0 !important;
+    color: var(--ui-muted) !important;
+  }
+
+  .mobile-tab-link.is-active {
+    color: var(--ui-ink) !important;
+  }
+
+  .mobile-tab-icon {
+    width: 24px;
+    height: 24px;
+  }
+
+  .mobile-tab-icon svg {
+    width: 21px;
+    height: 21px;
+  }
+
+  .mobile-tab-label {
+    display: block !important;
+    font-size: 0.68rem;
+    line-height: 1.15;
+  }
+
+  .mobile-nav-fade {
+    height: calc(var(--nav-content-clearance) + 48px);
+    background: linear-gradient(
+      to bottom,
+      transparent 0%,
+      color-mix(in srgb, var(--ui-bg) 72%, transparent) 43%,
+      var(--ui-bg) 78%
+    );
+  }
+
+  .mobile-composer-hint {
+    display: inline;
+  }
+
+  .desktop-composer-hint {
+    display: none;
+  }
+
+  .task-fixed-pill {
+    width: 44px;
+    min-width: 44px;
+    justify-content: center;
+    overflow: hidden;
+    padding: 0 !important;
+    font-size: 0;
+  }
+
+  .task-fixed-pill svg {
+    width: 19px;
+    height: 19px;
+  }
+
+  .calendar-selection-summary {
+    display: block;
+  }
+
+  .finance-current-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .finance-current-summary article:last-child {
+    display: grid;
+    min-height: 68px;
+    grid-column: 1 / -1;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 2px 12px;
+  }
+
+  .finance-current-summary article:last-child strong {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    text-align: right;
+  }
+
+  .finance-range-fields {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  }
+
+  .finance-range-fields input {
+    width: 100%;
+  }
+
+  .settings-wage-control input {
+    min-width: 0;
+    width: 100%;
+  }
+
+  main[data-keyboard-open='true'] .task-composer-card,
+  main[data-keyboard-open='true'] .shopping-composer-card,
+  main[data-keyboard-open='true'] .calendar-composer {
+    scroll-margin-bottom: 18px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .mobile-composer-hint {
+    display: none;
+  }
+
+  .desktop-composer-hint {
+    display: inline;
+  }
+
+  .calendar-selection-summary {
+    display: none;
+  }
+
+  .mobile-nav {
+    background: var(--neutral-canvas) !important;
+  }
+
+  .desktop-sidebar-brand,
+  .desktop-sidebar-extras,
+  .sidebar-mini-calendar,
+  .sidebar-categories {
+    border-color: var(--ds-border) !important;
+  }
+}
+
+@media (max-width: 374px) {
+  .finance-current-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .finance-current-summary article,
+  .finance-current-summary article:last-child {
+    min-height: 72px;
+    grid-column: 1;
+  }
+
+  .mobile-page-actions,
+  .task-mobile-actions {
+    gap: 4px;
+  }
+}

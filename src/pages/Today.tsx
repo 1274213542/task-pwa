@@ -614,15 +614,12 @@ export default function Today() {
             }}
             className="task-round-action task-round-action-primary"
           >
-            <AppIcon name={composerOpen ? 'close' : 'plus'} size={24} />
+            <AppIcon name={composerOpen ? 'chevronUp' : 'plus'} size={24} />
           </button>
         )}
       />
       <header className="task-mobile-toolbar">
         <div className="task-mobile-brand">
-          <div className="task-profile" aria-hidden>
-            <img src={`${import.meta.env.BASE_URL}icons/icon-192.png`} alt="" />
-          </div>
           <div>
             <p>{dateLabel}</p>
             <h1>任务</h1>
@@ -639,7 +636,7 @@ export default function Today() {
             }}
             className="task-round-action task-round-action-primary"
           >
-            <AppIcon name={composerOpen ? 'close' : 'plus'} size={28} />
+            <AppIcon name={composerOpen ? 'chevronUp' : 'plus'} size={25} />
           </button>
           <a
             href="#/settings"
@@ -685,6 +682,12 @@ export default function Today() {
         <span>{scope === 'daily' ? dateLabel : `本周 ${weeklyRangeLabel}`}</span>
       </div>
 
+      <div className="task-progress-line" aria-label="任务进度">
+        <span>{scope === 'daily' ? '今日任务' : '本周任务'} {pending.length + done.length} 项</span>
+        <i aria-hidden>·</i>
+        <span>已完成 {done.length} 项</span>
+      </div>
+
       {composerOpen && <div className="quick-card task-composer-card rounded-2xl bg-white/70 p-2 shadow-sm ring-1 ring-black/5 dark:bg-neutral-800/70 dark:ring-white/5">
         <div className="flex items-center gap-2">
           <textarea
@@ -712,7 +715,10 @@ export default function Today() {
             <AppIcon name="plus" size={23} />
           </button>
         </div>
-        <p className="batch-input-hint">Enter 换行 · ⌘/Ctrl + Enter 添加全部</p>
+        <p className="batch-input-hint">
+          <span className="mobile-composer-hint">每行一个任务</span>
+          <span className="desktop-composer-hint">Enter 换行 · ⌘/Ctrl + Enter 添加全部</span>
+        </p>
         <div className="mt-1 flex flex-wrap items-center gap-2 px-1 pb-1">
           <div className="flex rounded-lg bg-black/5 p-0.5 text-[12px] dark:bg-white/10">
             <button

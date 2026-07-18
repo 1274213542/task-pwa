@@ -12,6 +12,7 @@ import type { UIThemeId } from '../lib/db'
 import { COLOR_TOKEN_ORDER } from '../lib/themes'
 import MobilePageHeader from '../components/MobilePageHeader'
 import { previewVisualPreferences } from '../lib/visualPreferences'
+import { updateDefaultHourlyRate } from '../lib/finance'
 
 function downloadJson(json: string, filename: string) {
   const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }))
@@ -42,6 +43,8 @@ export default function Settings() {
   const [importState, setImportState] = useState<
     { phase: 'idle' } | { phase: 'confirm'; json: string; name: string } | { phase: 'done' } | { phase: 'error'; msg: string }
   >({ phase: 'idle' })
+  const [defaultRate, setDefaultRate] = useState('')
+  const [wageFeedback, setWageFeedback] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
 
   async function doExport() {
@@ -76,6 +79,7 @@ export default function Settings() {
   const user = useObservable(db.cloud.currentUser)
   const persistedSync = useObservable(db.cloud.persistedSyncState)
   const prefs = useLiveQuery(() => db.syncedPreferences.get('#prefs'), [])
+  const wageSettings = useLiveQuery(() => db.wageSettings.get('#wage'), [])
   const lastSync = !cloudEnabled
     ? '未配置'
     : persistedSync?.timestamp
@@ -90,6 +94,10 @@ export default function Settings() {
   useEffect(() => {
     void isStoragePersisted().then(setPersisted)
   }, [])
+
+  useEffect(() => {
+    if (wageSettings) setDefaultRate(String(wageSettings.defaultHourlyRate || ''))
+  }, [wageSettings])
 
   async function requestPersist() {
     setRequest('pending')
@@ -209,6 +217,34 @@ export default function Settings() {
             ))}
           </div>
         </div>
+      </section>
+
+      <section className="settings-wage-section" aria-labelledby="wage-heading">
+        <div>
+          <p className="section-kicker">工作与财务</p>
+          <h2 id="wage-heading">默认时薪</h2>
+          <small>只影响之后新建的工作记录，历史工资不会被重算</small>
+        </div>
+        <div className="settings-wage-control">
+          <span>¥</span>
+          <input
+            type="number"
+            min="0"
+            inputMode="decimal"
+            value={defaultRate}
+            onChange={(event) => setDefaultRate(event.target.value)}
+            aria-label="默认时薪"
+          />
+          <button
+            type="button"
+            onClick={() => void updateDefaultHourlyRate(Number(defaultRate || 0))
+              .then(() => setWageFeedback('默认时薪已更新'))
+              .catch((reason: unknown) => setWageFeedback(reason instanceof Error ? reason.message : '时薪保存失败'))}
+          >
+            保存
+          </button>
+        </div>
+        <p className="settings-inline-feedback" role="status">{wageFeedback}</p>
       </section>
 
       <div className="list-card settings-data-card mt-6 overflow-hidden rounded-xl bg-white dark:bg-neutral-800">

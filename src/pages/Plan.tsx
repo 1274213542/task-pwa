@@ -471,7 +471,7 @@ export default function Plan() {
               aria-expanded={composerOpen}
               onClick={() => setComposerOpen((open) => !open)}
             >
-              <AppIcon name={composerOpen ? 'close' : 'plus'} size={20} />
+              <AppIcon name={composerOpen ? 'chevronUp' : 'plus'} size={20} />
             </button>
           </div>
         </div>
@@ -511,7 +511,10 @@ export default function Plan() {
                 : '添加任务；多项可换行…'
             }
           />
-          <p className="batch-input-hint">Enter 换行 · ⌘/Ctrl + Enter 添加全部</p>
+          <p className="batch-input-hint">
+            <span className="mobile-composer-hint">每行一个计划</span>
+            <span className="desktop-composer-hint">Enter 换行 · ⌘/Ctrl + Enter 添加全部</span>
+          </p>
           <div className="calendar-composer-controls">
             <select
               aria-label="类型"
@@ -551,7 +554,7 @@ export default function Plan() {
         <p role="status" className="calendar-feedback">{feedback}</p>
         {selectedItems.length > 0 ? (
           <ul className="calendar-item-list">{selectedItems.map(itemRow)}</ul>
-        ) : (
+        ) : composerOpen ? null : (
           <div className="calendar-empty-day">
             <MarkerIcon symbol="flower" color="green" size={42} />
             <span>这一天暂无安排</span>
@@ -564,23 +567,25 @@ export default function Plan() {
   return (
     <section className="app-page page-plan" data-mode={mode}>
       <header className="plan-mobile-header">
-        <a href="#/overview" className="plan-mobile-profile" aria-label="返回总览">
-          <AppIcon name="dashboard" size={22} />
-        </a>
         <div className="plan-mobile-heading">
           <p>{dateLabel(selected, { month: 'long', day: 'numeric' })}</p>
           <h1>计划</h1>
         </div>
         <button
           type="button"
-          aria-label="新增安排"
+          aria-label={mode === 'agenda' && composerOpen ? '收起新增区域' : '新增安排'}
+          aria-expanded={mode === 'agenda' && composerOpen}
           className="plan-mobile-add"
           onClick={() => {
+            if (mode === 'agenda' && composerOpen) {
+              setComposerOpen(false)
+              return
+            }
             switchMode('agenda')
             setComposerOpen(true)
           }}
         >
-          <AppIcon name="plus" size={24} />
+          <AppIcon name={mode === 'agenda' && composerOpen ? 'chevronUp' : 'plus'} size={24} />
         </button>
       </header>
       <div className="plan-mobile-mode-switch" role="tablist" aria-label="视图模式">
@@ -790,6 +795,37 @@ export default function Plan() {
                 </div>
               </div>
               </motion.div>
+            )}
+            {mode === 'month' && (
+              <section className="calendar-selection-summary" aria-label="选中日期摘要">
+                <header>
+                  <div>
+                    <strong>{dateLabel(selected, { month: 'long', day: 'numeric', weekday: 'long' })}</strong>
+                    <span>{selectedItems.length ? `${selectedItems.length} 项安排` : '暂无安排'}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      switchMode('agenda')
+                      setComposerOpen(true)
+                    }}
+                  >
+                    <AppIcon name="plus" size={17} /> 添加计划
+                  </button>
+                </header>
+                {selectedItems.length > 0 && (
+                  <ul>
+                    {selectedItems.slice(0, 3).map((item, index) => (
+                      <li key={`month-summary:${item.kind}:${index}`}>
+                        <button type="button" onClick={() => openItem(item)}>
+                          <span>{itemTitle(item)}</span>
+                          <small>{itemTime(item) ?? (item.kind === 'event' ? '全天计划' : '任务')}</small>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
             )}
           </div>
         </div>

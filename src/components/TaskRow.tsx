@@ -2,7 +2,6 @@ import { createPortal } from 'react-dom'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { motion, useReducedMotion } from 'motion/react'
 import type { ColorToken, MarkerSymbol } from '../lib/db'
-import MarkerIcon from './MarkerIcon'
 import AppIcon from './AppIcon'
 import { MOTION } from '../lib/motion'
 
@@ -196,6 +195,7 @@ export default function TaskRow({
         style={liStyle}
         {...dragProps}
         data-color-token={colorToken}
+        data-marker-symbol={markerSymbol}
         data-feature-tone={featureTone}
         data-completed={completed || undefined}
         data-overdue={overdue || undefined}
@@ -219,7 +219,7 @@ export default function TaskRow({
         {completed ? (
           <AppIcon name="check" size={16} weight="bold" />
         ) : (
-          <MarkerIcon symbol={markerSymbol} color={colorToken} size={15} />
+          <span className="task-card-check-empty" aria-hidden />
         )}
       </button>
 

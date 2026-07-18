@@ -24,16 +24,12 @@ export default function MobilePageHeader({
   secondaryIcon?: AppIconName
 }) {
   return (
-    <header className="mobile-page-header">
+    <header className={`mobile-page-header ${backHref ? 'has-leading' : 'has-no-leading'}`}>
       {backHref ? (
         <a href={backHref} aria-label="返回" className="mobile-page-avatar">
           <AppIcon name="chevronLeft" size={23} />
         </a>
-      ) : (
-        <span className="mobile-page-avatar" aria-hidden>
-          <img src={`${import.meta.env.BASE_URL}icons/icon-192.png`} alt="" />
-        </span>
-      )}
+      ) : null}
       <div className="mobile-page-heading">
         {eyebrow && <p>{eyebrow}</p>}
         <h1>{title}</h1>

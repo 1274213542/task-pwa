@@ -532,7 +532,7 @@ export default function Shopping() {
         eyebrow={`${pending.length} 件待购`}
         onPrimary={() => setComposerOpen((open) => !open)}
         primaryLabel={composerOpen ? '收起新增商品' : '新增商品'}
-        primaryIcon={composerOpen ? 'close' : 'plus'}
+        primaryIcon={composerOpen ? 'chevronUp' : 'plus'}
       />
       <div className="mobile-shopping-view-switch" role="tablist" aria-label="清单视图">
         <button role="tab" aria-selected={grouped} onClick={() => switchGrouped(true)}>
@@ -613,7 +613,10 @@ export default function Shopping() {
             <AppIcon name="plus" size={23} />
           </button>
         </div>
-        <p className="batch-input-hint">Enter 换行 · ⌘/Ctrl + Enter 添加全部</p>
+        <p className="batch-input-hint">
+          <span className="mobile-composer-hint">每行一件商品</span>
+          <span className="desktop-composer-hint">Enter 换行 · ⌘/Ctrl + Enter 添加全部</span>
+        </p>
         {(locations?.length ?? 0) > 0 && (
           <div className="shopping-meta-row mt-1 flex items-center gap-2 px-1 pb-1">
             <span className="shrink-0 text-[12px] font-medium text-neutral-500">购买地点</span>
@@ -699,7 +702,22 @@ export default function Shopping() {
                     </AnimatePresence>
                   </ul>
                 </SortableContext>
-                {g.items.length === 0 && <div className="shopping-group-empty">拖动商品到这里</div>}
+                {g.items.length === 0 && (activeItemId ? (
+                  <div className="shopping-group-empty">拖动商品到这里</div>
+                ) : (
+                  <button
+                    type="button"
+                    className="shopping-group-empty-action"
+                    onClick={() => {
+                      setLocationId(g.locationId ?? '')
+                      setManualLocation(Boolean(g.locationId))
+                      setComposerOpen(true)
+                    }}
+                  >
+                    <span>暂无商品</span>
+                    <strong>＋ 添加</strong>
+                  </button>
+                ))}
               </section>
             </ShoppingDropGroup>
           ))}

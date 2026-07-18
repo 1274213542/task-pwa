@@ -20,7 +20,6 @@ import {
   saveWorkRecord,
   softDeleteExpense,
   softDeleteWorkRecord,
-  updateDefaultHourlyRate,
   workSummary,
 } from '../lib/finance'
 
@@ -92,7 +91,6 @@ export default function Finance() {
   const [workType, setWorkType] = useState('')
   const [workNote, setWorkNote] = useState('')
   const [hourlyRate, setHourlyRate] = useState('')
-  const [defaultRate, setDefaultRate] = useState('')
 
   const [expenseDate, setExpenseDate] = useState(today)
   const [amount, setAmount] = useState('')
@@ -103,10 +101,6 @@ export default function Finance() {
   const [newCategory, setNewCategory] = useState('')
 
   useEffect(() => {
-    if (wageSettings) setDefaultRate(String(wageSettings.defaultHourlyRate || ''))
-  }, [wageSettings])
-
-  useEffect(() => {
     if (searchParams.get('new') !== '1') return
     setMode('work')
     setWorkDate(searchParams.get('date') || today)
@@ -114,10 +108,6 @@ export default function Finance() {
     setSearchParams({ mode: 'work' }, { replace: true })
   }, [searchParams, setSearchParams, today])
 
-  const rangeWork = useMemo(
-    () => workSummary(workRecords, rangeStart, rangeEnd),
-    [workRecords, rangeStart, rangeEnd],
-  )
   const monthWork = useMemo(
     () => workSummary(workRecords, currentMonth.start, today),
     [workRecords, currentMonth.start, today],
@@ -253,8 +243,10 @@ export default function Finance() {
         onPrimary={() => mode === 'work'
           ? setWorkEditorOpen((open) => !open)
           : setExpenseEditorOpen((open) => !open)}
-        primaryLabel={mode === 'work' ? '新增工作记录' : '新增支出'}
-        primaryIcon="plus"
+        primaryLabel={(mode === 'work' ? workEditorOpen : expenseEditorOpen)
+          ? '收起编辑区域'
+          : mode === 'work' ? '新增工作记录' : '新增支出'}
+        primaryIcon={(mode === 'work' ? workEditorOpen : expenseEditorOpen) ? 'chevronUp' : 'plus'}
       />
       <PageHeader
         title="财务"
@@ -296,40 +288,23 @@ export default function Finance() {
         </article>
       </div>
 
-      <section className="finance-range-panel">
-        <header>
-          <div><span>统计范围</span><strong>{rangeStart} — {rangeEnd}</strong></div>
-          <div className="finance-range-fields">
-            <input type="date" value={rangeStart} onChange={(event) => setRangeStart(event.target.value)} />
-            <span>至</span>
-            <input type="date" min={rangeStart} value={rangeEnd} onChange={(event) => setRangeEnd(event.target.value)} />
-          </div>
-        </header>
-        <div className="finance-range-results">
-          <span>工时 <strong>{hours(rangeWork.minutes)}</strong></span>
-          <span>预估税前 <strong>{money(rangeWork.gross)}</strong></span>
-          <span>支出 <strong>{money(rangeExpense.total)}</strong></span>
+      <details className="finance-range-panel">
+        <summary>
+          <span>统计范围</span>
+          <strong>{rangeStart} — {rangeEnd}</strong>
+          <AppIcon name="chevronDown" size={17} />
+        </summary>
+        <div className="finance-range-fields">
+          <input type="date" value={rangeStart} onChange={(event) => setRangeStart(event.target.value)} />
+          <span>至</span>
+          <input type="date" min={rangeStart} value={rangeEnd} onChange={(event) => setRangeEnd(event.target.value)} />
         </div>
-      </section>
+      </details>
 
       <p className="finance-feedback" role="status">{feedback}</p>
 
       {mode === 'work' ? (
         <div className="finance-work-layout">
-          <section className="finance-settings-card">
-            <div>
-              <span>默认时薪</span>
-              <small>只影响之后新建的记录，历史工资不会被重算</small>
-            </div>
-            <div className="finance-rate-control">
-              <span>¥</span>
-              <input type="number" min="0" value={defaultRate} onChange={(event) => setDefaultRate(event.target.value)} />
-              <button onClick={() => void updateDefaultHourlyRate(Number(defaultRate || 0))
-                .then(() => setFeedback('默认时薪已更新'))
-                .catch((reason: unknown) => setFeedback(reason instanceof Error ? reason.message : '时薪保存失败'))}>保存</button>
-            </div>
-          </section>
-
           {workEditorOpen && (
             <section className="finance-editor finance-work-editor">
               <header><div><span>{editingWorkId ? '编辑记录' : '新工作记录'}</span><h2>{workDate}</h2></div><button onClick={() => setWorkEditorOpen(false)}><AppIcon name="close" size={19} /></button></header>

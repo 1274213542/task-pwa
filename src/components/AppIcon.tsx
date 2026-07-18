@@ -11,6 +11,7 @@ import {
   CaretDown,
   CaretLeft,
   CaretRight,
+  CaretUp,
   Check,
   CheckCircle,
   Clock,
@@ -58,6 +59,7 @@ export type AppIconName =
   | 'chevronLeft'
   | 'chevronRight'
   | 'chevronDown'
+  | 'chevronUp'
   | 'palette'
   | 'clock'
   | 'month'
@@ -95,6 +97,7 @@ const icons: Record<AppIconName, Icon> = {
   chevronLeft: CaretLeft,
   chevronRight: CaretRight,
   chevronDown: CaretDown,
+  chevronUp: CaretUp,
   palette: Palette,
   clock: Clock,
   month: CalendarBlank,
