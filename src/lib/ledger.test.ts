@@ -1,0 +1,173 @@
+import { describe, expect, it } from 'vitest'
+import {
+  calculateAccountBalances,
+  convertMinor,
+  ledgerSummary,
+  toMinor,
+} from './ledger'
+import type { Account, ExchangeRate, FinanceTransaction } from './ledgerTypes'
+
+const timestamp = '2026-07-19T12:00:00.000Z'
+
+function account(
+  id: string,
+  kind: Account['kind'],
+  subtype: Account['subtype'],
+  openingBalanceMinor: number,
+  currency: Account['currency'] = 'JPY',
+): Account {
+  return {
+    id,
+    name: id,
+    kind,
+    subtype,
+    currency,
+    openingBalanceMinor,
+    includeInNetWorth: kind !== 'external',
+    includeInSpending: true,
+    rank: id,
+    lifecycleStatus: 'active',
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  }
+}
+
+function transaction(
+  id: string,
+  type: FinanceTransaction['type'],
+  amountMinor: number,
+  accountId: string,
+  extra: Partial<FinanceTransaction> = {},
+): FinanceTransaction {
+  return {
+    id,
+    type,
+    amountMinor,
+    currency: 'JPY',
+    occurredAt: timestamp,
+    localDate: '2026-07-19',
+    accountId,
+    includeInSpending: !['transfer', 'topup', 'credit_payment', 'income'].includes(type),
+    affectsNetWorth: type !== 'external_payment',
+    lifecycleStatus: 'active',
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    ...extra,
+  }
+}
+
+describe('账户余额与消费口径', () => {
+  it('银行、本人信用卡、外部代付和 Suica 使用不同规则', () => {
+    const accounts = [
+      account('bank', 'asset', 'bank', 100_000),
+      account('card', 'credit', 'credit_card', 0),
+      account('father-card', 'external', 'external_payer', 0),
+      account('suica', 'asset', 'stored_value', 1_000),
+    ]
+    const transactions = [
+      transaction('bank-expense', 'expense', 1_000, 'bank'),
+      transaction('card-spend', 'credit_purchase', 2_000, 'card'),
+      transaction('external', 'external_payment', 3_000, 'father-card', {
+        affectsNetWorth: false,
+      }),
+      transaction('topup', 'topup', 1_000, 'bank', {
+        counterpartyAccountId: 'suica',
+        counterpartyAmountMinor: 1_000,
+        counterpartyCurrency: 'JPY',
+        includeInSpending: false,
+      }),
+      transaction('suica-spend', 'expense', 500, 'suica'),
+      transaction('card-payment', 'credit_payment', 2_000, 'bank', {
+        counterpartyAccountId: 'card',
+        counterpartyAmountMinor: 2_000,
+        counterpartyCurrency: 'JPY',
+        includeInSpending: false,
+      }),
+    ]
+
+    const balances = calculateAccountBalances(accounts, transactions)
+    expect(balances.get('bank')).toBe(96_000)
+    expect(balances.get('card')).toBe(0)
+    expect(balances.get('father-card')).toBe(0)
+    expect(balances.get('suica')).toBe(1_500)
+
+    const summary = ledgerSummary({
+      accounts,
+      transactions,
+      rates: [],
+      reportingCurrency: 'JPY',
+      startDate: '2026-07-01',
+      endDate: '2026-07-31',
+    })
+    expect(summary.assetsMinor).toBe(97_500)
+    expect(summary.liabilitiesMinor).toBe(0)
+    expect(summary.netWorthMinor).toBe(97_500)
+    expect(summary.actualPaidMinor).toBe(3_500)
+    expect(summary.externalPaidMinor).toBe(3_000)
+    expect(summary.consumptionMinor).toBe(6_500)
+  })
+
+  it('信用卡还款不重复计入支出', () => {
+    const accounts = [
+      account('bank', 'asset', 'bank', 10_000),
+      account('card', 'credit', 'credit_card', 0),
+    ]
+    const transactions = [
+      transaction('purchase', 'credit_purchase', 2_000, 'card'),
+      transaction('payment', 'credit_payment', 1_000, 'bank', {
+        counterpartyAccountId: 'card',
+        counterpartyAmountMinor: 1_000,
+        includeInSpending: false,
+      }),
+    ]
+    const summary = ledgerSummary({
+      accounts,
+      transactions,
+      rates: [],
+      reportingCurrency: 'JPY',
+    })
+    expect(summary.actualPaidMinor).toBe(2_000)
+    expect(summary.liabilitiesMinor).toBe(1_000)
+    expect(summary.netWorthMinor).toBe(8_000)
+  })
+})
+
+describe('多币种', () => {
+  const rate: ExchangeRate = {
+    id: 'CNY:JPY:2026-07-19:manual',
+    baseCurrency: 'CNY',
+    quoteCurrency: 'JPY',
+    rate: 20,
+    rateDate: '2026-07-19',
+    fetchedAt: timestamp,
+    source: 'manual',
+    providerLabel: '测试汇率',
+    isManual: true,
+  }
+
+  it('原币种 minor unit 换算正确', () => {
+    expect(toMinor(12.34, 'CNY')).toBe(1_234)
+    expect(toMinor(1234, 'JPY')).toBe(1_234)
+    expect(convertMinor(1_234, 'CNY', 'JPY', 20)).toBe(247)
+  })
+
+  it('余额使用最新率，历史消费优先使用交易快照', () => {
+    const alipay = account('alipay', 'asset', 'wallet', 10_000, 'CNY') // CNY 100
+    const spend = transaction('cny-spend', 'expense', 1_000, 'alipay', {
+      currency: 'CNY',
+      reportingCurrency: 'JPY',
+      reportingAmountMinor: 180,
+      exchangeRate: 18,
+      exchangeRateDate: '2026-07-01',
+      exchangeRateSource: 'transaction_snapshot',
+    })
+    const summary = ledgerSummary({
+      accounts: [alipay],
+      transactions: [spend],
+      rates: [rate],
+      reportingCurrency: 'JPY',
+    })
+    expect(summary.assetsMinor).toBe(1_800) // CNY 90 × latest 20
+    expect(summary.actualPaidMinor).toBe(180) // CNY 10 × historical 18
+  })
+})

@@ -8,3 +8,10 @@
 export const DEXIE_CLOUD_URL: string = 'https://zcgk53qk8.dexie.cloud'
 
 export const cloudEnabled = DEXIE_CLOUD_URL.length > 0
+
+/**
+ * 新账本通过可撤销开关隔离。部署时可用 VITE_FINANCE_LEDGER_V2=false
+ * 立即退回旧财务页面，数据表和旧记录均不会被删除。
+ */
+export const financeLedgerV2Enabled =
+  import.meta.env.VITE_FINANCE_LEDGER_V2 !== 'false'

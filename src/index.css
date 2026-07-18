@@ -1353,14 +1353,15 @@ body.editor-open .app-shell main {
 
 /* 可访问性与性能降级 */
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-delay: 0ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+  html:focus-within {
     scroll-behavior: auto !important;
+  }
+
+  .page-in,
+  .row-in,
+  .day-panel-in,
+  .location-manager {
+    animation: none !important;
   }
 
   body.editor-open .app-shell main {

@@ -18,6 +18,7 @@ import {
 } from '../lib/tasks'
 import { toggleEventCompletion } from '../lib/events'
 import { spatialOriginFromRect, type SpatialRouteSource } from '../lib/motion'
+import { fromMinor, ledgerSummary } from '../lib/ledger'
 
 function labelDate(dateISO: string, options: Intl.DateTimeFormatOptions) {
   return new Date(`${dateISO}T00:00:00`).toLocaleDateString('zh-CN', options)
@@ -50,7 +51,7 @@ export default function Overview() {
   const today = todayLocalISO()
   const [feedback, setFeedback] = useState('')
   const snapshot = useLiveQuery(async () => {
-    const [tasks, records, events, shopping, workRecords, expenseRecords, prefs] = await Promise.all([
+    const [tasks, records, events, shopping, workEntries, accounts, transactions, rates, prefs] = await Promise.all([
       db.tasks.where('lifecycleStatus').equals('active').sortBy('rank'),
       db.completionRecords.toArray(),
       db.calendarEvents.where('lifecycleStatus').equals('active').toArray(),
@@ -59,11 +60,13 @@ export default function Overview() {
         .equals('pending')
         .filter((item) => item.lifecycleStatus === 'active')
         .toArray(),
-      db.workRecords.where('lifecycleStatus').equals('active').toArray(),
-      db.expenseRecords.where('lifecycleStatus').equals('active').toArray(),
+      db.workEntries.where('lifecycleStatus').equals('active').toArray(),
+      db.accounts.where('lifecycleStatus').equals('active').toArray(),
+      db.financeTransactions.where('lifecycleStatus').equals('active').toArray(),
+      db.exchangeRates.toArray(),
       db.syncedPreferences.get('#prefs'),
     ])
-    return { tasks, records, events, shopping, workRecords, expenseRecords, prefs }
+    return { tasks, records, events, shopping, workEntries, accounts, transactions, rates, prefs }
   }, [])
 
   const view = useMemo(() => {
@@ -83,16 +86,22 @@ export default function Overview() {
       .flatMap((date) => (byDay.get(date) ?? []).map((item) => ({ date, item })))
       .filter(({ item }) => !itemCompleted(item) && (item.kind === 'event' || !item.skipped))
       .slice(0, 4)
+    const finances = ledgerSummary({
+      accounts: snapshot.accounts,
+      transactions: snapshot.transactions,
+      rates: snapshot.rates,
+      reportingCurrency: 'JPY',
+      startDate: `${today.slice(0, 7)}-01`,
+      endDate: today,
+    })
     return {
       byDay,
       nextSeven,
       todayItems,
       upcoming,
       fixed: snapshot.tasks.filter((task) => Boolean(task.recurrence)),
-      monthExpense: snapshot.expenseRecords
-        .filter((record) => record.date.startsWith(today.slice(0, 7)))
-        .reduce((sum, record) => sum + record.amount, 0),
-      monthWorkMinutes: snapshot.workRecords
+      monthExpense: fromMinor(finances.consumptionMinor, 'JPY'),
+      monthWorkMinutes: snapshot.workEntries
         .filter((record) => record.worked && record.date.startsWith(today.slice(0, 7)))
         .reduce((sum, record) => sum + record.durationMinutes, 0),
     }

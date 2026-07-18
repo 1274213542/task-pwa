@@ -18,6 +18,16 @@ export const BUSINESS_TABLES = [
   'wageSettings',
   'expenseRecords',
   'expenseCategories',
+  'accounts',
+  'financeTransactions',
+  'financeTransfers',
+  'creditCardSettlements',
+  'exchangeRates',
+  'workTemplates',
+  'workEntries',
+  'paychecks',
+  'merchants',
+  'financeMigrations',
   'syncedPreferences',
 ] as const
 

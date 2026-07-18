@@ -1,8 +1,21 @@
 import Dexie, { type EntityTable } from 'dexie'
 import dexieCloud from 'dexie-cloud-addon'
-import { DEXIE_CLOUD_URL, cloudEnabled } from '../config'
+import { DEXIE_CLOUD_URL, cloudEnabled, financeLedgerV2Enabled } from '../config'
 import type { Recurrence } from './recurrence'
 import { ensureTaskScope } from './migrations'
+import type {
+  Account,
+  CreditCardSettlement,
+  ExchangeRate,
+  FinanceMigrationState,
+  FinanceTransaction,
+  FinanceTransfer,
+  Merchant,
+  Paycheck,
+  WorkEntry,
+  WorkTemplate,
+} from './ledgerTypes'
+import { migrateLegacyFinanceData } from './financeMigration'
 
 /**
  * 数据模型见技术方案 v4.2 §8。
@@ -203,6 +216,16 @@ export const db = new Dexie('task-pwa', { addons: [dexieCloud] }) as Dexie & {
   wageSettings: EntityTable<WageSettings, 'id'>
   expenseRecords: EntityTable<ExpenseRecord, 'id'>
   expenseCategories: EntityTable<ExpenseCategory, 'id'>
+  accounts: EntityTable<Account, 'id'>
+  financeTransactions: EntityTable<FinanceTransaction, 'id'>
+  financeTransfers: EntityTable<FinanceTransfer, 'id'>
+  creditCardSettlements: EntityTable<CreditCardSettlement, 'id'>
+  exchangeRates: EntityTable<ExchangeRate, 'id'>
+  workTemplates: EntityTable<WorkTemplate, 'id'>
+  workEntries: EntityTable<WorkEntry, 'id'>
+  paychecks: EntityTable<Paycheck, 'id'>
+  merchants: EntityTable<Merchant, 'id'>
+  financeMigrations: EntityTable<FinanceMigrationState, 'id'>
 }
 
 db.version(2).stores({
@@ -264,6 +287,28 @@ db.version(8)
         if (!event.completionStatus) event.completionStatus = 'pending'
       })
   })
+
+// v9：只新增账本表，不在版本升级钩子中改写任何已同步的旧表。
+// Dexie Cloud 不支持依赖 Version.upgrade() 迁移同步表；兼容迁移在 ready 后
+// 通过确定性 ID 执行，旧记录始终保留并可回滚。
+db.version(9).stores({
+  accounts:
+    'id, lifecycleStatus, kind, subtype, currency, rank, [lifecycleStatus+rank]',
+  financeTransactions:
+    'id, lifecycleStatus, type, localDate, accountId, counterpartyAccountId, categoryId, merchantId, transferId, paycheckId, [lifecycleStatus+localDate], [accountId+localDate]',
+  financeTransfers:
+    'id, lifecycleStatus, kind, localDate, sourceAccountId, destinationAccountId, transactionId',
+  creditCardSettlements:
+    'id, status, creditAccountId, paymentAccountId, dueDate, transactionId',
+  exchangeRates:
+    'id, baseCurrency, quoteCurrency, rateDate, source, [baseCurrency+quoteCurrency+rateDate]',
+  workTemplates: 'id, lifecycleStatus, rank, [lifecycleStatus+rank]',
+  workEntries:
+    'id, lifecycleStatus, date, settlementStatus, payoutAccountId, templateId, paycheckId, [lifecycleStatus+date]',
+  paychecks: 'id, status, payoutAccountId, expectedPayDate, paidAt',
+  merchants: 'id, lifecycleStatus, name, useCount, lastUsedAt',
+  financeMigrations: 'id, status, version',
+})
   .upgrade(async (tx) => {
     await tx
       .table('tasks')
@@ -321,5 +366,9 @@ db.on('ready', async () => {
       { id: 'expense-life', name: '生活', colorToken: 'green', rank: '0004', lifecycleStatus: 'active', createdAt, updatedAt: createdAt },
       { id: 'expense-study', name: '学习', colorToken: 'purple', rank: '0005', lifecycleStatus: 'active', createdAt, updatedAt: createdAt },
     ])
+  }
+
+  if (financeLedgerV2Enabled) {
+    await migrateLegacyFinanceData(db)
   }
 })

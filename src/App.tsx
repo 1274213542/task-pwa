@@ -40,6 +40,8 @@ import Shopping from './pages/Shopping'
 import Browse from './pages/Browse'
 import Settings from './pages/Settings'
 import Finance from './pages/Finance'
+import FinanceLedger from './pages/FinanceLedger'
+import { financeLedgerV2Enabled } from './config'
 
 const TABS = [
   { to: '/overview', label: '总览', icon: 'dashboard', tone: 'overview' },
@@ -188,7 +190,7 @@ export default function App() {
       const desktop = window.matchMedia('(min-width: 1024px)').matches
       const targetX = desktop ? 0 : item.offsetLeft - surface.offsetLeft
       const targetY = desktop ? item.offsetTop - surface.offsetTop : 0
-      if (!navPositioned.current || reduceMotion) {
+      if (!navPositioned.current) {
         navX.jump(targetX)
         navY.jump(targetY)
         navPositioned.current = true
@@ -199,23 +201,32 @@ export default function App() {
       const yVelocity = navY.getVelocity()
       navXAnimation.current?.stop()
       navYAnimation.current?.stop()
-      navXAnimation.current = animate(navX, targetX, {
-        ...MOTION.nav,
-        velocity: xVelocity,
-      })
-      navYAnimation.current = animate(navY, targetY, {
-        ...MOTION.nav,
-        velocity: yVelocity,
-      })
+      navXAnimation.current = animate(
+        navX,
+        targetX,
+        reduceMotion ? MOTION.reduced : { ...MOTION.nav, velocity: xVelocity },
+      )
+      navYAnimation.current = animate(
+        navY,
+        targetY,
+        reduceMotion ? MOTION.reduced : { ...MOTION.nav, velocity: yVelocity },
+      )
     }
 
     updateIndicator()
     const observer = new ResizeObserver(updateIndicator)
     observer.observe(list)
     window.addEventListener('orientationchange', updateIndicator)
+    window.addEventListener('pageshow', updateIndicator)
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') updateIndicator()
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange)
     return () => {
       observer.disconnect()
       window.removeEventListener('orientationchange', updateIndicator)
+      window.removeEventListener('pageshow', updateIndicator)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
     }
   }, [activeTabIndex, navX, navY, reduceMotion])
 
@@ -441,7 +452,13 @@ export default function App() {
               data-route={location.pathname}
               custom={routeMotion}
               variants={directionalEnterVariants}
-              initial={reduceMotion || !appHasMounted.current ? false : 'enter'}
+              initial={
+                !appHasMounted.current
+                  ? false
+                  : reduceMotion
+                    ? 'reducedEnter'
+                    : 'enter'
+              }
               animate="center"
               transition={
                 reduceMotion
@@ -468,7 +485,10 @@ export default function App() {
                 <Route path="/today" element={<Today />} />
                 <Route path="/plan" element={<Plan />} />
                 <Route path="/shopping" element={<Shopping />} />
-                <Route path="/finance" element={<Finance />} />
+                <Route
+                  path="/finance"
+                  element={financeLedgerV2Enabled ? <FinanceLedger /> : <Finance />}
+                />
                 <Route path="/browse" element={<Browse />} />
                 <Route path="/settings" element={<Settings />} />
                 <Route path="*" element={<Navigate to="/overview" replace />} />

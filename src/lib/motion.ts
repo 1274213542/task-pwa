@@ -27,7 +27,9 @@ export const MOTION = {
   momentum: { type: 'spring', bounce: 0.12, stiffness: 360, damping: 34, mass: 0.92 },
   list: { type: 'spring', stiffness: 500, damping: 43, mass: 0.82 },
   calendar: { type: 'spring', stiffness: 460, damping: 42, mass: 0.88 },
-  reduced: { duration: 0.01 },
+  // Reduce Motion means "remove disorienting travel", not "remove feedback".
+  // A short opacity/state handoff remains visible in iOS standalone mode.
+  reduced: { duration: 0.14, ease: [0.2, 0, 0, 1] },
 } as const satisfies Record<string, Transition>
 
 export interface DirectionalMotionContext {
@@ -96,6 +98,12 @@ export const directionalSurfaceVariants = {
  * removed synchronously so there is nothing underneath to ghost.
  */
 export const directionalEnterVariants = {
+  reducedEnter: {
+    x: 0,
+    y: 0,
+    scale: 1,
+    opacity: 0.82,
+  },
   enter: ({ direction, kind = 'tab', origin }: DirectionalMotionContext) => ({
     x: direction * distanceFor(kind, true),
     y: origin ? 4 : 0,
@@ -108,6 +116,7 @@ export const directionalEnterVariants = {
     x: 0,
     y: 0,
     scale: 1,
+    opacity: 1,
     transformOrigin: origin
       ? `${origin.xPercent}% ${origin.yPercent}%`
       : '50% 16%',

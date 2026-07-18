@@ -106,7 +106,7 @@ export default function Plan() {
     [],
   )
   const workRecords = useLiveQuery(
-    () => db.workRecords.where('lifecycleStatus').equals('active').toArray(),
+    () => db.workEntries.where('lifecycleStatus').equals('active').toArray(),
     [],
   )
   const catMap = useMemo(
@@ -488,7 +488,7 @@ export default function Plan() {
               <li key={record.id}>
                 <AppIcon name="work" size={17} />
                 <span>{record.worked ? `${record.durationMinutes / 60} 小时` : '休息日'}</span>
-                <small>{record.workLocation || record.workType || record.note || '未填写备注'}</small>
+                <small>{record.workLocation || record.workContent || record.note || '未填写备注'}</small>
               </li>
             ))}</ul>
           )}
