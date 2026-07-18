@@ -1,0 +1,1101 @@
+/*
+ * Task PWA design system
+ *
+ * This final stylesheet is the only layer that defines the current product
+ * scale. Legacy files still contain feature-specific layout rules; their
+ * disconnected visual experiments are normalized here through semantic
+ * component classes and a single token set.
+ */
+
+:root {
+  /* 4px spacing rhythm */
+  --ds-space-1: 4px;
+  --ds-space-2: 8px;
+  --ds-space-3: 12px;
+  --ds-space-4: 16px;
+  --ds-space-5: 20px;
+  --ds-space-6: 24px;
+  --ds-space-7: 32px;
+  --ds-space-8: 40px;
+
+  --ds-gutter-mobile: 16px;
+  --ds-gutter-desktop: 28px;
+  --ds-control-height: 44px;
+  --ds-control-compact: 36px;
+  --ds-icon-small: 16px;
+  --ds-icon: 20px;
+  --ds-icon-large: 24px;
+
+  /* Concentric radius scale: panel > card > control > compact control. */
+  --ds-radius-panel: 28px;
+  --ds-radius-card: 22px;
+  --ds-radius-control: 16px;
+  --ds-radius-compact: 13px;
+  --ds-radius-pill: 999px;
+
+  --ds-type-display: clamp(2rem, 4vw, 2.75rem);
+  --ds-type-page-mobile: 1.5rem;
+  --ds-type-section: 1.125rem;
+  --ds-type-card: 0.975rem;
+  --ds-type-body: 0.9375rem;
+  --ds-type-meta: 0.75rem;
+  --ds-leading-tight: 1.12;
+  --ds-leading-copy: 1.46;
+  --ds-leading-meta: 1.35;
+
+  --ds-border: color-mix(in srgb, var(--ui-ink) 9%, transparent);
+  --ds-border-strong: color-mix(in srgb, var(--ui-ink) 14%, transparent);
+  --ds-control-bg: color-mix(in srgb, var(--ui-soft) 88%, var(--ui-surface));
+  --ds-shadow-card: 0 1px 1px rgb(24 27 23 / 0.025),
+    0 8px 24px rgb(24 27 23 / 0.055);
+  --ds-shadow-float: 0 1px 0 rgb(255 255 255 / 0.62) inset,
+    0 12px 34px rgb(24 27 23 / 0.13);
+  --ds-shadow-modal: 0 24px 72px rgb(24 27 23 / 0.18);
+
+  --ds-glass-nav: color-mix(in srgb, var(--ui-surface) 82%, transparent);
+  --ds-glass-toolbar: color-mix(in srgb, var(--ui-surface) 88%, transparent);
+  --ds-glass-sheet: color-mix(in srgb, var(--ui-surface) 91%, transparent);
+  --ds-glass-blur-nav: 16px;
+  --ds-glass-blur-small: 12px;
+
+  --ds-duration-press: 140ms;
+  --ds-duration-control: 180ms;
+  --ds-duration-panel: 240ms;
+  --ds-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ds-ease-move: cubic-bezier(0.32, 0.72, 0, 1);
+
+  /* Compatibility aliases consumed by existing components. */
+  --ui-radius-panel: var(--ds-radius-panel);
+  --ui-radius-card: var(--ds-radius-card);
+  --ui-radius-control: var(--ds-radius-control);
+  --radius-panel: var(--ds-radius-panel);
+  --radius-card: var(--ds-radius-card);
+  --radius-control: var(--ds-radius-control);
+  --ui-shadow: var(--ds-shadow-card);
+  --ui-shadow-float: var(--ds-shadow-float);
+  --gutter-mobile: var(--ds-gutter-mobile);
+  --gutter-desktop: var(--ds-gutter-desktop);
+}
+
+:root[data-appearance='dark'] {
+  --ds-border: rgb(255 255 255 / 0.11);
+  --ds-border-strong: rgb(255 255 255 / 0.18);
+  --ds-control-bg: color-mix(in srgb, var(--ui-soft) 82%, var(--ui-surface));
+  --ds-shadow-card: 0 1px 0 rgb(255 255 255 / 0.035) inset,
+    0 10px 28px rgb(0 0 0 / 0.16);
+  --ds-shadow-float: 0 1px 0 rgb(255 255 255 / 0.08) inset,
+    0 14px 38px rgb(0 0 0 / 0.3);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-appearance='system'] {
+    --ds-border: rgb(255 255 255 / 0.11);
+    --ds-border-strong: rgb(255 255 255 / 0.18);
+    --ds-control-bg: color-mix(in srgb, var(--ui-soft) 82%, var(--ui-surface));
+    --ds-shadow-card: 0 1px 0 rgb(255 255 255 / 0.035) inset,
+      0 10px 28px rgb(0 0 0 / 0.16);
+    --ds-shadow-float: 0 1px 0 rgb(255 255 255 / 0.08) inset,
+      0 14px 38px rgb(0 0 0 / 0.3);
+  }
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+  background: var(--ui-bg);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  color: var(--ui-ink);
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'PingFang SC',
+    'Hiragino Sans', 'Yu Gothic UI', 'Segoe UI', sans-serif;
+  font-size: 16px;
+  line-height: var(--ds-leading-copy);
+  letter-spacing: -0.01em;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3 {
+  color: var(--ui-ink);
+  text-wrap: balance;
+}
+
+p,
+li,
+label {
+  text-wrap: pretty;
+}
+
+time,
+input[type='date'],
+input[type='time'],
+input[type='number'],
+.tabular,
+.overview-metric strong,
+.finance-current-summary strong,
+.calendar-day-number {
+  font-variant-numeric: tabular-nums;
+}
+
+button,
+a,
+input,
+textarea,
+select,
+summary {
+  touch-action: manipulation;
+}
+
+/* Remove the accumulated full-page entrance effects. Local list and sheet
+   motion remain controlled by Motion; persistent chrome never re-enters. */
+.page-in,
+.page-header,
+.quick-card,
+.calendar-card,
+.browse-layout,
+.calendar-day-panel,
+.location-management,
+.record-groups,
+.row-in {
+  animation: none !important;
+}
+
+.modal-backdrop,
+.editor-sheet,
+.task-card-menu,
+.task-composer-card,
+.calendar-composer,
+.shopping-composer-card {
+  animation: none !important;
+}
+
+.motion-route-viewport {
+  min-height: 0 !important;
+  background: var(--ui-bg);
+  overflow: clip;
+  isolation: isolate;
+}
+
+.motion-route-page {
+  min-width: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transition: none !important;
+}
+
+.app-content {
+  width: 100%;
+  max-width: 1540px !important;
+}
+
+.safe-inline {
+  padding-inline: max(var(--ds-gutter-mobile), env(safe-area-inset-left))
+    max(var(--ds-gutter-mobile), env(safe-area-inset-right));
+}
+
+.app-page {
+  padding-bottom: var(--ds-space-5) !important;
+}
+
+.page-header {
+  min-height: 76px;
+  gap: var(--ds-space-4);
+  padding: var(--ds-space-1) 0 var(--ds-space-4);
+}
+
+.page-title {
+  font-size: var(--ds-type-display);
+  font-weight: 720;
+  line-height: var(--ds-leading-tight);
+  letter-spacing: -0.04em;
+}
+
+.page-eyebrow,
+.section-kicker,
+.section-label,
+.mobile-page-heading p {
+  color: var(--ui-muted);
+  font-size: var(--ds-type-meta);
+  font-weight: 650;
+  line-height: var(--ds-leading-meta);
+  letter-spacing: 0.01em;
+}
+
+.mobile-page-heading h1,
+.task-mobile-brand h1 {
+  font-size: var(--ds-type-page-mobile);
+  font-weight: 720;
+  line-height: var(--ds-leading-tight);
+  letter-spacing: -0.03em;
+}
+
+.task-card-title,
+.calendar-item-title,
+.shopping-item-title,
+.overview-today-list li strong,
+.overview-upcoming li strong {
+  font-size: var(--ds-type-card);
+  font-weight: 660;
+  line-height: 1.3;
+}
+
+.task-card-meta,
+.calendar-item-meta,
+.shopping-item-meta,
+.task-card-subtitle,
+.overview-today-list li small,
+.overview-upcoming li small {
+  color: var(--ui-muted);
+  font-size: var(--ds-type-meta);
+  line-height: var(--ds-leading-meta);
+}
+
+/* -----------------------------------------------------------------------
+   Rounded surface system
+   ----------------------------------------------------------------------- */
+
+.overview-hero,
+.overview-today-list,
+.overview-calendar-strip,
+.overview-upcoming,
+.quick-card,
+.calendar-card,
+.calendar-day-panel,
+.mobile-week-timeline,
+.agenda-hero,
+.location-manager,
+.shopping-group-section,
+.finance-range-panel,
+.finance-settings-card,
+.finance-records,
+.settings-theme-section,
+.settings-data-card,
+.list-card,
+.record-list,
+.command-palette-surface,
+.editor-sheet,
+.calendar-work-panel {
+  border-radius: var(--ds-radius-panel) !important;
+}
+
+.overview-metric,
+.task-card,
+.calendar-item-card,
+.mobile-timeline-event,
+.week-event,
+.shopping-card,
+.finance-current-summary article,
+.finance-record-item,
+.expense-record-item,
+.browse-category-card,
+.record-item,
+.shopping-drag-overlay,
+.drag-overlay-row,
+.task-card-menu,
+.shopping-move-menu {
+  border-radius: var(--ds-radius-card) !important;
+}
+
+input:not([type='checkbox']):not([type='radio']),
+textarea,
+select,
+.task-filter-icon,
+.task-filter-pill,
+.calendar-day,
+.calendar-toolbar > div,
+.calendar-panel-action,
+.calendar-panel-action button,
+.mobile-week-strip button,
+.segmented-control,
+.mobile-shopping-view-switch,
+.finance-mode-switch,
+.finance-inline-switch,
+.appearance-control,
+.theme-choice,
+.visual-picker,
+.location-management > summary,
+.recurrence-interval-control > label,
+.settings-persist-action,
+.settings-data-action {
+  border-radius: var(--ds-radius-control) !important;
+}
+
+.segmented-control button,
+.mobile-shopping-view-switch button,
+.finance-mode-switch button,
+.finance-inline-switch button,
+.appearance-control button,
+.task-card-menu > button,
+.shopping-move-menu > button,
+.recurrence-quick-values button,
+.command-palette-surface li button {
+  border-radius: var(--ds-radius-compact) !important;
+}
+
+.sync-status,
+.task-fixed-pill,
+.task-card-done-label,
+.calendar-event-chip,
+.record-category,
+.status-pill,
+.badge,
+.nav-active-surface {
+  border-radius: var(--ds-radius-pill) !important;
+}
+
+.mobile-page-avatar,
+.mobile-page-primary,
+.mobile-page-secondary,
+.task-round-action,
+.overview-settings,
+.overview-item-check,
+.task-card-check,
+.task-card-open,
+.calendar-item-check,
+.calendar-item-edit,
+.calendar-item-delete,
+.visual-marker-button,
+.primary-action {
+  border-radius: 50% !important;
+}
+
+/* Solid content surfaces: readable, low-cost and distinct from glass chrome. */
+.overview-today-list,
+.overview-calendar-strip,
+.overview-upcoming,
+.calendar-card,
+.calendar-day-panel,
+.mobile-week-timeline,
+.location-manager,
+.shopping-group-section,
+.finance-range-panel,
+.finance-settings-card,
+.finance-records,
+.settings-theme-section,
+.settings-data-card,
+.list-card,
+.record-list {
+  border: 1px solid var(--ds-border) !important;
+  background: var(--ui-surface) !important;
+  box-shadow: var(--ds-shadow-card) !important;
+}
+
+.task-card,
+.shopping-card,
+.calendar-item-card,
+.mobile-timeline-event,
+.week-event {
+  border: 1px solid color-mix(in srgb, var(--item-card, var(--ui-soft)) 36%, var(--ds-border)) !important;
+  background: color-mix(
+    in srgb,
+    var(--item-card, var(--ui-soft)) 54%,
+    var(--ui-surface)
+  ) !important;
+  box-shadow: none !important;
+}
+
+/* -----------------------------------------------------------------------
+   Materials: persistent chrome, controls and transient panels only
+   ----------------------------------------------------------------------- */
+
+.mobile-page-header,
+.task-mobile-toolbar,
+.task-filter-shell,
+.segmented-control,
+.mobile-shopping-view-switch,
+.finance-mode-switch,
+.finance-inline-switch,
+.appearance-control,
+.quick-card,
+.task-card-menu,
+.shopping-move-menu,
+.editor-sheet,
+.command-palette-surface {
+  border: 1px solid var(--ds-border) !important;
+  background: var(--ui-surface) !important;
+}
+
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .mobile-nav-material,
+  .mobile-page-header,
+  .task-mobile-toolbar,
+  .task-filter-shell,
+  .segmented-control,
+  .mobile-shopping-view-switch,
+  .finance-mode-switch,
+  .finance-inline-switch,
+  .appearance-control,
+  .quick-card,
+  .task-card-menu,
+  .shopping-move-menu,
+  .editor-sheet,
+  .command-palette-surface {
+    background: var(--ds-glass-toolbar) !important;
+    backdrop-filter: blur(var(--ds-glass-blur-small)) saturate(112%);
+    -webkit-backdrop-filter: blur(var(--ds-glass-blur-small)) saturate(112%);
+  }
+
+  .mobile-nav-material {
+    background: var(--ds-glass-nav) !important;
+    backdrop-filter: blur(var(--ds-glass-blur-nav)) saturate(118%);
+    -webkit-backdrop-filter: blur(var(--ds-glass-blur-nav)) saturate(118%);
+  }
+
+  .editor-sheet,
+  .command-palette-surface {
+    background: var(--ds-glass-sheet) !important;
+  }
+}
+
+.quick-card,
+.task-card-menu,
+.shopping-move-menu,
+.command-palette-surface {
+  box-shadow: var(--ds-shadow-float) !important;
+}
+
+.editor-sheet {
+  border: 1px solid var(--ds-border-strong) !important;
+  box-shadow: var(--ds-shadow-modal) !important;
+  overflow: clip;
+}
+
+.modal-backdrop {
+  background: rgb(15 16 14 / 0.28) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* -----------------------------------------------------------------------
+   Overview information hierarchy
+   ----------------------------------------------------------------------- */
+
+.page-overview {
+  display: grid;
+  gap: var(--ds-space-3);
+}
+
+.overview-hero {
+  min-height: 132px;
+  margin: 0 !important;
+  padding: var(--ds-space-5);
+  border: 1px solid color-mix(in srgb, var(--ui-ink) 82%, transparent);
+  background: var(--ui-dark);
+  box-shadow: var(--ds-shadow-card);
+}
+
+.overview-hero h2 {
+  max-width: 18ch;
+  color: #fff;
+  font-size: clamp(1.55rem, 7vw, 2.1rem);
+  line-height: 1.12;
+  letter-spacing: -0.035em;
+}
+
+.overview-hero-progress {
+  width: 82px;
+  height: 82px;
+}
+
+.overview-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--ds-space-2);
+  margin: 0 !important;
+}
+
+.overview-metric {
+  min-height: 82px;
+  padding: var(--ds-space-3);
+  border: 1px solid var(--ds-border);
+  box-shadow: none;
+}
+
+.overview-metric span {
+  font-size: 0.7rem;
+  line-height: 1.25;
+}
+
+.overview-metric strong {
+  min-width: 0;
+  overflow: hidden;
+  font-size: clamp(1.05rem, 5vw, 1.5rem);
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.overview-metric small {
+  grid-column: 1 / -1;
+  color: var(--ui-muted);
+  font-size: 0.62rem;
+  line-height: 1.2;
+}
+
+.overview-metric-finance {
+  background: color-mix(in srgb, var(--card-blue) 58%, var(--ui-surface)) !important;
+}
+
+.overview-today-list,
+.overview-calendar-strip,
+.overview-upcoming {
+  margin: 0 !important;
+  padding: var(--ds-space-4) !important;
+}
+
+.overview-today-list > header,
+.overview-calendar-strip > header,
+.overview-upcoming > header {
+  min-height: 42px;
+  gap: var(--ds-space-3);
+  margin-bottom: var(--ds-space-2);
+}
+
+.overview-today-list h2,
+.overview-calendar-strip h2,
+.overview-upcoming h2 {
+  font-size: var(--ds-type-section);
+  line-height: 1.2;
+}
+
+.overview-today-list ul,
+.overview-upcoming ul {
+  gap: var(--ds-space-2);
+}
+
+.overview-today-list li,
+.overview-upcoming li {
+  min-height: 54px;
+  gap: var(--ds-space-3);
+  padding: var(--ds-space-2) var(--ds-space-3);
+  border-radius: var(--ds-radius-control) !important;
+}
+
+.overview-empty {
+  min-height: 60px;
+}
+
+.overview-days {
+  gap: var(--ds-space-1);
+}
+
+.overview-days a {
+  min-height: 66px;
+  border-radius: var(--ds-radius-control) !important;
+}
+
+.overview-utility-links {
+  gap: var(--ds-space-2);
+  margin-top: 0 !important;
+}
+
+.overview-utility-links a {
+  min-height: var(--ds-control-height);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-control) !important;
+  background: var(--ui-surface);
+}
+
+/* -----------------------------------------------------------------------
+   Dense but breathable product components
+   ----------------------------------------------------------------------- */
+
+.task-card-list,
+.shopping-card-list {
+  gap: var(--ds-space-2) !important;
+}
+
+.task-card {
+  min-height: 72px !important;
+  padding: 9px 10px !important;
+}
+
+.shopping-card,
+.calendar-item-card {
+  min-height: 64px !important;
+  padding: 9px 10px !important;
+}
+
+.task-card-check,
+.task-card-open,
+.calendar-item-check,
+.calendar-item-edit,
+.calendar-item-delete,
+.overview-item-check {
+  min-width: 40px;
+  min-height: 40px;
+}
+
+.task-card-copy {
+  gap: var(--ds-space-1);
+}
+
+.task-filter-shell {
+  padding: var(--ds-space-1);
+  border-radius: calc(var(--ds-radius-control) + var(--ds-space-1)) !important;
+  box-shadow: 0 6px 20px rgb(24 27 23 / 0.055);
+}
+
+.task-empty-state,
+.shopping-empty-state {
+  min-height: 180px !important;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-panel) !important;
+  background: color-mix(in srgb, var(--ui-soft) 82%, var(--ui-surface)) !important;
+  padding: var(--ds-space-6) var(--ds-space-4) !important;
+}
+
+.task-filter-pill,
+.task-fixed-pill {
+  min-height: var(--ds-control-height);
+}
+
+.quick-card {
+  padding: var(--ds-space-2) !important;
+}
+
+input:not([type='checkbox']):not([type='radio']),
+select {
+  min-height: var(--ds-control-height);
+}
+
+input:not([type='checkbox']):not([type='radio']),
+textarea,
+select {
+  border: 1px solid transparent;
+  background: var(--ds-control-bg) !important;
+  color: var(--ui-ink);
+  font-size: 1rem;
+}
+
+textarea {
+  line-height: 1.5;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: var(--ds-border-strong);
+  outline: 3px solid color-mix(in srgb, var(--ui-secondary) 45%, transparent);
+  outline-offset: 1px;
+}
+
+.segmented-control,
+.mobile-shopping-view-switch,
+.finance-mode-switch,
+.finance-inline-switch,
+.appearance-control {
+  gap: var(--ds-space-1);
+  padding: var(--ds-space-1) !important;
+}
+
+.segmented-control button,
+.mobile-shopping-view-switch button,
+.finance-mode-switch button,
+.finance-inline-switch button,
+.appearance-control button {
+  min-height: var(--ds-control-compact);
+}
+
+.task-card-menu,
+.shopping-move-menu {
+  padding: 6px !important;
+  overflow: clip;
+}
+
+.task-card-menu > button,
+.shopping-move-menu > button {
+  min-height: var(--ds-control-height);
+}
+
+.sync-status {
+  min-height: 22px !important;
+  padding: 2px 8px !important;
+  border: 1px solid var(--ds-border) !important;
+  background: color-mix(in srgb, var(--ui-surface) 76%, transparent) !important;
+  font-size: 0.6875rem !important;
+}
+
+/* Immediate, interruptible feedback. Layout and drag transforms are excluded. */
+.overview-metric,
+.overview-calendar-strip header a,
+.overview-upcoming header a,
+.overview-today-list header a,
+.overview-utility-links a,
+.mobile-page-primary,
+.mobile-page-secondary,
+.task-round-action,
+.primary-action,
+.settings-persist-action,
+.settings-data-action {
+  transition: transform var(--ds-duration-press) var(--ds-ease-out),
+    box-shadow var(--ds-duration-control) var(--ds-ease-out) !important;
+}
+
+.overview-metric:active,
+.overview-calendar-strip header a:active,
+.overview-upcoming header a:active,
+.overview-today-list header a:active,
+.overview-utility-links a:active,
+.mobile-page-primary:active,
+.mobile-page-secondary:active,
+.task-round-action:active,
+.primary-action:active,
+.settings-persist-action:active,
+.settings-data-action:active {
+  transform: scale(0.96);
+}
+
+/* -----------------------------------------------------------------------
+   Persistent mobile chrome and safe-area fade
+   ----------------------------------------------------------------------- */
+
+.mobile-nav-fade {
+  display: none;
+}
+
+@media (max-width: 1023px) {
+  :root {
+    --dock-visual-height: 50px;
+    --dock-bottom-gap: max(12px, env(safe-area-inset-bottom, 0px));
+    --nav-content-clearance: calc(
+      var(--dock-visual-height) + var(--dock-bottom-gap) + var(--ds-space-6)
+    );
+  }
+
+  .app-shell {
+    min-height: 100svh;
+    min-height: 100dvh;
+  }
+
+  .app-shell main {
+    padding-bottom: var(--nav-content-clearance) !important;
+  }
+
+  .mobile-nav-fade {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 9;
+    display: block;
+    height: calc(var(--nav-content-clearance) + 52px);
+    pointer-events: none;
+    background: linear-gradient(
+      to bottom,
+      transparent 0%,
+      color-mix(in srgb, var(--ui-bg) 42%, transparent) 31%,
+      color-mix(in srgb, var(--ui-bg) 88%, transparent) 62%,
+      var(--ui-bg) 100%
+    );
+    opacity: 1;
+    transition: opacity 120ms var(--ds-ease-out);
+  }
+
+  .mobile-nav-fade.is-keyboard-open {
+    opacity: 0;
+  }
+
+  .mobile-nav {
+    inset: auto auto var(--dock-bottom-gap) 50% !important;
+    width: min(320px, calc(100vw - 32px)) !important;
+    height: var(--dock-visual-height) !important;
+    min-height: var(--dock-visual-height) !important;
+    border: 0 !important;
+    border-radius: calc(var(--dock-visual-height) / 2) !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    transform: translate3d(-50%, 0, 0);
+  }
+
+  .mobile-nav-material {
+    inset: 0 !important;
+    border: 1px solid var(--ds-border-strong) !important;
+    border-radius: inherit !important;
+    background: var(--ui-surface) !important;
+    box-shadow: var(--ds-shadow-float) !important;
+  }
+
+  .mobile-nav-list {
+    height: 100% !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 3px 4px !important;
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  }
+
+  .nav-active-surface {
+    top: 3px !important;
+    left: 4px !important;
+    width: calc((100% - 8px) / 5) !important;
+    height: calc(100% - 6px) !important;
+    background: color-mix(in srgb, var(--ui-ink) 8%, var(--ui-surface)) !important;
+    box-shadow: 0 1px 0 rgb(255 255 255 / 0.38) inset !important;
+    will-change: auto !important;
+  }
+
+  .mobile-tab-link {
+    min-height: 44px !important;
+    color: var(--ui-muted) !important;
+  }
+
+  .mobile-tab-link.is-active {
+    color: var(--ui-ink) !important;
+  }
+
+  .mobile-page-header,
+  .task-mobile-toolbar {
+    position: sticky;
+    top: max(0px, env(safe-area-inset-top));
+    z-index: 6;
+    min-height: 64px;
+    margin-inline: -4px;
+    padding: var(--ds-space-2) var(--ds-space-1) var(--ds-space-3);
+    border-color: transparent !important;
+    border-radius: 0 0 var(--ds-radius-card) var(--ds-radius-card) !important;
+    box-shadow: none;
+  }
+
+  .task-filter-shell {
+    width: 100% !important;
+    margin-inline: 0 !important;
+    overflow: hidden;
+  }
+
+  .mobile-page-avatar,
+  .mobile-page-primary,
+  .mobile-page-secondary,
+  .task-round-action {
+    width: 44px !important;
+    height: 44px !important;
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .mobile-page-heading,
+  .task-mobile-brand > div:last-child {
+    min-width: 0;
+  }
+
+  .mobile-page-heading p,
+  .mobile-page-heading h1,
+  .task-mobile-brand p,
+  .task-mobile-brand h1 {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .page-header {
+    display: none !important;
+  }
+
+  .page-overview {
+    gap: var(--ds-space-3);
+  }
+}
+
+/* -----------------------------------------------------------------------
+   Desktop: professional dashboard density on the same component system
+   ----------------------------------------------------------------------- */
+
+@media (min-width: 1024px) {
+  .safe-inline {
+    padding-inline: var(--ds-gutter-desktop);
+  }
+
+  .mobile-nav-fade,
+  .mobile-page-header,
+  .task-mobile-toolbar,
+  .mobile-shopping-view-switch {
+    display: none !important;
+  }
+
+  .mobile-nav {
+    width: 248px !important;
+    padding: var(--ds-space-5) var(--ds-space-3) !important;
+    border-right: 1px solid var(--ds-border) !important;
+    background: color-mix(in srgb, var(--ui-soft) 66%, var(--ui-bg)) !important;
+  }
+
+  .mobile-nav-list {
+    gap: var(--ds-space-1) !important;
+    padding: var(--ds-space-1) 0 !important;
+  }
+
+  .mobile-tab-link {
+    min-height: 46px !important;
+    border-radius: var(--ds-radius-control) !important;
+  }
+
+  .nav-active-surface {
+    right: 0 !important;
+    left: 0 !important;
+    height: 46px !important;
+    border: 1px solid var(--ds-border) !important;
+    border-radius: var(--ds-radius-control) !important;
+    background: var(--ui-surface) !important;
+    box-shadow: var(--ds-shadow-card) !important;
+  }
+
+  .page-overview {
+    grid-template-columns: repeat(12, minmax(0, 1fr)) !important;
+    gap: var(--ds-space-4) !important;
+  }
+
+  .page-overview > .page-header {
+    grid-column: 1 / -1;
+  }
+
+  .page-overview > .overview-hero {
+    grid-column: 1 / span 5 !important;
+    min-height: 172px;
+  }
+
+  .page-overview > .overview-metrics {
+    grid-column: 6 / -1 !important;
+    align-self: stretch;
+  }
+
+  .overview-metric {
+    min-height: 172px;
+    padding: var(--ds-space-5);
+  }
+
+  .overview-metric strong {
+    font-size: 2rem;
+  }
+
+  .page-overview > .overview-today-list {
+    grid-column: 1 / span 7 !important;
+    grid-row: auto !important;
+  }
+
+  .page-overview > .overview-calendar-strip {
+    grid-column: 8 / -1 !important;
+    grid-row: auto !important;
+  }
+
+  .page-overview > .overview-upcoming {
+    grid-column: 1 / span 8 !important;
+    grid-row: auto !important;
+  }
+
+  .page-overview > .overview-utility-links {
+    grid-column: 9 / -1 !important;
+    grid-row: auto !important;
+    align-self: start;
+  }
+
+  .page-plan,
+  .page-finance,
+  .page-shopping,
+  .page-tasks {
+    max-width: none;
+  }
+
+  .finance-current-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .overview-metric:hover,
+  .overview-utility-links a:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--ds-shadow-card);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce), (update: slow) {
+  .mobile-nav-material,
+  .mobile-page-header,
+  .task-mobile-toolbar,
+  .task-filter-shell,
+  .segmented-control,
+  .mobile-shopping-view-switch,
+  .finance-mode-switch,
+  .finance-inline-switch,
+  .appearance-control,
+  .quick-card,
+  .task-card-menu,
+  .shopping-move-menu,
+  .editor-sheet,
+  .command-palette-surface {
+    background: var(--ui-surface) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --ds-border: color-mix(in srgb, var(--ui-ink) 34%, transparent);
+    --ds-border-strong: color-mix(in srgb, var(--ui-ink) 52%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mobile-nav-fade,
+  .overview-metric,
+  .overview-calendar-strip header a,
+  .overview-upcoming header a,
+  .overview-today-list header a,
+  .overview-utility-links a,
+  .mobile-page-primary,
+  .mobile-page-secondary,
+  .task-round-action,
+  .primary-action,
+  .settings-persist-action,
+  .settings-data-action {
+    transition: none !important;
+  }
+
+  .overview-metric:active,
+  .overview-calendar-strip header a:active,
+  .overview-upcoming header a:active,
+  .overview-today-list header a:active,
+  .overview-utility-links a:active,
+  .mobile-page-primary:active,
+  .mobile-page-secondary:active,
+  .task-round-action:active,
+  .primary-action:active,
+  .settings-persist-action:active,
+  .settings-data-action:active {
+    transform: none;
+  }
+}
+
+@media (max-width: 360px) {
+  :root {
+    --ds-gutter-mobile: 12px;
+  }
+
+  .overview-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .overview-metric-finance {
+    grid-column: 1 / -1;
+  }
+
+  .overview-hero {
+    min-height: 124px;
+    padding: var(--ds-space-4);
+  }
+
+  .overview-hero-progress {
+    width: 72px;
+    height: 72px;
+  }
+}

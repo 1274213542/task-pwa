@@ -10,6 +10,7 @@ import {
 } from './lib/visualPreferences'
 import './index.css'
 import './app-design.css'
+import './design-system.css'
 
 applyVisualPreferences(readStoredVisualPreferences())
 

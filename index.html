@@ -7,12 +7,18 @@
       content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content"
     />
     <title>任务计划</title>
-    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f7f7f8" />
-    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#1c1c1e" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f7f6f2" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#191a18" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="计划" />
     <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
+    <style>
+      html, body, #root { background: #f7f6f2; }
+      @media (prefers-color-scheme: dark) {
+        html, body, #root { background: #191a18; }
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>

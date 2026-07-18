@@ -35,12 +35,21 @@ function itemCompleted(item: CalItem) {
   return item.kind === 'event' ? item.completed : item.completed
 }
 
+function compactMoney(value: number) {
+  return new Intl.NumberFormat('ja-JP', {
+    style: 'currency',
+    currency: 'JPY',
+    notation: value >= 10000 ? 'compact' : 'standard',
+    maximumFractionDigits: 0,
+  }).format(value)
+}
+
 export default function Overview() {
   const navigate = useNavigate()
   const today = todayLocalISO()
   const [feedback, setFeedback] = useState('')
   const snapshot = useLiveQuery(async () => {
-    const [tasks, records, events, shopping, prefs] = await Promise.all([
+    const [tasks, records, events, shopping, workRecords, expenseRecords, prefs] = await Promise.all([
       db.tasks.where('lifecycleStatus').equals('active').sortBy('rank'),
       db.completionRecords.toArray(),
       db.calendarEvents.where('lifecycleStatus').equals('active').toArray(),
@@ -49,9 +58,11 @@ export default function Overview() {
         .equals('pending')
         .filter((item) => item.lifecycleStatus === 'active')
         .toArray(),
+      db.workRecords.where('lifecycleStatus').equals('active').toArray(),
+      db.expenseRecords.where('lifecycleStatus').equals('active').toArray(),
       db.syncedPreferences.get('#prefs'),
     ])
-    return { tasks, records, events, shopping, prefs }
+    return { tasks, records, events, shopping, workRecords, expenseRecords, prefs }
   }, [])
 
   const view = useMemo(() => {
@@ -77,6 +88,12 @@ export default function Overview() {
       todayItems,
       upcoming,
       fixed: snapshot.tasks.filter((task) => Boolean(task.recurrence)),
+      monthExpense: snapshot.expenseRecords
+        .filter((record) => record.date.startsWith(today.slice(0, 7)))
+        .reduce((sum, record) => sum + record.amount, 0),
+      monthWorkMinutes: snapshot.workRecords
+        .filter((record) => record.worked && record.date.startsWith(today.slice(0, 7)))
+        .reduce((sum, record) => sum + record.durationMinutes, 0),
     }
   }, [snapshot, today])
 
@@ -146,11 +163,6 @@ export default function Overview() {
       </section>
 
       <div className="overview-metrics">
-        <Link to="/plan" className="overview-metric overview-metric-week">
-          <AppIcon name="calendar" size={21} />
-          <span>本日计划</span>
-          <strong>{todayTotal - completedToday}</strong>
-        </Link>
         <Link to="/shopping" className="overview-metric overview-metric-shopping">
           <AppIcon name="shopping" size={21} />
           <span>待购清单</span>
@@ -160,6 +172,12 @@ export default function Overview() {
           <AppIcon name="sync" size={20} />
           <span>固定任务</span>
           <strong>{view?.fixed.length ?? 0}</strong>
+        </Link>
+        <Link to="/finance" className="overview-metric overview-metric-finance">
+          <AppIcon name="finance" size={20} />
+          <span>本月支出</span>
+          <strong>{compactMoney(view?.monthExpense ?? 0)}</strong>
+          <small>{Math.round((view?.monthWorkMinutes ?? 0) / 60)} 小时工作</small>
         </Link>
       </div>
 
@@ -201,7 +219,7 @@ export default function Overview() {
         <header>
           <div>
             <p>接下来</p>
-            <h2 id="overview-calendar-title">七天概览</h2>
+            <h2 id="overview-calendar-title">未来七天</h2>
           </div>
           <Link to="/plan">查看日历 <AppIcon name="chevronRight" size={16} /></Link>
         </header>

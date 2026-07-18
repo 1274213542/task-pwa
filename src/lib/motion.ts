@@ -21,8 +21,8 @@ export const MOTION = {
     mass: 1,
     delay: 0.02,
   },
-  route: { type: 'spring', bounce: 0, stiffness: 430, damping: 41, mass: 0.94 },
-  push: { type: 'spring', bounce: 0, stiffness: 390, damping: 39, mass: 0.98 },
+  route: { type: 'spring', bounce: 0, stiffness: 480, damping: 46, mass: 0.9 },
+  push: { type: 'spring', bounce: 0, stiffness: 430, damping: 43, mass: 0.94 },
   sheet: { type: 'spring', bounce: 0, stiffness: 410, damping: 39, mass: 0.96 },
   momentum: { type: 'spring', bounce: 0.12, stiffness: 360, damping: 34, mass: 0.92 },
   list: { type: 'spring', stiffness: 500, damping: 43, mass: 0.82 },
@@ -36,9 +36,9 @@ export interface DirectionalMotionContext {
 }
 
 function distanceFor(kind: DirectionalMotionContext['kind'], entering: boolean) {
-  if (kind === 'push') return entering ? 64 : 42
-  if (kind === 'calendar') return entering ? 28 : 20
-  return entering ? 42 : 28
+  if (kind === 'push') return entering ? 24 : 16
+  if (kind === 'calendar') return entering ? 20 : 12
+  return entering ? 16 : 10
 }
 
 /**
@@ -55,6 +55,20 @@ export const directionalSurfaceVariants = {
     x: direction * -distanceFor(kind, false),
     zIndex: 1,
   }),
+}
+
+/**
+ * Primary navigation deliberately keeps only one route surface mounted.
+ * Safari can retain the outgoing compositing layer after React has started an
+ * overlapping exit transition, which looks like stale text or cards. The new
+ * route still enters from the correct spatial direction, but the old route is
+ * removed synchronously so there is nothing underneath to ghost.
+ */
+export const directionalEnterVariants = {
+  enter: ({ direction, kind = 'tab' }: DirectionalMotionContext) => ({
+    x: direction * distanceFor(kind, true),
+  }),
+  center: { x: 0 },
 }
 
 /** Apple's exponential deceleration projection, translated to pixels. */

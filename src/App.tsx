@@ -1,7 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
-  AnimatePresence,
   animate,
   motion,
   useDragControls,
@@ -27,7 +26,7 @@ import MarkerIcon from './components/MarkerIcon'
 import DesktopSidebarExtras from './components/DesktopSidebarExtras'
 import {
   MOTION,
-  directionalSurfaceVariants,
+  directionalEnterVariants,
   projectVelocity,
   type DirectionalMotionContext,
 } from './lib/motion'
@@ -90,6 +89,7 @@ export default function App() {
   const previousPath = useRef(location.pathname)
   const routeVelocity = useRef(0)
   const routeScrollPositions = useRef(new Map<string, number>())
+  const appHasMounted = useRef(false)
   const navPositioned = useRef(false)
   const navXAnimation = useRef<ReturnType<typeof animate> | null>(null)
   const navYAnimation = useRef<ReturnType<typeof animate> | null>(null)
@@ -110,6 +110,7 @@ export default function App() {
 
   useEffect(() => {
     void ensurePersistentStorage()
+    appHasMounted.current = true
   }, [])
 
   useEffect(() => {
@@ -296,6 +297,10 @@ export default function App() {
 
   return (
     <div className="app-shell flex h-full flex-col lg:flex-row">
+      <span
+        aria-hidden="true"
+        className={`mobile-nav-fade ${keyboardOpen ? 'is-keyboard-open' : ''}`}
+      />
       {/* 桌面端侧栏 / 手机端底部 Tab，同一份导航数据 */}
       <nav
         data-tone={TABS[activeTabIndex]?.tone ?? 'neutral'}
@@ -397,47 +402,44 @@ export default function App() {
             <SyncStatus />
           </div>
           <div className="motion-route-viewport">
-            <AnimatePresence initial={false} custom={routeMotion} mode="sync">
-              <motion.div
-                key={location.pathname}
-                data-route={location.pathname}
-                custom={routeMotion}
-                variants={directionalSurfaceVariants}
-                initial={reduceMotion ? false : 'enter'}
-                animate="center"
-                exit={reduceMotion ? undefined : 'exit'}
-                transition={
-                  reduceMotion
-                    ? MOTION.reduced
-                    : {
-                        ...(routeMotion.kind === 'push' ? MOTION.push : MOTION.route),
-                        velocity: routeVelocity.current,
-                      }
-                }
-                drag={!reduceMotion && activeTabIndex >= 0 ? 'x' : false}
-                dragControls={pageDragControls}
-                dragListener={false}
-                dragConstraints={{ left: 0, right: 0 }}
-                dragElastic={0.18}
-                dragMomentum={false}
-                dragDirectionLock
-                onPointerDownCapture={beginRouteDrag}
-                onDragEnd={finishRouteDrag}
-                className="motion-route-page"
-              >
-                <Routes location={location}>
-                  <Route path="/" element={<Navigate to="/overview" replace />} />
-                  <Route path="/overview" element={<Overview />} />
-                  <Route path="/today" element={<Today />} />
-                  <Route path="/plan" element={<Plan />} />
-                  <Route path="/shopping" element={<Shopping />} />
-                  <Route path="/finance" element={<Finance />} />
-                  <Route path="/browse" element={<Browse />} />
-                  <Route path="/settings" element={<Settings />} />
-                  <Route path="*" element={<Navigate to="/overview" replace />} />
-                </Routes>
-              </motion.div>
-            </AnimatePresence>
+            <motion.div
+              key={location.pathname}
+              data-route={location.pathname}
+              custom={routeMotion}
+              variants={directionalEnterVariants}
+              initial={reduceMotion || !appHasMounted.current ? false : 'enter'}
+              animate="center"
+              transition={
+                reduceMotion
+                  ? MOTION.reduced
+                  : {
+                      ...(routeMotion.kind === 'push' ? MOTION.push : MOTION.route),
+                      velocity: routeVelocity.current,
+                    }
+              }
+              drag={!reduceMotion && activeTabIndex >= 0 ? 'x' : false}
+              dragControls={pageDragControls}
+              dragListener={false}
+              dragConstraints={{ left: 0, right: 0 }}
+              dragElastic={0.14}
+              dragMomentum={false}
+              dragDirectionLock
+              onPointerDownCapture={beginRouteDrag}
+              onDragEnd={finishRouteDrag}
+              className="motion-route-page"
+            >
+              <Routes location={location}>
+                <Route path="/" element={<Navigate to="/overview" replace />} />
+                <Route path="/overview" element={<Overview />} />
+                <Route path="/today" element={<Today />} />
+                <Route path="/plan" element={<Plan />} />
+                <Route path="/shopping" element={<Shopping />} />
+                <Route path="/finance" element={<Finance />} />
+                <Route path="/browse" element={<Browse />} />
+                <Route path="/settings" element={<Settings />} />
+                <Route path="*" element={<Navigate to="/overview" replace />} />
+              </Routes>
+            </motion.div>
           </div>
         </div>
       </main>
