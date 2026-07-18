@@ -33,6 +33,37 @@ export const MOTION = {
 export interface DirectionalMotionContext {
   direction: 1 | -1
   kind?: 'tab' | 'push' | 'calendar'
+  origin?: SpatialRouteOrigin
+}
+
+export interface SpatialRouteOrigin {
+  xPercent: number
+  yPercent: number
+}
+
+export interface SpatialRouteSource {
+  from: string
+  to: string
+  origin: SpatialRouteOrigin
+}
+
+/**
+ * Convert a source surface into a viewport-relative transform origin. Keeping
+ * the value in percentages preserves the relationship across safe areas,
+ * desktop gutters and rotation better than raw pixels.
+ */
+export function spatialOriginFromRect(
+  rect: Pick<DOMRect, 'left' | 'top' | 'width' | 'height'>,
+  viewportWidth: number,
+  viewportHeight: number,
+): SpatialRouteOrigin {
+  const clamp = (value: number) => Math.min(94, Math.max(6, value))
+  const safeWidth = Math.max(1, viewportWidth)
+  const safeHeight = Math.max(1, viewportHeight)
+  return {
+    xPercent: clamp(((rect.left + rect.width / 2) / safeWidth) * 100),
+    yPercent: clamp(((rect.top + rect.height / 2) / safeHeight) * 100),
+  }
 }
 
 function distanceFor(kind: DirectionalMotionContext['kind'], entering: boolean) {
@@ -65,10 +96,22 @@ export const directionalSurfaceVariants = {
  * removed synchronously so there is nothing underneath to ghost.
  */
 export const directionalEnterVariants = {
-  enter: ({ direction, kind = 'tab' }: DirectionalMotionContext) => ({
+  enter: ({ direction, kind = 'tab', origin }: DirectionalMotionContext) => ({
     x: direction * distanceFor(kind, true),
+    y: origin ? 4 : 0,
+    scale: origin ? 0.988 : 1,
+    transformOrigin: origin
+      ? `${origin.xPercent}% ${origin.yPercent}%`
+      : '50% 16%',
   }),
-  center: { x: 0 },
+  center: ({ origin }: DirectionalMotionContext) => ({
+    x: 0,
+    y: 0,
+    scale: 1,
+    transformOrigin: origin
+      ? `${origin.xPercent}% ${origin.yPercent}%`
+      : '50% 16%',
+  }),
 }
 
 /** Apple's exponential deceleration projection, translated to pixels. */

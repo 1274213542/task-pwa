@@ -739,6 +739,8 @@ select:focus {
 
 /* Immediate, interruptible feedback. Layout and drag transforms are excluded. */
 .overview-metric,
+.overview-hero,
+.overview-spatial-card,
 .overview-calendar-strip header a,
 .overview-upcoming header a,
 .overview-today-list header a,
@@ -754,6 +756,8 @@ select:focus {
 }
 
 .overview-metric:active,
+.overview-hero:active,
+.overview-spatial-card:active,
 .overview-calendar-strip header a:active,
 .overview-upcoming header a:active,
 .overview-today-list header a:active,
@@ -765,6 +769,15 @@ select:focus {
 .settings-persist-action:active,
 .settings-data-action:active {
   transform: scale(0.96);
+}
+
+.overview-spatial-card {
+  cursor: pointer;
+}
+
+.overview-spatial-card:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--ui-secondary) 46%, transparent);
+  outline-offset: 3px;
 }
 
 /* -----------------------------------------------------------------------
@@ -1086,6 +1099,8 @@ select:focus {
 @media (prefers-reduced-motion: reduce) {
   .mobile-nav-fade,
   .overview-metric,
+  .overview-hero,
+  .overview-spatial-card,
   .overview-calendar-strip header a,
   .overview-upcoming header a,
   .overview-today-list header a,
@@ -1100,6 +1115,8 @@ select:focus {
   }
 
   .overview-metric:active,
+  .overview-hero:active,
+  .overview-spatial-card:active,
   .overview-calendar-strip header a:active,
   .overview-upcoming header a:active,
   .overview-today-list header a:active,

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type KeyboardEvent, type MouseEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Temporal } from 'temporal-polyfill'
@@ -17,6 +17,7 @@ import {
   voidRecord,
 } from '../lib/tasks'
 import { toggleEventCompletion } from '../lib/events'
+import { spatialOriginFromRect, type SpatialRouteSource } from '../lib/motion'
 
 function labelDate(dateISO: string, options: Intl.DateTimeFormatOptions) {
   return new Date(`${dateISO}T00:00:00`).toLocaleDateString('zh-CN', options)
@@ -109,6 +110,45 @@ export default function Overview() {
     window.setTimeout(() => window.dispatchEvent(new CustomEvent(FOCUS_QUICK_ADD_EVENT)), 60)
   }
 
+  function navigateFromSurface(element: HTMLElement, to: string) {
+    const viewport = window.visualViewport
+    const motionSource: SpatialRouteSource = {
+      from: '/overview',
+      to,
+      origin: spatialOriginFromRect(
+        element.getBoundingClientRect(),
+        viewport?.width ?? window.innerWidth,
+        viewport?.height ?? window.innerHeight,
+      ),
+    }
+    navigate(to, { state: { motionSource } })
+  }
+
+  function openSpatialLink(event: MouseEvent<HTMLAnchorElement>, to: string) {
+    if (
+      event.defaultPrevented ||
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey
+    ) return
+    event.preventDefault()
+    navigateFromSurface(event.currentTarget, to)
+  }
+
+  function openSpatialSection(event: MouseEvent<HTMLElement>, to: string) {
+    const target = event.target
+    if (target instanceof Element && target.closest('button, a, input, select, textarea')) return
+    navigateFromSurface(event.currentTarget, to)
+  }
+
+  function openSpatialCardWithKeyboard(event: KeyboardEvent<HTMLElement>, to: string) {
+    if (event.key !== 'Enter' && event.key !== ' ') return
+    event.preventDefault()
+    navigateFromSurface(event.currentTarget, to)
+  }
+
   async function toggleItem(item: CalItem) {
     try {
       if (item.kind === 'event') {
@@ -142,13 +182,25 @@ export default function Overview() {
         title="总览"
         eyebrow={todayLabel}
         actions={(
-          <Link to="/settings" className="overview-settings" aria-label="设置">
+          <Link
+            to="/settings"
+            className="overview-settings"
+            aria-label="设置"
+            onClick={(event) => openSpatialLink(event, '/settings')}
+          >
             <AppIcon name="settings" size={20} />
           </Link>
         )}
       />
 
-      <section className="overview-hero" aria-labelledby="overview-today-title">
+      <section
+        className="overview-hero overview-spatial-card"
+        aria-labelledby="overview-today-title"
+        role="link"
+        tabIndex={0}
+        onClick={(event) => openSpatialSection(event, '/today')}
+        onKeyDown={(event) => openSpatialCardWithKeyboard(event, '/today')}
+      >
         <div>
           <p>今天</p>
           <h2 id="overview-today-title">
@@ -163,17 +215,29 @@ export default function Overview() {
       </section>
 
       <div className="overview-metrics">
-        <Link to="/shopping" className="overview-metric overview-metric-shopping">
+        <Link
+          to="/shopping"
+          className="overview-metric overview-metric-shopping"
+          onClick={(event) => openSpatialLink(event, '/shopping')}
+        >
           <AppIcon name="shopping" size={21} />
           <span>待购清单</span>
           <strong>{snapshot?.shopping.length ?? 0}</strong>
         </Link>
-        <Link to="/today" className="overview-metric overview-metric-fixed">
+        <Link
+          to="/today"
+          className="overview-metric overview-metric-fixed"
+          onClick={(event) => openSpatialLink(event, '/today')}
+        >
           <AppIcon name="sync" size={20} />
           <span>固定任务</span>
           <strong>{view?.fixed.length ?? 0}</strong>
         </Link>
-        <Link to="/finance" className="overview-metric overview-metric-finance">
+        <Link
+          to="/finance"
+          className="overview-metric overview-metric-finance"
+          onClick={(event) => openSpatialLink(event, '/finance')}
+        >
           <AppIcon name="finance" size={20} />
           <span>本月支出</span>
           <strong>{compactMoney(view?.monthExpense ?? 0)}</strong>
@@ -181,10 +245,14 @@ export default function Overview() {
         </Link>
       </div>
 
-      <section className="overview-today-list" aria-labelledby="overview-today-list-title">
+      <section
+        className="overview-today-list overview-spatial-card"
+        aria-labelledby="overview-today-list-title"
+        onClick={(event) => openSpatialSection(event, '/today')}
+      >
         <header>
           <div><p>本日计划</p><h2 id="overview-today-list-title">今天需要处理</h2></div>
-          <Link to="/today">管理任务</Link>
+          <Link to="/today" onClick={(event) => openSpatialLink(event, '/today')}>管理任务</Link>
         </header>
         <p className="overview-action-feedback" role="status">{feedback}</p>
         {todayVisible.length > 0 ? (
@@ -215,19 +283,31 @@ export default function Overview() {
         )}
       </section>
 
-      <section className="overview-calendar-strip" aria-labelledby="overview-calendar-title">
+      <section
+        className="overview-calendar-strip overview-spatial-card"
+        aria-labelledby="overview-calendar-title"
+        onClick={(event) => openSpatialSection(event, '/plan')}
+      >
         <header>
           <div>
             <p>接下来</p>
             <h2 id="overview-calendar-title">未来七天</h2>
           </div>
-          <Link to="/plan">查看日历 <AppIcon name="chevronRight" size={16} /></Link>
+          <Link to="/plan" onClick={(event) => openSpatialLink(event, '/plan')}>
+            查看日历 <AppIcon name="chevronRight" size={16} />
+          </Link>
         </header>
         <div className="overview-days">
           {(view?.nextSeven ?? []).map((date) => {
             const items = view?.byDay.get(date) ?? []
             return (
-              <Link key={date} to="/plan" data-has-items={items.length > 0 || undefined} data-today={date === today || undefined}>
+              <Link
+                key={date}
+                to="/plan"
+                data-has-items={items.length > 0 || undefined}
+                data-today={date === today || undefined}
+                onClick={(event) => openSpatialLink(event, '/plan')}
+              >
                 <span>{labelDate(date, { weekday: 'narrow' })}</span>
                 <strong>{Number(date.slice(8))}</strong>
                 <i aria-hidden />
@@ -237,13 +317,17 @@ export default function Overview() {
         </div>
       </section>
 
-      <section className="overview-upcoming" aria-labelledby="overview-upcoming-title">
+      <section
+        className="overview-upcoming overview-spatial-card"
+        aria-labelledby="overview-upcoming-title"
+        onClick={(event) => openSpatialSection(event, '/today')}
+      >
         <header>
           <div>
             <p>近期</p>
             <h2 id="overview-upcoming-title">下一步</h2>
           </div>
-          <Link to="/today">全部任务</Link>
+          <Link to="/today" onClick={(event) => openSpatialLink(event, '/today')}>全部任务</Link>
         </header>
         {(view?.upcoming.length ?? 0) > 0 ? (
           <ul>
@@ -264,8 +348,12 @@ export default function Overview() {
       </section>
 
       <div className="overview-utility-links">
-        <Link to="/browse"><AppIcon name="category" size={18} /> 分类与完成记录</Link>
-        <Link to="/settings"><AppIcon name="settings" size={18} /> 数据与偏好</Link>
+        <Link to="/browse" onClick={(event) => openSpatialLink(event, '/browse')}>
+          <AppIcon name="category" size={18} /> 分类与完成记录
+        </Link>
+        <Link to="/settings" onClick={(event) => openSpatialLink(event, '/settings')}>
+          <AppIcon name="settings" size={18} /> 数据与偏好
+        </Link>
       </div>
     </section>
   )

@@ -29,6 +29,7 @@ import {
   directionalEnterVariants,
   projectVelocity,
   type DirectionalMotionContext,
+  type SpatialRouteSource,
 } from './lib/motion'
 import { CLOSE_TASK_MENU_EVENT, FOCUS_QUICK_ADD_EVENT } from './lib/appEvents'
 import { applyVisualPreferences, storeVisualPreferences } from './lib/visualPreferences'
@@ -63,6 +64,21 @@ function tabIndexFor(pathname: string) {
   return TABS.findIndex((tab) => tab.to === pathname)
 }
 
+function spatialRouteSource(state: unknown): SpatialRouteSource | undefined {
+  if (!state || typeof state !== 'object' || !('motionSource' in state)) return undefined
+  const source = (state as { motionSource?: unknown }).motionSource
+  if (!source || typeof source !== 'object') return undefined
+  const candidate = source as Partial<SpatialRouteSource>
+  if (
+    typeof candidate.from !== 'string' ||
+    typeof candidate.to !== 'string' ||
+    !candidate.origin ||
+    typeof candidate.origin.xPercent !== 'number' ||
+    typeof candidate.origin.yPercent !== 'number'
+  ) return undefined
+  return candidate as SpatialRouteSource
+}
+
 function isRouteSwipeTarget(target: EventTarget | null) {
   return target instanceof Element && Boolean(target.closest([
     'button',
@@ -87,6 +103,9 @@ export default function App() {
   const mainRef = useRef<HTMLElement>(null)
   const navListRef = useRef<HTMLUListElement>(null)
   const previousPath = useRef(location.pathname)
+  const previousSpatialRoute = useRef<SpatialRouteSource | undefined>(
+    spatialRouteSource(location.state),
+  )
   const routeVelocity = useRef(0)
   const routeScrollPositions = useRef(new Map<string, number>())
   const appHasMounted = useRef(false)
@@ -103,9 +122,22 @@ export default function App() {
   const previousRouteRank = ROUTE_RANK[previousPath.current] ?? currentRouteRank
   const pageDirection: 1 | -1 = currentRouteRank >= previousRouteRank ? 1 : -1
   const previousTabIndex = tabIndexFor(previousPath.current)
+  const currentSpatialRoute = spatialRouteSource(location.state)
+  const reverseSpatialRoute =
+    !currentSpatialRoute &&
+    previousSpatialRoute.current?.from === location.pathname &&
+    previousSpatialRoute.current?.to === previousPath.current
+      ? previousSpatialRoute.current
+      : undefined
+  const activeSpatialRoute = currentSpatialRoute ?? reverseSpatialRoute
   const routeMotion: DirectionalMotionContext = {
     direction: pageDirection,
-    kind: activeTabIndex >= 0 && previousTabIndex >= 0 ? 'tab' : 'push',
+    kind: activeSpatialRoute
+      ? 'push'
+      : activeTabIndex >= 0 && previousTabIndex >= 0
+        ? 'tab'
+        : 'push',
+    origin: activeSpatialRoute?.origin,
   }
 
   useEffect(() => {
@@ -136,9 +168,11 @@ export default function App() {
   }, [location.pathname])
 
   useEffect(() => {
+    if (currentSpatialRoute) previousSpatialRoute.current = currentSpatialRoute
+    else if (!reverseSpatialRoute) previousSpatialRoute.current = undefined
     previousPath.current = location.pathname
     routeVelocity.current = 0
-  }, [location.pathname])
+  }, [currentSpatialRoute, location.pathname, reverseSpatialRoute])
 
   useLayoutEffect(() => {
     const list = navListRef.current
