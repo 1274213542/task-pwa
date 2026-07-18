@@ -14,6 +14,10 @@ export const BUSINESS_TABLES = [
   'calendarEvents',
   'shoppingItems',
   'shoppingLocations',
+  'workRecords',
+  'wageSettings',
+  'expenseRecords',
+  'expenseCategories',
   'syncedPreferences',
 ] as const
 

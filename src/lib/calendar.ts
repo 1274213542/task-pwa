@@ -35,7 +35,7 @@ export type CalItem =
       skipped: boolean
       subtitle?: string
     }
-  | { kind: 'event'; event: CalendarEvent; date: string }
+  | { kind: 'event'; event: CalendarEvent; date: string; completed: boolean }
 
 /** 窗口内全部条目按日分桶（rangeStart/rangeEnd 含两端） */
 export function buildCalendarItems(
@@ -115,7 +115,12 @@ export function buildCalendarItems(
       ev.endDate < rangeEnd ? ev.endDate : rangeEnd,
     )
     while (Temporal.PlainDate.compare(d, end) <= 0) {
-      push(d.toString(), { kind: 'event', event: ev, date: d.toString() })
+      push(d.toString(), {
+        kind: 'event',
+        event: ev,
+        date: d.toString(),
+        completed: ev.completionStatus === 'completed',
+      })
       d = d.add({ days: 1 })
     }
   }

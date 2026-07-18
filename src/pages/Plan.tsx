@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { motion, useReducedMotion } from 'motion/react'
 import { Temporal } from 'temporal-polyfill'
+import { useNavigate } from 'react-router-dom'
 import {
   db,
   type CalendarEvent,
@@ -11,7 +12,7 @@ import {
 } from '../lib/db'
 import { type CalItem, buildCalendarItems, monthGrid } from '../lib/calendar'
 import { todayLocalISO } from '../lib/dates'
-import { addEvent, softDeleteEvent } from '../lib/events'
+import { addEvent, softDeleteEvent, toggleEventCompletion } from '../lib/events'
 import {
   RecurrenceConflictError,
   addTasks,
@@ -46,6 +47,7 @@ function dateLabel(dateISO: string, options?: Intl.DateTimeFormatOptions) {
 }
 
 export default function Plan() {
+  const navigate = useNavigate()
   const todayISO = todayLocalISO()
   const reduceMotion = useReducedMotion()
   const [mode, setMode] = useState<PlanMode>(() => {
@@ -101,6 +103,10 @@ export default function Plan() {
   )
   const categories = useLiveQuery(
     () => db.categories.where('lifecycleStatus').equals('active').toArray(),
+    [],
+  )
+  const workRecords = useLiveQuery(
+    () => db.workRecords.where('lifecycleStatus').equals('active').toArray(),
     [],
   )
   const catMap = useMemo(
@@ -237,6 +243,8 @@ export default function Plan() {
   function toggleItem(item: CalItem) {
     if (item.kind === 'task') {
       void setTaskStatus(item, item.completed ? 'pending' : 'completed')
+    } else {
+      void toggleEventCompletion(item.event)
     }
   }
 
@@ -320,7 +328,7 @@ export default function Plan() {
 
   function compactItem(item: CalItem, index: number) {
     const visual = itemVisual(item)
-    const resolved = item.kind === 'task' && (item.completed || item.skipped)
+    const resolved = item.kind === 'task' ? (item.completed || item.skipped) : item.completed
     const hiddenAt = index === 1 ? 'calendar-summary-second' : index === 2 ? 'calendar-summary-third' : ''
     return (
       <span
@@ -340,17 +348,19 @@ export default function Plan() {
     const isToday = dateISO === todayISO
     const isSelected = dateISO === selected
     const items = byDay?.get(dateISO) ?? []
+    const dayWork = (workRecords ?? []).filter((record) => record.date === dateISO && record.worked)
+    const totalCount = items.length + dayWork.length
     const firstVisual = items[0] ? itemVisual(items[0]) : undefined
     return (
       <button
         key={dateISO}
         role="gridcell"
-        aria-label={`${dateISO}${items.length ? `：${items.map(itemTitle).join('、')}` : '：无安排'}`}
+        aria-label={`${dateISO}${totalCount ? `：${items.map(itemTitle).join('、')}${dayWork.length ? `、工作 ${dayWork.reduce((sum, record) => sum + record.durationMinutes, 0) / 60} 小时` : ''}` : '：无安排'}`}
         aria-selected={isSelected}
         tabIndex={isSelected ? 0 : -1}
         onClick={() => selectDay(dateISO)}
         className="calendar-day"
-        data-has-items={items.length > 0 || undefined}
+        data-has-items={totalCount > 0 || undefined}
         data-color-token={firstVisual?.color}
         data-outside={!inMonth || undefined}
         data-selected={isSelected || undefined}
@@ -359,11 +369,17 @@ export default function Plan() {
           <span className="calendar-date-number" data-today={isToday || undefined}>
             {Number(dateISO.slice(8))}
           </span>
-          {items.length > 0 && <span className="calendar-date-count">{items.length}</span>}
+          {totalCount > 0 && <span className="calendar-date-count">{totalCount}</span>}
         </span>
         <span className="calendar-summaries" aria-hidden>
           {items.slice(0, 3).map(compactItem)}
-          {items.length > 3 && <span className="calendar-more">+{items.length - 3}</span>}
+          {items.length < 3 && dayWork.slice(0, 1).map((record) => (
+            <span key={record.id} className="calendar-summary calendar-work-summary">
+              <AppIcon name="work" size={11} />
+              <span>工作 {record.durationMinutes / 60}h</span>
+            </span>
+          ))}
+          {totalCount > 3 && <span className="calendar-more">+{totalCount - 3}</span>}
         </span>
       </button>
     )
@@ -376,7 +392,7 @@ export default function Plan() {
     const featureTone = source.visualToken || sourceCategory?.colorToken
       ? 'custom'
       : (['lime', 'purple', 'charcoal'] as const)[index % 3]
-    const resolved = item.kind === 'task' && (item.completed || item.skipped)
+    const resolved = item.kind === 'task' ? (item.completed || item.skipped) : item.completed
     const categoryId = item.kind === 'event' ? item.event.categoryId : item.task.categoryId
     const category = categoryId ? catMap.get(categoryId) : undefined
     const time = itemTime(item)
@@ -396,19 +412,13 @@ export default function Plan() {
         data-resolved={resolved || undefined}
         className="calendar-item-card row-in"
       >
-        {item.kind === 'task' ? (
-          <button
-            aria-label={item.completed ? '取消完成' : '完成'}
-            onClick={() => toggleItem(item)}
-            className="calendar-item-check hit-target"
-          >
-            <span>{item.completed && <AppIcon name="check" size={14} />}</span>
-          </button>
-        ) : (
-          <span className="calendar-item-marker" aria-hidden>
-            <MarkerIcon symbol={visual.marker} color={visual.color} size={30} />
-          </span>
-        )}
+        <button
+          aria-label={resolved ? '取消完成' : '完成'}
+          onClick={() => toggleItem(item)}
+          className="calendar-item-check hit-target"
+        >
+          <span>{resolved && <AppIcon name="check" size={14} />}</span>
+        </button>
         <button onClick={() => openItem(item)} className="calendar-item-main">
           <strong>{itemTitle(item)}</strong>
           {subtitle && <span>{subtitle}</span>}
@@ -434,6 +444,7 @@ export default function Plan() {
   }
 
   const selectedItems = byDay?.get(selected) ?? []
+  const selectedWork = (workRecords ?? []).filter((record) => record.date === selected)
   const monthLabel = `${cursor.year} 年 ${cursor.month} 月`
   const weekLabel = `${dateLabel(weekDates[0], { month: 'short', day: 'numeric' })} – ${dateLabel(weekDates[6], { month: 'short', day: 'numeric' })}`
   const weekLabels = weekStartsOn === 0 ? WEEK_LABELS_SUN : WEEK_LABELS_MON
@@ -465,24 +476,42 @@ export default function Plan() {
           </div>
         </div>
 
+        <section className="calendar-work-panel">
+          <header>
+            <div><span>工作记录</span><strong>{selectedWork.filter((record) => record.worked).reduce((sum, record) => sum + record.durationMinutes, 0) / 60} 小时</strong></div>
+            <button onClick={() => navigate(`/finance?mode=work&date=${selected}&new=1`)}>
+              <AppIcon name="plus" size={17} /> 记录工时
+            </button>
+          </header>
+          {selectedWork.length > 0 && (
+            <ul>{selectedWork.map((record) => (
+              <li key={record.id}>
+                <AppIcon name="work" size={17} />
+                <span>{record.worked ? `${record.durationMinutes / 60} 小时` : '休息日'}</span>
+                <small>{record.workLocation || record.workType || record.note || '未填写备注'}</small>
+              </li>
+            ))}</ul>
+          )}
+        </section>
+
         {composerOpen && <div className="calendar-composer quick-card">
           <textarea
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={(event) => {
-              if (event.key === 'Enter' && !event.shiftKey) {
+              if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
                 event.preventDefault()
                 void submitDraft()
               }
             }}
-            rows={1}
-            enterKeyHint="done"
+            rows={3}
             placeholder={
               draftKind === 'event'
                 ? '添加计划；多项可换行…'
                 : '添加任务；多项可换行…'
             }
           />
+          <p className="batch-input-hint">Enter 换行 · ⌘/Ctrl + Enter 添加全部</p>
           <div className="calendar-composer-controls">
             <select
               aria-label="类型"
@@ -677,7 +706,7 @@ export default function Plan() {
                     const featureTone = source.visualToken || category?.colorToken
                       ? 'custom'
                       : (['lime', 'purple', 'charcoal'] as const)[index % 3]
-                    const resolved = item.kind === 'task' && (item.completed || item.skipped)
+                    const resolved = item.kind === 'task' ? (item.completed || item.skipped) : item.completed
                     const time = itemTime(item) ?? `${String(8 + index).padStart(2, '0')}:00`
                     return (
                       <div
@@ -729,7 +758,7 @@ export default function Plan() {
                         <div className="week-column-items">
                           {items.map((item, itemIndex) => {
                             const visual = itemVisual(item)
-                            const resolved = item.kind === 'task' && (item.completed || item.skipped)
+                            const resolved = item.kind === 'task' ? (item.completed || item.skipped) : item.completed
                             const time = itemTime(item)
                             const [hour = 8, minute = 0] = time
                               ? time.split(':').map(Number)

@@ -39,12 +39,14 @@ import Plan from './pages/Plan'
 import Shopping from './pages/Shopping'
 import Browse from './pages/Browse'
 import Settings from './pages/Settings'
+import Finance from './pages/Finance'
 
 const TABS = [
   { to: '/overview', label: '总览', icon: 'dashboard', tone: 'overview' },
   { to: '/today', label: '任务', icon: 'tasks', tone: 'task' },
   { to: '/plan', label: '计划', icon: 'calendar', tone: 'plan' },
   { to: '/shopping', label: '购物', icon: 'shopping', tone: 'shopping' },
+  { to: '/finance', label: '财务', icon: 'finance', tone: 'finance' },
 ] as const
 
 const LAST_ROUTE_KEY = 'lastRoute'
@@ -53,8 +55,9 @@ const ROUTE_RANK: Record<string, number> = {
   '/today': 1,
   '/plan': 2,
   '/shopping': 3,
-  '/browse': 4,
-  '/settings': 5,
+  '/finance': 4,
+  '/browse': 5,
+  '/settings': 6,
 }
 
 function tabIndexFor(pathname: string) {
@@ -239,7 +242,7 @@ export default function App() {
     }
   }, [])
 
-  // 桌面快捷键（v4.2 §10）：⌘K 面板、⌘1..4 切视图、⌘N 快速新增
+  // 桌面快捷键：⌘K 面板、⌘1..5 切一级模块、⌘N 快速新增
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       const mod = e.metaKey || e.ctrlKey
@@ -248,7 +251,7 @@ export default function App() {
         e.preventDefault()
         window.dispatchEvent(new Event(CLOSE_TASK_MENU_EVENT))
         setPaletteOpen((o) => !o)
-      } else if (e.key >= '1' && e.key <= '4') {
+      } else if (e.key >= '1' && e.key <= '5') {
         e.preventDefault()
         navigate(TABS[Number(e.key) - 1].to)
       } else if (e.key === 'n') {
@@ -428,6 +431,7 @@ export default function App() {
                   <Route path="/today" element={<Today />} />
                   <Route path="/plan" element={<Plan />} />
                   <Route path="/shopping" element={<Shopping />} />
+                  <Route path="/finance" element={<Finance />} />
                   <Route path="/browse" element={<Browse />} />
                   <Route path="/settings" element={<Settings />} />
                   <Route path="*" element={<Navigate to="/overview" replace />} />

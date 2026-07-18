@@ -1,5 +1,10 @@
 import { db, type ShoppingItem } from './db'
-import { parseBatchLines } from './batch'
+import {
+  parseBatchEntries,
+  parseBatchLines,
+  type BatchCreateResult,
+} from './batch'
+import { appendRank, betweenRanks, normalizedRanks } from './rank'
 
 const now = () => new Date().toISOString()
 const nextRank = () => Date.now().toString(36).padStart(10, '0')
@@ -32,10 +37,23 @@ export async function renameLocation(id: string, name: string): Promise<void> {
 
 /** 软删：仅从选择器隐藏；历史条目 locationId 永不置空（v4.2 §8.1） */
 export async function softDeleteLocation(id: string): Promise<void> {
-  await db.shoppingLocations.update(id, {
-    lifecycleStatus: 'deleted',
-    deletedAt: now(),
-    updatedAt: now(),
+  await db.transaction('rw', db.shoppingLocations, db.shoppingItems, async () => {
+    const location = await db.shoppingLocations.get(id)
+    const timestamp = now()
+    await db.shoppingLocations.update(id, {
+      lifecycleStatus: 'deleted',
+      deletedAt: timestamp,
+      updatedAt: timestamp,
+    })
+    await db.shoppingItems
+      .where('locationId')
+      .equals(id)
+      .filter((item) => item.lifecycleStatus === 'active')
+      .modify((item) => {
+        if (item.purchaseStatus === 'pending') item.locationId = undefined
+        if (!item.locationNameSnapshot && location) item.locationNameSnapshot = location.name
+        item.updatedAt = timestamp
+      })
   })
 }
 
@@ -82,6 +100,96 @@ export async function addItems(opts: {
     await db.shoppingItems.bulkAdd(rows)
   })
   return rows.length
+}
+
+export async function addItemsDetailed(opts: {
+  names: string
+  quantity?: number
+  unit?: string
+  note?: string
+  locationId?: string
+}): Promise<BatchCreateResult> {
+  const entries = parseBatchEntries(opts.names)
+  const failures: BatchCreateResult['failures'] = []
+  let created = 0
+  if (entries.length === 0) return { created, failures }
+
+  const active = await db.shoppingItems
+    .where('lifecycleStatus')
+    .equals('active')
+    .sortBy('rank')
+  let rank = active.at(-1)?.rank
+  await db.transaction('rw', db.shoppingItems, async () => {
+    for (const entry of entries) {
+      if (entry.value.length > 500) {
+        failures.push({ line: entry.line, value: entry.value, reason: '名称超过 500 字' })
+        continue
+      }
+      try {
+        rank = appendRank(rank)
+        const timestamp = now()
+        await db.shoppingItems.add({
+          id: crypto.randomUUID(),
+          name: entry.value,
+          ...(opts.quantity && opts.quantity > 0 && { quantity: opts.quantity }),
+          ...(opts.unit?.trim() && { unit: opts.unit.trim() }),
+          ...(opts.note?.trim() && { note: opts.note.trim() }),
+          ...(opts.locationId && { locationId: opts.locationId }),
+          rank,
+          purchaseStatus: 'pending',
+          lifecycleStatus: 'active',
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        })
+        created += 1
+      } catch (reason) {
+        failures.push({
+          line: entry.line,
+          value: entry.value,
+          reason: reason instanceof Error ? reason.message : '写入失败',
+        })
+      }
+    }
+  })
+  return { created, failures }
+}
+
+/** 同组排序或跨地点移动；地点与顺序在同一事务中保存。 */
+export async function moveShoppingItem(
+  id: string,
+  locationId: string | undefined,
+  beforeRank: string | null,
+  afterRank: string | null,
+  orderedScopeIds: string[] = [id],
+): Promise<void> {
+  try {
+    const rank = betweenRanks(beforeRank, afterRank)
+    await db.shoppingItems.update(id, {
+      locationId,
+      rank,
+      updatedAt: now(),
+    })
+    return
+  } catch {
+    // v7 and older used timestamp-like ranks. Normalize only the visible
+    // ordering scope on the first move, preserving every item and its group.
+  }
+
+  const ids = [...new Set(orderedScopeIds)]
+  if (!ids.includes(id)) ids.push(id)
+  const ranks = normalizedRanks(ids.length)
+  const timestamp = now()
+  await db.transaction('rw', db.shoppingItems, async () => {
+    await Promise.all(
+      ids.map((itemId, index) =>
+        db.shoppingItems.update(itemId, {
+          ...(itemId === id && { locationId }),
+          rank: ranks[index],
+          updatedAt: timestamp,
+        }),
+      ),
+    )
+  })
 }
 
 /** 勾选已购：purchaseStatus 与 purchasedAt 同笔更新；写地点名快照 */

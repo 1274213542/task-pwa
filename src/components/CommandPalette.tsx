@@ -4,9 +4,11 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../lib/db'
 
 const PAGES = [
-  { label: '今天', to: '/today' },
+  { label: '总览', to: '/overview' },
+  { label: '任务', to: '/today' },
   { label: '计划', to: '/plan' },
   { label: '购物', to: '/shopping' },
+  { label: '财务', to: '/finance' },
   { label: '浏览', to: '/browse' },
   { label: '设置', to: '/settings' },
 ]

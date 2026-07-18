@@ -16,6 +16,7 @@ import {
   Clock,
   Compass,
   DotsThree,
+  DotsSixVertical,
   FolderSimple,
   GearSix,
   HouseSimple,
@@ -29,6 +30,9 @@ import {
   SquaresFour,
   Sun,
   Trash,
+  Wallet,
+  Receipt,
+  Briefcase,
   UsersThree,
   X,
 } from '@phosphor-icons/react'
@@ -65,6 +69,10 @@ export type AppIconName =
   | 'people'
   | 'arrowUpRight'
   | 'more'
+  | 'drag'
+  | 'finance'
+  | 'receipt'
+  | 'work'
 
 const icons: Record<AppIconName, Icon> = {
   dashboard: ChartPieSlice,
@@ -98,6 +106,10 @@ const icons: Record<AppIconName, Icon> = {
   people: UsersThree,
   arrowUpRight: ArrowUpRight,
   more: DotsThree,
+  drag: DotsSixVertical,
+  finance: Wallet,
+  receipt: Receipt,
+  work: Briefcase,
 }
 
 export default function AppIcon({

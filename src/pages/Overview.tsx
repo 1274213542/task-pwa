@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Temporal } from 'temporal-polyfill'
@@ -8,8 +8,15 @@ import { todayLocalISO } from '../lib/dates'
 import MobilePageHeader from '../components/MobilePageHeader'
 import PageHeader from '../components/PageHeader'
 import AppIcon from '../components/AppIcon'
-import MarkerIcon from '../components/MarkerIcon'
 import { FOCUS_QUICK_ADD_EVENT } from '../lib/appEvents'
+import {
+  completeFixedOccurrence,
+  completeTask,
+  resolveAfterCompletion,
+  undoAfterCompletion,
+  voidRecord,
+} from '../lib/tasks'
+import { toggleEventCompletion } from '../lib/events'
 
 function labelDate(dateISO: string, options: Intl.DateTimeFormatOptions) {
   return new Date(`${dateISO}T00:00:00`).toLocaleDateString('zh-CN', options)
@@ -24,11 +31,16 @@ function itemColor(item: CalItem): ColorToken {
   return source.visualToken ?? (item.kind === 'event' ? 'green' : 'purple')
 }
 
+function itemCompleted(item: CalItem) {
+  return item.kind === 'event' ? item.completed : item.completed
+}
+
 export default function Overview() {
   const navigate = useNavigate()
   const today = todayLocalISO()
+  const [feedback, setFeedback] = useState('')
   const snapshot = useLiveQuery(async () => {
-    const [tasks, records, events, shopping] = await Promise.all([
+    const [tasks, records, events, shopping, prefs] = await Promise.all([
       db.tasks.where('lifecycleStatus').equals('active').sortBy('rank'),
       db.completionRecords.toArray(),
       db.calendarEvents.where('lifecycleStatus').equals('active').toArray(),
@@ -37,8 +49,9 @@ export default function Overview() {
         .equals('pending')
         .filter((item) => item.lifecycleStatus === 'active')
         .toArray(),
+      db.syncedPreferences.get('#prefs'),
     ])
-    return { tasks, records, events, shopping }
+    return { tasks, records, events, shopping, prefs }
   }, [])
 
   const view = useMemo(() => {
@@ -52,36 +65,52 @@ export default function Overview() {
       start.toString(),
       end.toString(),
     )
-    const weekStart = start.subtract({ days: start.dayOfWeek - 1 })
-    const weekDates = Array.from({ length: 7 }, (_, index) =>
-      weekStart.add({ days: index }).toString(),
-    )
     const nextSeven = Array.from({ length: 7 }, (_, index) => start.add({ days: index }).toString())
     const todayItems = byDay.get(today) ?? []
-    const weekCount = weekDates.reduce((sum, date) => sum + (byDay.get(date)?.length ?? 0), 0)
     const upcoming = nextSeven
       .flatMap((date) => (byDay.get(date) ?? []).map((item) => ({ date, item })))
-      .filter(({ item }) => item.kind === 'event' || (!item.completed && !item.skipped))
+      .filter(({ item }) => !itemCompleted(item) && (item.kind === 'event' || !item.skipped))
       .slice(0, 4)
     return {
       byDay,
       nextSeven,
       todayItems,
-      weekCount,
       upcoming,
       fixed: snapshot.tasks.filter((task) => Boolean(task.recurrence)),
     }
   }, [snapshot, today])
 
   const todayLabel = labelDate(today, { month: 'long', day: 'numeric', weekday: 'long' })
-  const completedToday = view?.todayItems.filter(
-    (item) => item.kind === 'task' && item.completed,
-  ).length ?? 0
+  const completedToday = view?.todayItems.filter(itemCompleted).length ?? 0
   const todayTotal = view?.todayItems.length ?? 0
+  const todayVisible = (view?.todayItems ?? []).filter((item) =>
+    snapshot?.prefs?.defaultCompletedDisplay === 'hide' ? !itemCompleted(item) : true,
+  )
 
   function openTaskComposer() {
     navigate('/today')
     window.setTimeout(() => window.dispatchEvent(new CustomEvent(FOCUS_QUICK_ADD_EVENT)), 60)
+  }
+
+  async function toggleItem(item: CalItem) {
+    try {
+      if (item.kind === 'event') {
+        await toggleEventCompletion(item.event)
+      } else if (item.task.recurrence?.mode === 'after_completion') {
+        if (item.completed) await undoAfterCompletion(item.task)
+        else await resolveAfterCompletion(item.task, 'completed')
+      } else if (item.completed) {
+        await voidRecord(`${item.task.id}:${item.occurrenceKey}`)
+      } else if (item.task.recurrence?.mode === 'fixed_schedule') {
+        await completeFixedOccurrence(item.task, item.date)
+      } else {
+        await completeTask(item.task)
+      }
+      setFeedback(itemCompleted(item) ? '已恢复为待处理' : '已完成')
+      window.setTimeout(() => setFeedback(''), 1600)
+    } catch (reason) {
+      setFeedback(reason instanceof Error ? reason.message : '操作失败')
+    }
   }
 
   return (
@@ -119,8 +148,8 @@ export default function Overview() {
       <div className="overview-metrics">
         <Link to="/plan" className="overview-metric overview-metric-week">
           <AppIcon name="calendar" size={21} />
-          <span>本周计划</span>
-          <strong>{view?.weekCount ?? 0}</strong>
+          <span>本日计划</span>
+          <strong>{todayTotal - completedToday}</strong>
         </Link>
         <Link to="/shopping" className="overview-metric overview-metric-shopping">
           <AppIcon name="shopping" size={21} />
@@ -133,6 +162,40 @@ export default function Overview() {
           <strong>{view?.fixed.length ?? 0}</strong>
         </Link>
       </div>
+
+      <section className="overview-today-list" aria-labelledby="overview-today-list-title">
+        <header>
+          <div><p>本日计划</p><h2 id="overview-today-list-title">今天需要处理</h2></div>
+          <Link to="/today">管理任务</Link>
+        </header>
+        <p className="overview-action-feedback" role="status">{feedback}</p>
+        {todayVisible.length > 0 ? (
+          <ul>
+            {todayVisible.map((item, index) => (
+              <li
+                key={`${item.kind}:${item.kind === 'event' ? item.event.id : item.task.id}:${item.date}:${index}`}
+                data-color-token={itemColor(item)}
+                data-completed={itemCompleted(item) || undefined}
+              >
+                <button
+                  className="overview-item-check"
+                  aria-label={itemCompleted(item) ? '取消完成' : '完成'}
+                  onClick={() => void toggleItem(item)}
+                >
+                  {itemCompleted(item) && <AppIcon name="check" size={14} />}
+                </button>
+                <div><strong>{itemTitle(item)}</strong><small>{item.kind === 'event' ? '日历事项' : item.subtitle ?? '任务'}</small></div>
+                <AppIcon name={item.kind === 'event' ? 'calendar' : 'tasks'} size={17} />
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <div className="overview-empty">今天没有待处理事项</div>
+        )}
+        {snapshot?.prefs?.defaultCompletedDisplay === 'collapse' && completedToday > 0 && (
+          <small className="overview-completed-summary">已完成 {completedToday} 项</small>
+        )}
+      </section>
 
       <section className="overview-calendar-strip" aria-labelledby="overview-calendar-title">
         <header>
@@ -168,9 +231,7 @@ export default function Overview() {
           <ul>
             {view!.upcoming.map(({ date, item }, index) => (
               <li key={`${date}:${item.kind}:${index}`} data-color-token={itemColor(item)}>
-                <span className="overview-upcoming-marker">
-                  <MarkerIcon symbol={item.kind === 'event' ? 'diamond' : 'dot'} color={itemColor(item)} size={18} />
-                </span>
+                <button className="overview-item-check" aria-label="完成" onClick={() => void toggleItem(item)} />
                 <div>
                   <strong>{itemTitle(item)}</strong>
                   <small>{date === today ? '今天' : labelDate(date, { month: 'numeric', day: 'numeric', weekday: 'short' })}</small>

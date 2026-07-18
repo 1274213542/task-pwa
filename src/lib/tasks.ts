@@ -8,7 +8,11 @@ import {
 import { type Recurrence, nextAfterCompletion } from './recurrence'
 import { todayLocalISO } from './dates'
 import { appendRank, betweenRanks, isFiKey, normalizedRanks } from './rank'
-import { parseBatchLines } from './batch'
+import {
+  parseBatchEntries,
+  parseBatchLines,
+  type BatchCreateResult,
+} from './batch'
 import { periodAnchorISO } from './taskPeriods'
 
 const now = () => new Date().toISOString()
@@ -79,6 +83,71 @@ export async function addTasks(
     await db.tasks.bulkAdd(rows)
     return rows.length
   })
+}
+
+/**
+ * 容错批量新增：每一行独立写入并返回行号；单条错误不会吞掉其他有效行。
+ * 旧调用继续使用 addTasks 的原子语义，新批量输入界面使用本函数。
+ */
+export async function addTasksDetailed(
+  titles: string,
+  recurrence?: Recurrence,
+  categoryId?: string,
+  startDate?: string,
+  taskScope: TaskScope = 'daily',
+): Promise<BatchCreateResult> {
+  const entries = parseBatchEntries(titles)
+  const failures: BatchCreateResult['failures'] = []
+  if (entries.length === 0) return { created: 0, failures }
+
+  const active = await db.tasks
+    .where('lifecycleStatus')
+    .equals('active')
+    .sortBy('rank')
+  let rank = active.at(-1)?.rank
+  const fallbackBase = Date.now()
+  const anchor = periodAnchorISO(taskScope, startDate ?? today())
+  let created = 0
+
+  await db.transaction('rw', db.tasks, async () => {
+    for (const entry of entries) {
+      if (entry.value.length > 500) {
+        failures.push({ line: entry.line, value: entry.value, reason: '标题超过 500 字' })
+        continue
+      }
+      try {
+        rank = rank === undefined || isFiKey(rank)
+          ? appendRank(rank)
+          : (fallbackBase + created).toString(36).padStart(10, '0')
+        const timestamp = now()
+        await db.tasks.add({
+          id: crypto.randomUUID(),
+          title: entry.value,
+          rank,
+          startDate: anchor,
+          taskScope,
+          lifecycleStatus: 'active',
+          templateVersion: 1,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+          ...(categoryId && { categoryId }),
+          ...(recurrence && { recurrence }),
+          ...(recurrence?.mode === 'after_completion' && {
+            currentSequence: 1,
+            nextDueDate: anchor,
+          }),
+        })
+        created += 1
+      } catch (reason) {
+        failures.push({
+          line: entry.line,
+          value: entry.value,
+          reason: reason instanceof Error ? reason.message : '写入失败',
+        })
+      }
+    }
+  })
+  return { created, failures }
 }
 
 export async function renameTask(id: string, title: string): Promise<void> {

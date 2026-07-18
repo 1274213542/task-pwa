@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseBatchLines } from './batch'
+import { parseBatchEntries, parseBatchLines } from './batch'
 
 describe('多行批量输入', () => {
   it('按原顺序清理首尾空格并忽略空行', () => {
@@ -16,5 +16,12 @@ describe('多行批量输入', () => {
 
   it('单行保持原有新增语义', () => {
     expect(parseBatchLines('  写周报  ')).toEqual(['写周报'])
+  })
+
+  it('保留原始行号，便于精确反馈失败项', () => {
+    expect(parseBatchEntries('第一项\n\n  第三项  ')).toEqual([
+      { line: 1, value: '第一项' },
+      { line: 3, value: '第三项' },
+    ])
   })
 })

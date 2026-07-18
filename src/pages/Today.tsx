@@ -39,7 +39,7 @@ import { checkAfterCompletionIntegrity } from '../lib/integrity'
 import { addDaysISO, todayLocalISO } from '../lib/dates'
 import {
   RecurrenceConflictError,
-  addTasks,
+  addTasksDetailed,
   completeFixedOccurrence,
   completeTask,
   renameTask,
@@ -389,18 +389,23 @@ export default function Today() {
     setOpenMenuTaskId(null)
     setFeedback('')
     try {
-      const count = await addTasks(
+      const result = await addTasksDetailed(
         title,
         fixed ? (recurrence ?? defaultFixedRecurrence(scope)) : undefined,
         categoryId || undefined,
         undefined,
         scope,
       )
-      setTitle('')
-      setCategoryId('')
-      setComposerOpen(false)
-      inputRef.current?.blur()
-      setFeedback(count > 1 ? `已添加 ${count} 个任务` : '任务已添加')
+      if (result.created > 0) {
+        setTitle('')
+        setCategoryId('')
+        setComposerOpen(false)
+        inputRef.current?.blur()
+      }
+      const failureText = result.failures.length
+        ? `；失败 ${result.failures.map((item) => `第 ${item.line} 行「${item.value.slice(0, 18)}」：${item.reason}`).join('、')}`
+        : ''
+      setFeedback(`已添加 ${result.created} 个任务${failureText}`)
       window.setTimeout(() => setFeedback(''), 2200)
     } catch (reason) {
       console.error('添加任务失败', reason)
@@ -687,14 +692,13 @@ export default function Today() {
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
+              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
                 e.preventDefault()
                 void submit()
               }
             }}
-            rows={1}
-            placeholder="添加任务；多项可换行粘贴…"
-            enterKeyHint="done"
+            rows={3}
+            placeholder="每行一个任务；Enter 换行…"
             className="min-h-11 min-w-0 flex-1 resize-none rounded-xl bg-transparent px-3
               py-2.5 text-[16px] leading-6 outline-none placeholder:text-neutral-400"
           />
@@ -708,6 +712,7 @@ export default function Today() {
             <AppIcon name="plus" size={23} />
           </button>
         </div>
+        <p className="batch-input-hint">Enter 换行 · ⌘/Ctrl + Enter 添加全部</p>
         <div className="mt-1 flex flex-wrap items-center gap-2 px-1 pb-1">
           <div className="flex rounded-lg bg-black/5 p-0.5 text-[12px] dark:bg-white/10">
             <button

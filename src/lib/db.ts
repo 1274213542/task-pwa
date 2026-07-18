@@ -86,6 +86,8 @@ export interface CalendarEvent {
   categoryId?: string
   visualToken?: ColorToken
   markerSymbol?: MarkerSymbol
+  completionStatus?: 'pending' | 'completed' // v8 前旧记录缺省按 pending 读取
+  completedAt?: string
   lifecycleStatus: LifecycleStatus
   deletedAt?: string
   createdAt: string
@@ -125,6 +127,59 @@ export interface ShoppingItem {
   updatedAt: string
 }
 
+export interface WorkRecord {
+  id: string
+  date: string // PlainDate ISO，按设备本地日期归档
+  worked: boolean
+  durationMinutes: number
+  startTime?: string // HH:MM，本地民用时间
+  endTime?: string
+  breakMinutes?: number
+  note?: string
+  workLocation?: string
+  workType?: string
+  /** 创建/确认记录时的时薪快照；修改默认时薪不会改写历史。 */
+  hourlyRate: number
+  currency: 'JPY'
+  lifecycleStatus: LifecycleStatus
+  deletedAt?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface WageSettings {
+  id: '#wage'
+  defaultHourlyRate: number
+  currency: 'JPY'
+  updatedAt: string
+}
+
+export interface ExpenseCategory {
+  id: string
+  name: string
+  colorToken: ColorToken
+  rank: string
+  lifecycleStatus: LifecycleStatus
+  deletedAt?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ExpenseRecord {
+  id: string
+  amount: number
+  date: string // PlainDate ISO
+  merchant?: string
+  categoryId?: string
+  categoryNameSnapshot?: string
+  note?: string
+  paymentMethod?: string
+  lifecycleStatus: LifecycleStatus
+  deletedAt?: string
+  createdAt: string
+  updatedAt: string
+}
+
 export interface SyncedPreferences {
   id: string // '#prefs'：官方私有单例模式（# 前缀 + put + db.on.ready）
   weekStartsOn: 1 | 0
@@ -144,6 +199,10 @@ export const db = new Dexie('task-pwa', { addons: [dexieCloud] }) as Dexie & {
   calendarEvents: EntityTable<CalendarEvent, 'id'>
   shoppingItems: EntityTable<ShoppingItem, 'id'>
   shoppingLocations: EntityTable<ShoppingLocation, 'id'>
+  workRecords: EntityTable<WorkRecord, 'id'>
+  wageSettings: EntityTable<WageSettings, 'id'>
+  expenseRecords: EntityTable<ExpenseRecord, 'id'>
+  expenseCategories: EntityTable<ExpenseCategory, 'id'>
 }
 
 db.version(2).stores({
@@ -182,6 +241,29 @@ db.version(7)
     tasks:
       'id, lifecycleStatus, [lifecycleStatus+rank], [id+currentSequence], categoryId, taskScope',
   })
+
+// v8：在现有任务/日历/购物数据旁新增财务域；旧记录只补安全默认值。
+// 不改旧主键、不复制任务、不清理任何 IndexedDB 数据。
+db.version(8)
+  .stores({
+    calendarEvents:
+      'id, lifecycleStatus, startDate, endDate, completionStatus',
+    shoppingItems:
+      'id, lifecycleStatus, purchaseStatus, locationId, purchasedAt, [locationId+rank]',
+    workRecords: 'id, lifecycleStatus, date, [lifecycleStatus+date]',
+    wageSettings: 'id',
+    expenseRecords:
+      'id, lifecycleStatus, date, categoryId, merchant, [lifecycleStatus+date]',
+    expenseCategories: 'id, lifecycleStatus, rank',
+  })
+  .upgrade(async (tx) => {
+    await tx
+      .table('calendarEvents')
+      .toCollection()
+      .modify((event: CalendarEvent) => {
+        if (!event.completionStatus) event.completionStatus = 'pending'
+      })
+  })
   .upgrade(async (tx) => {
     await tx
       .table('tasks')
@@ -218,5 +300,26 @@ db.on('ready', async () => {
       uiTheme: 'violet-lime',
       updatedAt: new Date().toISOString(),
     })
+  }
+
+  const wage = await db.wageSettings.get('#wage')
+  if (!wage) {
+    await db.wageSettings.put({
+      id: '#wage',
+      defaultHourlyRate: 0,
+      currency: 'JPY',
+      updatedAt: new Date().toISOString(),
+    })
+  }
+
+  if ((await db.expenseCategories.count()) === 0) {
+    const createdAt = new Date().toISOString()
+    await db.expenseCategories.bulkPut([
+      { id: 'expense-food', name: '餐饮', colorToken: 'orange', rank: '0001', lifecycleStatus: 'active', createdAt, updatedAt: createdAt },
+      { id: 'expense-shopping', name: '购物', colorToken: 'pink', rank: '0002', lifecycleStatus: 'active', createdAt, updatedAt: createdAt },
+      { id: 'expense-transit', name: '交通', colorToken: 'blue', rank: '0003', lifecycleStatus: 'active', createdAt, updatedAt: createdAt },
+      { id: 'expense-life', name: '生活', colorToken: 'green', rank: '0004', lifecycleStatus: 'active', createdAt, updatedAt: createdAt },
+      { id: 'expense-study', name: '学习', colorToken: 'purple', rank: '0005', lifecycleStatus: 'active', createdAt, updatedAt: createdAt },
+    ])
   }
 })

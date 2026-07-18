@@ -63,3 +63,45 @@ describe('IndexedDB v6 → v7 数据迁移', () => {
     newDb.close()
   })
 })
+
+describe('IndexedDB v7 → v8 财务扩展迁移', () => {
+  it('保留旧日历事项并补 pending，新增表可直接写入', async () => {
+    const oldDb = new Dexie(`${name}-v8`)
+    oldDb.version(7).stores({
+      calendarEvents: 'id, lifecycleStatus, startDate, endDate',
+    })
+    await oldDb.open()
+    await oldDb.table('calendarEvents').add({
+      id: 'event-1',
+      title: '旧日程',
+      startDate: '2026-07-18',
+      endDate: '2026-07-18',
+      lifecycleStatus: 'active',
+    })
+    oldDb.close()
+
+    const upgraded = new Dexie(`${name}-v8`)
+    upgraded.version(7).stores({
+      calendarEvents: 'id, lifecycleStatus, startDate, endDate',
+    })
+    upgraded.version(8).stores({
+      calendarEvents: 'id, lifecycleStatus, startDate, endDate, completionStatus',
+      workRecords: 'id, lifecycleStatus, date, [lifecycleStatus+date]',
+      wageSettings: 'id',
+      expenseRecords: 'id, lifecycleStatus, date, categoryId, merchant, [lifecycleStatus+date]',
+      expenseCategories: 'id, lifecycleStatus, rank',
+    }).upgrade((tx) => tx.table('calendarEvents').toCollection().modify((event) => {
+      if (!event.completionStatus) event.completionStatus = 'pending'
+    }))
+    await upgraded.open()
+
+    expect(await upgraded.table('calendarEvents').get('event-1')).toMatchObject({
+      title: '旧日程',
+      completionStatus: 'pending',
+    })
+    await upgraded.table('workRecords').add({ id: 'work-1', date: '2026-07-18' })
+    expect(await upgraded.table('workRecords').count()).toBe(1)
+    upgraded.close()
+    await Dexie.delete(`${name}-v8`)
+  })
+})

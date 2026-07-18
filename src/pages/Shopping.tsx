@@ -1,11 +1,32 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ButtonHTMLAttributes, type CSSProperties } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from 'motion/react'
+import {
+  DndContext,
+  DragOverlay,
+  KeyboardSensor,
+  MouseSensor,
+  TouchSensor,
+  closestCenter,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { db, type ShoppingItem, type ShoppingLocation } from '../lib/db'
 import {
-  addItems,
+  addItemsDetailed,
   addLocation,
   markPurchased,
+  moveShoppingItem,
   renameLocation,
   softDeleteItem,
   softDeleteLocation,
@@ -26,10 +47,26 @@ function ItemRow({
   item,
   locationLabel,
   tone = 'green',
+  locations = [],
+  menuOpen = false,
+  onMenuToggle,
+  onMove,
+  liRef,
+  liStyle,
+  dragProps,
+  dragging = false,
 }: {
   item: ShoppingItem
   locationLabel?: string
   tone?: ColorToken
+  locations?: ShoppingLocation[]
+  menuOpen?: boolean
+  onMenuToggle?: () => void
+  onMove?: (locationId?: string) => void
+  liRef?: (node: HTMLLIElement | null) => void
+  liStyle?: CSSProperties
+  dragProps?: ButtonHTMLAttributes<HTMLButtonElement>
+  dragging?: boolean
 }) {
   const reduceMotion = useReducedMotion()
   const [confirming, setConfirming] = useState(false)
@@ -37,6 +74,8 @@ function ItemRow({
 
   return (
     <motion.li
+      ref={liRef}
+      style={liStyle}
       layout="position"
       initial={false}
       animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -44,7 +83,9 @@ function ItemRow({
       transition={reduceMotion ? MOTION.reduced : MOTION.list}
       data-color-token={tone}
       data-completed={purchased || undefined}
-      className="shopping-card row-in flex items-center gap-3"
+      data-menu-open={menuOpen || undefined}
+      className="shopping-card row-in relative flex items-center gap-3"
+      data-dragging={dragging || undefined}
     >
       <button
         aria-label={purchased ? '恢复待购' : '已购买'}
@@ -93,6 +134,43 @@ function ItemRow({
         )}
       </div>
 
+      {!purchased && (
+        <div className="shopping-item-actions">
+          <button
+            type="button"
+            aria-label={`移动或整理 ${item.name}`}
+            aria-expanded={menuOpen}
+            onClick={onMenuToggle}
+            className="shopping-item-more hit-target"
+          >
+            <AppIcon name="more" size={19} />
+          </button>
+          {menuOpen && (
+            <div className="shopping-move-menu" role="menu">
+              <p>移动到…</p>
+              <button role="menuitem" onClick={() => onMove?.(undefined)}>未指定地点</button>
+              {locations.map((location) => (
+                <button
+                  key={location.id}
+                  role="menuitem"
+                  onClick={() => onMove?.(location.id)}
+                >
+                  {location.name}
+                </button>
+              ))}
+            </div>
+          )}
+          <button
+            type="button"
+            aria-label={`长按拖动 ${item.name}`}
+            className="shopping-drag-handle hit-target"
+            {...dragProps}
+          >
+            <AppIcon name="drag" size={18} />
+          </button>
+        </div>
+      )}
+
       {confirming ? (
         <button
           onClick={() => void softDeleteItem(item.id)}
@@ -114,6 +192,38 @@ function ItemRow({
         </button>
       )}
     </motion.li>
+  )
+}
+
+function SortableShoppingRow(props: Omit<Parameters<typeof ItemRow>[0], 'liRef' | 'liStyle' | 'dragProps' | 'dragging'>) {
+  const sortable = useSortable({ id: props.item.id })
+  return (
+    <ItemRow
+      {...props}
+      liRef={sortable.setNodeRef}
+      liStyle={{
+        transform: CSS.Transform.toString(sortable.transform),
+        transition: sortable.transition,
+        opacity: sortable.isDragging ? 0.2 : 1,
+      }}
+      dragProps={{ ...sortable.attributes, ...sortable.listeners }}
+      dragging={sortable.isDragging}
+    />
+  )
+}
+
+function ShoppingDropGroup({
+  id,
+  children,
+}: {
+  id: string
+  children: React.ReactNode
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: `shopping-group:${id}` })
+  return (
+    <div ref={setNodeRef} className="shopping-drop-group" data-over={isOver || undefined}>
+      {children}
+    </div>
   )
 }
 
@@ -229,8 +339,15 @@ export default function Shopping() {
   const [feedback, setFeedback] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [composerOpen, setComposerOpen] = useState(false)
+  const [activeItemId, setActiveItemId] = useState<string | null>(null)
+  const [moveMenuId, setMoveMenuId] = useState<string | null>(null)
   const nameRef = useRef<HTMLTextAreaElement>(null)
   const submittingRef = useRef(false)
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 260, tolerance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
 
   const items = useLiveQuery(
     () => db.shoppingItems.where('lifecycleStatus').equals('active').sortBy('rank'),
@@ -280,18 +397,23 @@ export default function Shopping() {
     setSubmitting(true)
     setFeedback('')
     try {
-      const count = await addItems({
+      const result = await addItemsDetailed({
         names: name,
         quantity: qty ? Number(qty) : undefined,
         locationId: locationId || undefined,
       })
-      setName('')
-      setQty('')
-      setComposerOpen(false)
-      nameRef.current?.blur()
-      setManualLocation(false)
-      setLocationId('')
-      setFeedback(count > 1 ? `已添加 ${count} 件商品` : '商品已添加')
+      if (result.created > 0) {
+        setName('')
+        setQty('')
+        setComposerOpen(false)
+        nameRef.current?.blur()
+        setManualLocation(false)
+        setLocationId('')
+      }
+      const failureText = result.failures.length
+        ? `；失败 ${result.failures.map((item) => `第 ${item.line} 行「${item.value.slice(0, 18)}」：${item.reason}`).join('、')}`
+        : ''
+      setFeedback(`已添加 ${result.created} 件商品${failureText}`)
       window.setTimeout(() => setFeedback(''), 2200)
     } catch (reason) {
       console.error('添加商品失败', reason)
@@ -303,33 +425,105 @@ export default function Shopping() {
   }
 
   function switchGrouped(g: boolean) {
+    setMoveMenuId(null)
     setGrouped(g)
     localStorage.setItem('shoppingGrouped', g ? 'grouped' : 'flat')
   }
 
   // 按地点分组：实体在前、网站在后、无地点最后（v4.2 需求 §3）
   const groups: {
+    id: string
+    locationId?: string
     label: string
     type: 'physical' | 'online' | 'unassigned'
     items: ShoppingItem[]
+    purchasedCount: number
   }[] = []
   if (grouped && locations) {
     for (const loc of [...locations].sort((a, b) =>
       a.type === b.type ? a.rank.localeCompare(b.rank) : a.type === 'physical' ? -1 : 1,
     )) {
       const list = pending.filter((i) => i.locationId === loc.id)
-      if (list.length > 0)
-        groups.push({
-          label: loc.name,
-          type: loc.type,
-          items: list,
-        })
+      groups.push({
+        id: loc.id,
+        locationId: loc.id,
+        label: loc.name,
+        type: loc.type,
+        items: list,
+        purchasedCount: purchased.filter((item) => item.locationId === loc.id).length,
+      })
     }
     const known = new Set(locations.map((l) => l.id))
     const unassigned = pending.filter((i) => !i.locationId || !known.has(i.locationId))
     if (unassigned.length > 0)
-      groups.push({ label: '未指定地点', type: 'unassigned', items: unassigned })
+      groups.push({
+        id: 'unassigned',
+        label: '未指定地点',
+        type: 'unassigned',
+        items: unassigned,
+        purchasedCount: purchased.filter((item) => !item.locationId || !known.has(item.locationId)).length,
+      })
   }
+
+  async function moveTo(item: ShoppingItem, nextLocationId?: string) {
+    const targetItems = pending
+      .filter((candidate) => candidate.id !== item.id && candidate.locationId === nextLocationId)
+      .sort((a, b) => a.rank.localeCompare(b.rank))
+    await moveShoppingItem(
+      item.id,
+      nextLocationId,
+      targetItems.at(-1)?.rank ?? null,
+      null,
+      [...targetItems.map((candidate) => candidate.id), item.id],
+    )
+    setMoveMenuId(null)
+  }
+
+  function onDragStart(event: DragStartEvent) {
+    setMoveMenuId(null)
+    setActiveItemId(String(event.active.id))
+  }
+
+  function onDragEnd(event: DragEndEvent) {
+    setActiveItemId(null)
+    if (!event.over) return
+    const active = pending.find((item) => item.id === String(event.active.id))
+    if (!active) return
+    const overId = String(event.over.id)
+    const overItem = pending.find((item) => item.id === overId)
+    const locationId = overId.startsWith('shopping-group:')
+      ? overId.slice('shopping-group:'.length) || undefined
+      : overItem?.locationId
+    const normalizedLocationId = grouped
+      ? locationId === 'unassigned' ? undefined : locationId
+      : active.locationId
+    const targetItems = pending
+      .filter((item) =>
+        item.id !== active.id && (!grouped || item.locationId === normalizedLocationId),
+      )
+      .sort((a, b) => a.rank.localeCompare(b.rank))
+
+    let insertIndex = targetItems.length
+    if (overItem) {
+      const overIndex = targetItems.findIndex((item) => item.id === overItem.id)
+      const activeTop = event.active.rect.current.translated?.top ?? 0
+      const after = activeTop > event.over.rect.top + event.over.rect.height / 2
+      insertIndex = Math.max(0, overIndex + (after ? 1 : 0))
+    }
+    const beforeRank = targetItems[insertIndex - 1]?.rank ?? null
+    const afterRank = targetItems[insertIndex]?.rank ?? null
+    const orderedIds = targetItems.map((item) => item.id)
+    orderedIds.splice(insertIndex, 0, active.id)
+    void moveShoppingItem(
+      active.id,
+      normalizedLocationId,
+      beforeRank,
+      afterRank,
+      orderedIds,
+    )
+  }
+
+  const activeItem = pending.find((item) => item.id === activeItemId)
 
   return (
     <section className="app-page page-shopping">
@@ -389,14 +583,13 @@ export default function Shopping() {
           value={name}
           onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
+            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
               e.preventDefault()
               void submit()
             }
           }}
-          rows={1}
-          placeholder="添加商品；多项可换行粘贴…"
-          enterKeyHint="done"
+          rows={3}
+          placeholder="每行一件商品；Enter 换行…"
           className="min-h-11 min-w-0 flex-1 resize-none bg-transparent px-2 py-2.5
             text-[16px] leading-6 outline-none placeholder:text-neutral-400"
           />
@@ -420,6 +613,7 @@ export default function Shopping() {
             <AppIcon name="plus" size={23} />
           </button>
         </div>
+        <p className="batch-input-hint">Enter 换行 · ⌘/Ctrl + Enter 添加全部</p>
         {(locations?.length ?? 0) > 0 && (
           <div className="shopping-meta-row mt-1 flex items-center gap-2 px-1 pb-1">
             <span className="shrink-0 text-[12px] font-medium text-neutral-500">购买地点</span>
@@ -456,48 +650,92 @@ export default function Shopping() {
       </details>
 
       <LayoutGroup id="shopping-layout">
-      {pending.length === 0 ? (
-        <div
-          className="shopping-empty-state mt-6"
-        >
-          <MarkerIcon symbol="flower" color="green" size={52} />
-          <strong>清单是空的</strong>
-          <span>添加商品后会按地点和状态清楚归类</span>
-        </div>
-      ) : grouped ? (
-        groups.map((g) => (
-          <div key={g.label} className="mt-5">
-            <p className="shopping-group-title">
-              <AppIcon
-                name={g.type === 'online' ? 'browse' : g.type === 'physical' ? 'shopping' : 'category'}
-                size={17}
-              />
-              <span>{g.label}</span>
-              <span className="shopping-group-count">{g.items.length}</span>
-            </p>
-            <ul className="shopping-card-list mt-1.5">
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={onDragStart}
+        onDragCancel={() => setActiveItemId(null)}
+        onDragEnd={onDragEnd}
+        autoScroll
+      >
+        {pending.length === 0 ? (
+          <div className="shopping-empty-state mt-6">
+            <MarkerIcon symbol="flower" color="green" size={52} />
+            <strong>清单是空的</strong>
+            <span>添加商品后会按地点和状态清楚归类</span>
+          </div>
+        ) : grouped ? (
+          <div className="shopping-group-stack">
+          {groups.map((g) => (
+            <ShoppingDropGroup key={g.id} id={g.id}>
+              <section className="shopping-group-section">
+                <header className="shopping-group-title">
+                  <AppIcon
+                    name={g.type === 'online' ? 'browse' : g.type === 'physical' ? 'shopping' : 'category'}
+                    size={17}
+                  />
+                  <span>{g.label}</span>
+                  <span className="shopping-group-count">
+                    待购 {g.items.length} · 已购 {g.purchasedCount}
+                  </span>
+                </header>
+                <SortableContext
+                  items={g.items.map((item) => item.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <ul className="shopping-card-list">
+                    <AnimatePresence initial={false} mode="popLayout">
+                    {g.items.map((item, index) => (
+                      <SortableShoppingRow
+                        key={item.id}
+                        item={item}
+                        locations={locations ?? []}
+                        menuOpen={moveMenuId === item.id}
+                        onMenuToggle={() => setMoveMenuId((current) => current === item.id ? null : item.id)}
+                        onMove={(nextLocationId) => void moveTo(item, nextLocationId)}
+                        tone={SHOPPING_TONES[index % SHOPPING_TONES.length]}
+                      />
+                    ))}
+                    </AnimatePresence>
+                  </ul>
+                </SortableContext>
+                {g.items.length === 0 && <div className="shopping-group-empty">拖动商品到这里</div>}
+              </section>
+            </ShoppingDropGroup>
+          ))}
+          </div>
+        ) : (
+          <SortableContext
+            items={pending.map((item) => item.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            <ul className="shopping-card-list mt-4">
               <AnimatePresence initial={false} mode="popLayout">
-              {g.items.map((i, index) => (
-                <ItemRow key={i.id} item={i} tone={SHOPPING_TONES[index % SHOPPING_TONES.length]} />
+              {pending.map((item, index) => (
+                <SortableShoppingRow
+                  key={item.id}
+                  item={item}
+                  locationLabel={locName(item.locationId)}
+                  locations={locations ?? []}
+                  menuOpen={moveMenuId === item.id}
+                  onMenuToggle={() => setMoveMenuId((current) => current === item.id ? null : item.id)}
+                  onMove={(nextLocationId) => void moveTo(item, nextLocationId)}
+                  tone={SHOPPING_TONES[index % SHOPPING_TONES.length]}
+                />
               ))}
               </AnimatePresence>
             </ul>
-          </div>
-        ))
-      ) : (
-        <ul className="shopping-card-list mt-4">
-          <AnimatePresence initial={false} mode="popLayout">
-          {pending.map((i, index) => (
-            <ItemRow
-              key={i.id}
-              item={i}
-              locationLabel={locName(i.locationId)}
-              tone={SHOPPING_TONES[index % SHOPPING_TONES.length]}
-            />
-          ))}
-          </AnimatePresence>
-        </ul>
-      )}
+          </SortableContext>
+        )}
+        <DragOverlay dropAnimation={{ duration: 180, easing: 'cubic-bezier(.22,.78,.2,1)' }}>
+          {activeItem ? (
+            <div className="shopping-drag-overlay">
+              <AppIcon name="shopping" size={20} />
+              <strong>{activeItem.name}</strong>
+            </div>
+          ) : null}
+        </DragOverlay>
+      </DndContext>
 
       {purchased.length > 0 && (
         <div className="mt-6">

@@ -33,9 +33,19 @@ export async function addEvent(opts: {
     endDate: opts.endDate && opts.endDate > opts.date ? opts.endDate : opts.date,
     ...(startAt && { startAt, timezone }),
     ...(opts.categoryId && { categoryId: opts.categoryId }),
+    completionStatus: 'pending',
     lifecycleStatus: 'active',
     createdAt: t,
     updatedAt: t,
+  })
+}
+
+export async function toggleEventCompletion(event: { id: string; completionStatus?: 'pending' | 'completed' }): Promise<void> {
+  const completed = event.completionStatus === 'completed'
+  await db.calendarEvents.update(event.id, {
+    completionStatus: completed ? 'pending' : 'completed',
+    completedAt: completed ? undefined : now(),
+    updatedAt: now(),
   })
 }
 

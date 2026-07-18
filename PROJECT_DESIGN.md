@@ -6,14 +6,36 @@ separates stored product data from its visual projection.
 
 ## Information architecture
 
-- App start: `总览` (`/overview`). It summarizes today, this week, shopping,
-  recurring tasks, the next seven days and the next four actionable items.
-- Primary navigation: `总览 / 任务 / 计划 / 购物`; the centered add control is
-  an action, not a duplicate route.
+- App start: `总览` (`/overview`). It summarizes today's actionable records,
+  shopping and the next items without duplicating the underlying records.
+- Primary navigation: `总览 / 任务 / 计划 / 购物 / 财务`. These are five distinct
+  product domains; quick add remains a contextual action rather than a route.
+- `财务` pairs work-income estimates with daily spending. Work records remain
+  date-linked from `计划`, while accounting and range statistics live in one
+  coherent module instead of two isolated utilities.
 - `分类与记录` remains reachable from overview and the desktop sidebar. It is a
   utility screen, not an unexplained primary tab.
 - Calendar modes keep their existing functionality: month = overview, time =
   selected-week timeline, agenda = details, add and edit.
+
+## v8 product objects and relationships
+
+- `tasks` stores one-off tasks and fixed templates. `completionRecords` stores
+  period-specific completion/skip state; a template is never permanently
+  completed by checking one occurrence.
+- `calendarEvents` is a dated source record with its own completion state. The
+  overview and calendar update the same record rather than creating copies.
+- `shoppingLocations` owns reusable purchase groups. `shoppingItems` keeps
+  `locationId + rank`, allowing persisted in-group sorting and cross-group moves.
+- `workRecords` stores one dated work session, calculated minutes and the hourly
+  rate snapshot used for that session. `wageSettings` only supplies defaults for
+  future records, so a rate change does not rewrite confirmed history.
+- `expenseRecords` stores date, amount, merchant and a category snapshot;
+  `expenseCategories` owns the editable classification list.
+- Overview rows are projections over these source tables. Checking a row writes
+  back to its source object, keeping all pages and Dexie Cloud sync consistent.
+- IndexedDB schema v8 upgrades existing events in place and creates the new
+  tables. No task, shopping item, completion record or calendar id is replaced.
 
 ## Measured mobile system
 
