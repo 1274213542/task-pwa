@@ -8,6 +8,14 @@
  */
 
 :root {
+  --font-family-system: -apple-system, BlinkMacSystemFont, 'SF Pro Text',
+    'SF Pro Display', 'PingFang SC', 'Hiragino Sans', 'Yu Gothic', 'Segoe UI',
+    sans-serif;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
   /* Public semantic tokens. Page and component rules consume these values;
      the ds-* aliases below keep older feature markup on the same scale. */
   --color-page-bg: var(--ui-bg);
@@ -21,6 +29,12 @@
   --color-divider: color-mix(in srgb, var(--ui-ink) 8%, transparent);
   --color-control-selected: color-mix(in srgb, var(--ui-soft) 86%, var(--ui-surface));
   --color-control-pressed: color-mix(in srgb, var(--ui-ink) 7%, var(--ui-surface));
+  --color-icon-primary: #1c1c1e;
+  --color-icon-secondary: #6e6e73;
+  --color-icon-inactive: #8e8e93;
+  --color-action-neutral: #c7c7cc;
+  --color-action-accent: #0a84ff;
+  --color-action-danger: #ff3b30;
 
   --space-1: 4px;
   --space-2: 8px;
@@ -249,8 +263,7 @@ body,
 
 body {
   color: var(--ui-ink);
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'PingFang SC',
-    'Hiragino Sans', 'Yu Gothic UI', 'Segoe UI', sans-serif;
+  font-family: var(--font-family-system);
   font-size: 16px;
   line-height: var(--ds-leading-copy);
   letter-spacing: -0.01em;
@@ -9071,5 +9084,307 @@ select:focus {
 
   .page-browse .category-swipe-row .category-row {
     min-height: var(--grouped-row-height-two-line) !important;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Apple reference calibration · 390 × 844 mobile geometry
+
+   This final layer translates the supplied iOS references into explicit
+   typographic, icon, dock and swipe-action rules. It intentionally changes no
+   data attributes, event callbacks, routing or persistence behavior.
+   -------------------------------------------------------------------------- */
+
+:root {
+  --apple-page-title-size: 34px;
+  --apple-page-title-leading: 41px;
+  --apple-navigation-title-size: 17px;
+  --apple-navigation-title-leading: 22px;
+  --apple-section-title-size: 17px;
+  --apple-section-title-leading: 24px;
+  --apple-row-title-size: 17px;
+  --apple-row-title-leading: 22px;
+  --apple-secondary-size: 15px;
+  --apple-secondary-leading: 21px;
+  --apple-description-size: 14px;
+  --apple-description-leading: 20px;
+  --apple-tab-label-size: 10px;
+  --apple-tab-label-leading: 13px;
+  --apple-swipe-action-width: 68px;
+  --apple-swipe-pill-height: 44px;
+  --apple-swipe-action-height: 64px;
+}
+
+html[lang='zh-CN'] body {
+  letter-spacing: 0;
+}
+
+.page-title,
+.mobile-page-heading h1,
+.task-mobile-brand h1 {
+  font-size: var(--apple-page-title-size) !important;
+  font-weight: var(--font-weight-bold) !important;
+  line-height: var(--apple-page-title-leading) !important;
+  letter-spacing: -0.025em !important;
+}
+
+.secondary-page-header h1,
+.selection-picker-layout > header h2,
+.editor-sheet-header h2 {
+  font-size: var(--apple-navigation-title-size) !important;
+  font-weight: var(--font-weight-semibold) !important;
+  line-height: var(--apple-navigation-title-leading) !important;
+  letter-spacing: 0 !important;
+}
+
+.section-title,
+.section-heading,
+.finance-section-card > header h2,
+.shopping-group-title > span:not(.shopping-group-count) {
+  font-size: var(--apple-section-title-size) !important;
+  font-weight: var(--font-weight-semibold) !important;
+  line-height: var(--apple-section-title-leading) !important;
+  letter-spacing: 0 !important;
+}
+
+.task-card-title,
+.calendar-item-title,
+.shopping-item-title,
+.overview-today-list li strong,
+.overview-upcoming li strong,
+.finance-transaction-row strong {
+  font-size: var(--apple-row-title-size) !important;
+  font-weight: var(--font-weight-medium) !important;
+  line-height: var(--apple-row-title-leading) !important;
+  letter-spacing: 0 !important;
+}
+
+.task-card-meta,
+.calendar-item-meta,
+.shopping-item-meta,
+.task-card-subtitle,
+.overview-today-list li small,
+.overview-upcoming li small,
+.finance-transaction-row > div > span {
+  color: var(--color-text-secondary) !important;
+  font-size: var(--apple-secondary-size) !important;
+  font-weight: var(--font-weight-regular) !important;
+  line-height: var(--apple-secondary-leading) !important;
+}
+
+.page-eyebrow,
+.section-kicker,
+.section-label,
+.mobile-page-heading p,
+.task-mobile-brand p {
+  color: var(--color-text-secondary) !important;
+  font-size: var(--apple-secondary-size) !important;
+  font-weight: var(--font-weight-regular) !important;
+  line-height: var(--apple-secondary-leading) !important;
+  letter-spacing: 0 !important;
+}
+
+@media (max-width: 1023px) {
+  :root {
+    --dock-visual-height: 66px;
+    --dock-bottom-gap: max(12px, env(safe-area-inset-bottom, 0px));
+    --bottom-tabbar-height: var(--dock-visual-height);
+  }
+
+  .mobile-nav {
+    width: min(334px, calc(100vw - 32px)) !important;
+    height: var(--dock-visual-height) !important;
+    min-height: var(--dock-visual-height) !important;
+    border-radius: calc(var(--dock-visual-height) / 2) !important;
+  }
+
+  .mobile-nav-material {
+    border-color: color-mix(in srgb, var(--color-icon-primary) 9%, transparent) !important;
+    background: color-mix(in srgb, var(--color-surface-primary) 88%, transparent) !important;
+    box-shadow: 0 1px 0 rgb(255 255 255 / 0.72) inset,
+      0 8px 24px rgb(28 28 30 / 0.1) !important;
+    backdrop-filter: blur(16px) saturate(110%) !important;
+    -webkit-backdrop-filter: blur(16px) saturate(110%) !important;
+  }
+
+  .mobile-nav-list {
+    height: 100% !important;
+    padding: 4px !important;
+  }
+
+  .nav-active-surface {
+    top: 4px !important;
+    left: 4px !important;
+    width: calc((100% - 8px) / 5) !important;
+    height: calc(100% - 8px) !important;
+    border-radius: calc((var(--dock-visual-height) - 8px) / 2) !important;
+    background: #e9e9ee !important;
+    box-shadow: 0 1px 0 rgb(255 255 255 / 0.48) inset !important;
+  }
+
+  .mobile-tab-link {
+    min-height: 58px !important;
+    flex-direction: column !important;
+    gap: 2px !important;
+    padding: 0 !important;
+    color: var(--color-icon-inactive) !important;
+    font-family: var(--font-family-system);
+  }
+
+  .mobile-tab-link.is-active {
+    color: var(--color-icon-primary) !important;
+  }
+
+  .mobile-tab-icon {
+    width: 23px !important;
+    height: 23px !important;
+    transform: none !important;
+  }
+
+  .mobile-tab-icon svg {
+    width: 21px !important;
+    height: 21px !important;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .mobile-tab-label {
+    display: block !important;
+    color: currentColor;
+    font-size: var(--apple-tab-label-size) !important;
+    font-weight: var(--font-weight-medium) !important;
+    line-height: var(--apple-tab-label-leading) !important;
+    letter-spacing: 0 !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  .mobile-tab-link.is-active .mobile-tab-label {
+    font-weight: var(--font-weight-semibold) !important;
+  }
+
+  .mobile-tab-link,
+  .mobile-tab-icon,
+  .mobile-tab-label {
+    transition: color 240ms var(--ease-standard), opacity 240ms var(--ease-standard) !important;
+  }
+
+  .mobile-page-primary svg,
+  .mobile-page-secondary svg,
+  .task-round-action svg,
+  .task-filter-action svg,
+  .task-toolbar-action svg {
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .overview-hero-progress {
+    display: grid !important;
+    grid-template-columns: auto auto;
+    grid-template-rows: auto auto;
+    place-content: center;
+    place-items: center;
+    column-gap: 1px;
+    row-gap: 1px;
+  }
+
+  .overview-hero-progress > strong {
+    align-self: auto !important;
+    line-height: 1 !important;
+  }
+
+  .overview-hero-progress > span,
+  .overview-hero-progress-empty {
+    grid-column: 1 / -1;
+    margin: 0 !important;
+    white-space: nowrap;
+  }
+
+  .overview-hero-progress-empty {
+    font-size: var(--apple-secondary-size) !important;
+    font-weight: var(--font-weight-semibold) !important;
+    line-height: var(--apple-secondary-leading) !important;
+  }
+
+  .apple-swipe-action,
+  .task-swipe-action,
+  .page-shopping .shopping-swipe-action,
+  .page-shopping .shopping-swipe-delete {
+    display: grid !important;
+    width: var(--apple-swipe-action-width) !important;
+    height: var(--apple-swipe-action-height) !important;
+    min-height: var(--apple-swipe-action-height) !important;
+    flex: 0 0 var(--apple-swipe-action-width) !important;
+    grid-template-rows: var(--apple-swipe-pill-height) 17px !important;
+    place-items: center !important;
+    align-content: center !important;
+    gap: 3px !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    padding: 0 !important;
+    color: var(--color-icon-inactive) !important;
+    font-family: var(--font-family-system);
+    font-size: 13px !important;
+    font-weight: var(--font-weight-medium) !important;
+    line-height: 17px !important;
+  }
+
+  .apple-swipe-action__pill {
+    display: grid;
+    width: var(--apple-swipe-action-width);
+    height: var(--apple-swipe-pill-height);
+    place-items: center;
+    border-radius: calc(var(--apple-swipe-pill-height) / 2);
+    background: var(--color-action-neutral);
+    color: #fff;
+  }
+
+  .apple-swipe-action__pill svg {
+    stroke-width: 1.9;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .apple-swipe-action__label {
+    color: var(--color-icon-inactive);
+    white-space: nowrap;
+  }
+
+  .page-shopping .shopping-item-actions {
+    transition: opacity var(--duration-fast) var(--ease-standard);
+  }
+
+  .page-shopping .shopping-swipe-row[data-swipe-open] .shopping-item-actions {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .apple-swipe-action.is-accent .apple-swipe-action__pill,
+  .task-swipe-edit .apple-swipe-action__pill,
+  .page-shopping .shopping-swipe-move .apple-swipe-action__pill {
+    background: var(--color-action-accent);
+  }
+
+  .apple-swipe-action.is-danger .apple-swipe-action__pill,
+  .task-swipe-delete .apple-swipe-action__pill,
+  .page-shopping .shopping-swipe-delete .apple-swipe-action__pill {
+    background: var(--color-action-danger);
+  }
+
+  .apple-swipe-action.is-neutral .apple-swipe-action__pill,
+  .task-swipe-more .apple-swipe-action__pill,
+  .page-shopping .shopping-swipe-more .apple-swipe-action__pill {
+    background: var(--color-action-neutral);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) and (max-width: 1023px) {
+  .mobile-nav-material {
+    background: var(--color-surface-primary) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
   }
 }

@@ -321,8 +321,10 @@ function ItemRow({
             onPointerDown={stopDragActivation}
             onClick={onMenuToggle}
           >
-            <AppIcon name="more" size={18} />
-            <span>更多</span>
+            <span className="apple-swipe-action__pill" aria-hidden="true">
+              <AppIcon name="more" size={20} />
+            </span>
+            <span className="apple-swipe-action__label">更多</span>
           </button>
           <button
             type="button"
@@ -331,8 +333,10 @@ function ItemRow({
             onPointerDown={stopDragActivation}
             onClick={onMenuToggle}
           >
-            <AppIcon name="folder" size={18} />
-            <span>移动</span>
+            <span className="apple-swipe-action__pill" aria-hidden="true">
+              <AppIcon name="folder" size={20} />
+            </span>
+            <span className="apple-swipe-action__label">移动</span>
           </button>
           <button
             type="button"
@@ -341,8 +345,10 @@ function ItemRow({
             onPointerDown={stopDragActivation}
             onClick={onDelete}
           >
-            <AppIcon name="trash" size={18} />
-            <span>删除</span>
+            <span className="apple-swipe-action__pill" aria-hidden="true">
+              <AppIcon name="trash" size={20} />
+            </span>
+            <span className="apple-swipe-action__label">删除</span>
           </button>
         </motion.div>
       )}

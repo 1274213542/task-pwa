@@ -303,8 +303,10 @@ export default function SwipeActionRow({
               action.onSelect()
             }}
           >
-            <AppIcon name={action.icon} size={18} />
-            <span>{action.label}</span>
+            <span className="apple-swipe-action__pill" aria-hidden="true">
+              <AppIcon name={action.icon} size={20} />
+            </span>
+            <span className="apple-swipe-action__label">{action.label}</span>
           </button>
         ))}
       </div>

@@ -376,8 +376,10 @@ export default function TaskRow({
             onMenuToggle?.()
           }}
         >
-          <AppIcon name="more" size={18} />
-          <span>更多</span>
+          <span className="apple-swipe-action__pill" aria-hidden="true">
+            <AppIcon name="more" size={20} />
+          </span>
+          <span className="apple-swipe-action__label">更多</span>
         </button>
         <button
           type="button"
@@ -390,8 +392,10 @@ export default function TaskRow({
             actions.onEdit?.()
           }}
         >
-          <AppIcon name="edit" size={18} />
-          <span>编辑</span>
+          <span className="apple-swipe-action__pill" aria-hidden="true">
+            <AppIcon name="edit" size={20} />
+          </span>
+          <span className="apple-swipe-action__label">编辑</span>
         </button>
         <button
           type="button"
@@ -403,8 +407,10 @@ export default function TaskRow({
             actions.onDelete()
           }}
         >
-          <AppIcon name="trash" size={18} />
-          <span>删除</span>
+          <span className="apple-swipe-action__pill" aria-hidden="true">
+            <AppIcon name="trash" size={20} />
+          </span>
+          <span className="apple-swipe-action__label">删除</span>
         </button>
       </motion.div>
       <motion.div

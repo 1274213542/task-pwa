@@ -8,14 +8,14 @@
 
 :root,
 :root[data-ui-theme='violet-lime'] {
-  --ui-bg: #f7f6f2;
+  --ui-bg: #f2f2f7;
   --ui-surface: #ffffff;
-  --ui-soft: #efeee9;
-  --ui-soft-2: #e8e7e1;
-  --ui-ink: #1d1e1b;
-  --ui-muted: #73756e;
-  --ui-faint: #a9aba4;
-  --ui-line: #e2e1db;
+  --ui-soft: #eeeef2;
+  --ui-soft-2: #e5e5ea;
+  --ui-ink: #111111;
+  --ui-muted: #6e6e73;
+  --ui-faint: #8e8e93;
+  --ui-line: #d1d1d6;
   --ui-accent: #dbe77d;
   --ui-accent-soft: #f0f3d5;
   --ui-secondary: #dcd9ef;
