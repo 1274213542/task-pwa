@@ -7297,3 +7297,111 @@ select:focus {
     border-left: 0;
   }
 }
+
+/* Phase 1 · Finance / funds. Zero-value purpose summaries stay compact;
+   pools, transfers and goals use section rows; expandable creators keep a
+   visible 44px entry point without sitting underneath the bottom dock. */
+@media (max-width: 1023px) {
+  .finance-shell .finance-funds-view {
+    gap: var(--space-3) !important;
+  }
+
+  .finance-shell .finance-fund-metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-2);
+  }
+
+  .finance-shell .finance-fund-metrics article,
+  .finance-shell .finance-fund-metrics article:last-child:nth-child(odd) {
+    min-height: 76px !important;
+    grid-column: auto;
+    align-content: space-between;
+    border-radius: var(--radius-card-small);
+    padding: 10px;
+  }
+
+  .finance-shell .finance-fund-metrics article > span,
+  .finance-shell .finance-fund-metrics article > small {
+    overflow: hidden;
+    color: var(--color-text-secondary);
+    font-size: 0.61rem;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .finance-shell .finance-fund-metrics article > strong {
+    color: var(--color-text-primary);
+    font-size: clamp(0.9rem, 3.7vw, 1.12rem);
+  }
+
+  .finance-shell .finance-fund-list {
+    padding: var(--space-3) !important;
+  }
+
+  .finance-shell .finance-fund-list > header {
+    min-height: 38px;
+  }
+
+  .finance-shell .finance-fund-list > ul {
+    margin-top: var(--space-2);
+  }
+
+  .finance-shell .finance-fund-list li {
+    min-height: 56px;
+    gap: var(--space-2);
+    padding-block: 6px;
+  }
+
+  .finance-shell .finance-fund-list li > div:first-child > strong {
+    color: var(--color-text-primary);
+    font-size: 0.84rem;
+  }
+
+  .finance-shell .finance-fund-list li span,
+  .finance-shell .finance-fund-list li small {
+    color: var(--color-text-secondary);
+  }
+
+  .finance-shell .finance-fund-row-value > b {
+    color: var(--color-text-primary);
+    font-size: 0.78rem;
+  }
+
+  .finance-shell .finance-inline-actions button {
+    min-width: 44px;
+    min-height: 32px;
+    background: var(--color-surface-secondary);
+    color: var(--color-text-secondary);
+  }
+
+  .finance-shell .finance-inline-details {
+    padding: var(--space-2) var(--space-3) !important;
+  }
+
+  .finance-shell .finance-inline-details > summary {
+    min-height: var(--icon-button-size);
+  }
+
+  .finance-shell .finance-inline-details[open] > summary {
+    margin-bottom: var(--space-2);
+  }
+
+  .finance-shell .finance-fund-onboarding {
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+    padding: var(--space-3);
+  }
+
+  .finance-shell .finance-fund-onboarding ol {
+    display: none;
+  }
+
+  .finance-shell .finance-fund-onboarding li {
+    min-height: 40px;
+  }
+
+  .finance-shell .finance-savings-goals {
+    padding: var(--space-3) !important;
+  }
+}
