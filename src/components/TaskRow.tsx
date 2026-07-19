@@ -216,11 +216,21 @@ export default function TaskRow({
         className="task-card-check"
         aria-label={completed ? '取消完成' : '完成'}
       >
-        {completed ? (
-          <AppIcon name="check" size={16} weight="bold" />
-        ) : (
-          <span className="task-card-check-empty" aria-hidden />
-        )}
+        <motion.span
+          className="task-card-check-feedback"
+          initial={false}
+          animate={completed
+            ? { scale: 1, opacity: 1 }
+            : { scale: 0.88, opacity: 0.86 }}
+          transition={reduceMotion ? MOTION.reduced : MOTION.press}
+          aria-hidden
+        >
+          {completed ? (
+            <AppIcon name="check" size={16} weight="bold" />
+          ) : (
+            <span className="task-card-check-empty" />
+          )}
+        </motion.span>
       </button>
 
       <div className="task-card-copy">

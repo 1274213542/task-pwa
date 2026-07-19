@@ -383,12 +383,6 @@ function FinanceOverview({
     .reduce((sum, entry) => sum + entry.estimatedGrossMinor, 0)
   return (
     <div className="finance-ledger-dashboard">
-      <div className="finance-work-summary">
-        <article><span>本月至今工时</span><strong>{formatMinutes(workMinutes)}</strong><small>{monthWork.length} 个工作日</small></article>
-        <article><span>预计税前工资</span><strong>{formatMoney(estimatedPay, currency)}</strong><small>未结算工作记录</small></article>
-        <article><span>本月至今支出</span><strong>{formatMoney(summary.consumptionMinor, currency)}</strong><small>含外部代付</small></article>
-      </div>
-
       <section className="finance-net-worth-card">
         <span>个人净资产</span>
         <strong>{formatMoney(summary.netWorthMinor, currency)}</strong>
@@ -397,6 +391,12 @@ function FinanceOverview({
           <span>负债 {formatMoney(summary.liabilitiesMinor, currency)}</span>
         </div>
       </section>
+
+      <div className="finance-work-summary">
+        <article><span>本月至今工时</span><strong>{formatMinutes(workMinutes)}</strong><small>{monthWork.length} 个工作日</small></article>
+        <article><span>预计税前工资</span><strong>{formatMoney(estimatedPay, currency)}</strong><small>未结算工作记录</small></article>
+        <article><span>本月至今支出</span><strong>{formatMoney(summary.consumptionMinor, currency)}</strong><small>含外部代付</small></article>
+      </div>
 
       <section className="finance-section-card finance-quick-actions">
         <header><div><span>快捷操作</span><h2>记录资金变化</h2></div></header>

@@ -10,16 +10,14 @@ import type { Transition } from 'motion/react'
 export const MOTION = {
   press: { type: 'spring', stiffness: 700, damping: 46, mass: 0.7 },
   control: { type: 'spring', stiffness: 620, damping: 46, mass: 0.76 },
-  // The shared dock indicator intentionally settles a little slower than a
-  // press feedback. The short delay creates the soft "bubble handoff" seen in
-  // the reference recording; Motion still carries the current velocity when a
-  // new tab is chosen, so rapid taps redirect the same spring in place.
+  // The shared dock indicator starts with the icon/label state handoff. Motion
+  // still carries the current velocity when a new tab is chosen, so rapid taps
+  // redirect one persistent bubble instead of queueing animations.
   nav: {
     type: 'spring',
-    stiffness: 320,
-    damping: 30,
-    mass: 1,
-    delay: 0.02,
+    stiffness: 360,
+    damping: 34,
+    mass: 0.96,
   },
   route: { type: 'spring', bounce: 0, stiffness: 480, damping: 46, mass: 0.9 },
   push: { type: 'spring', bounce: 0, stiffness: 430, damping: 43, mass: 0.94 },

@@ -33,9 +33,11 @@
   --ds-radius-compact: 12px;
   --ds-radius-pill: 999px;
 
-  --ds-section-gap: 20px;
-  --ds-list-gap: 10px;
+  /* Page rhythm: related controls use 8/12/16; separate sections use 20/24. */
+  --ds-section-gap: 16px;
+  --ds-list-gap: 8px;
   --ds-card-padding: 16px;
+  --ds-row-height: 58px;
 
   --ds-type-display: clamp(2rem, 4vw, 2.75rem);
   --ds-type-page-mobile: 1.5rem;
@@ -50,8 +52,10 @@
   --ds-border: color-mix(in srgb, var(--ui-ink) 9%, transparent);
   --ds-border-strong: color-mix(in srgb, var(--ui-ink) 14%, transparent);
   --ds-control-bg: color-mix(in srgb, var(--ui-soft) 88%, var(--ui-surface));
-  --ds-shadow-card: 0 1px 1px rgb(24 27 23 / 0.025),
-    0 8px 24px rgb(24 27 23 / 0.055);
+  --ds-shadow-card: 0 1px 1px rgb(24 27 23 / 0.02),
+    0 4px 14px rgb(24 27 23 / 0.035);
+  --ds-shadow-primary: 0 1px 1px rgb(24 27 23 / 0.025),
+    0 8px 24px rgb(24 27 23 / 0.05);
   --ds-shadow-float: 0 1px 0 rgb(255 255 255 / 0.62) inset,
     0 12px 34px rgb(24 27 23 / 0.13);
   --ds-shadow-modal: 0 24px 72px rgb(24 27 23 / 0.18);
@@ -1294,7 +1298,8 @@ select:focus {
     --ds-border: var(--neutral-line);
     --ds-border-strong: #d9dbd7;
     --ds-control-bg: var(--neutral-control);
-    --ds-shadow-card: 0 6px 20px rgb(0 0 0 / 0.045);
+    --ds-shadow-card: 0 4px 14px rgb(0 0 0 / 0.032);
+    --ds-shadow-primary: 0 8px 24px rgb(0 0 0 / 0.045);
     --ds-shadow-float: 0 1px 0 rgb(255 255 255 / 0.72) inset,
       0 10px 28px rgb(20 21 20 / 0.085);
     --ds-glass-nav: rgb(255 255 255 / 0.86);
@@ -3667,5 +3672,352 @@ select:focus {
   .finance-quick-actions > div button {
     min-height: 58px;
     padding-inline: 2px;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Product-order hierarchy
+
+   Primary surfaces establish context, secondary surfaces group a function,
+   and repeated records become flat rows inside one section. This is the
+   shared mobile/desktop component model—not another page-local theme layer.
+   -------------------------------------------------------------------------- */
+
+.app-page,
+.finance-ledger-page {
+  gap: var(--ds-section-gap) !important;
+}
+
+.mobile-page-header {
+  min-height: 62px !important;
+  padding-block: var(--ds-space-2) var(--ds-space-3) !important;
+}
+
+.mobile-page-actions {
+  gap: var(--ds-space-2) !important;
+}
+
+.mobile-page-heading p {
+  margin-bottom: 1px !important;
+}
+
+.segmented-control,
+.mobile-shopping-view-switch,
+.finance-mode-switch,
+.finance-inline-switch,
+.finance-ledger-tabs {
+  min-height: 46px !important;
+  padding: 3px !important;
+}
+
+.segmented-control button,
+.mobile-shopping-view-switch button,
+.finance-mode-switch button,
+.finance-inline-switch button,
+.finance-ledger-tabs button {
+  min-height: 38px !important;
+}
+
+.finance-ledger-tab-surface {
+  height: 38px !important;
+}
+
+/* Primary anchors carry the page's strongest data/context. */
+.overview-hero,
+.calendar-card,
+.finance-net-worth-card {
+  box-shadow: var(--ds-shadow-primary) !important;
+}
+
+/* Secondary modules group controls or related records without competing with
+   the primary anchor. */
+.overview-today-list,
+.overview-calendar-strip,
+.overview-upcoming,
+.agenda-hero,
+.calendar-selection-summary,
+.shopping-group-section,
+.finance-section-card,
+.task-card-list.task-compact-list,
+.task-card-list.completed-card-list {
+  box-shadow: var(--ds-shadow-card) !important;
+}
+
+.page-overview {
+  gap: var(--ds-space-3) !important;
+}
+
+.overview-metrics {
+  gap: var(--ds-space-2) !important;
+}
+
+.overview-metric {
+  min-height: 82px !important;
+  box-shadow: none !important;
+}
+
+/* Task lists are one section with dense, sortable rows rather than a stack of
+   same-weight cards. Menus remain portalled and dragging still owns the row
+   transform, so this does not change task behavior. */
+.task-card-list.task-compact-list,
+.task-card-list.completed-card-list {
+  gap: 0 !important;
+  overflow: visible;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-card);
+  background: var(--ui-surface);
+  padding: 4px 12px;
+}
+
+.task-card-list.task-compact-list .task-card,
+.task-card-list.completed-card-list .task-card {
+  min-height: var(--ds-row-height) !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  padding: 6px 0 !important;
+  box-shadow: none !important;
+}
+
+.task-card-list.task-compact-list .task-card-shell + .task-card-shell .task-card,
+.task-card-list.completed-card-list .task-card-shell + .task-card-shell .task-card {
+  border-top: 1px solid var(--ds-border) !important;
+}
+
+.task-card-check-feedback {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  transform-origin: center;
+}
+
+.task-card-copy {
+  gap: 2px !important;
+}
+
+.task-composer-card textarea,
+.shopping-composer-card textarea,
+.calendar-composer textarea {
+  min-height: 70px !important;
+  padding-block: 10px !important;
+}
+
+.task-composer-card,
+.shopping-composer-card,
+.calendar-composer {
+  padding: 8px !important;
+}
+
+.batch-input-hint {
+  margin-block: 4px 2px !important;
+}
+
+/* Agenda dates own a single white list surface; individual events are rows. */
+.agenda-layout,
+.agenda-list {
+  gap: var(--ds-section-gap) !important;
+}
+
+.agenda-day {
+  gap: var(--ds-space-2) !important;
+}
+
+.agenda-day > header {
+  padding-inline: 4px;
+}
+
+.calendar-item-list {
+  gap: 0 !important;
+  overflow: hidden;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-card);
+  background: var(--ui-surface);
+  box-shadow: var(--ds-shadow-card);
+}
+
+.calendar-item-list .calendar-item-card {
+  min-height: var(--ds-row-height) !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  padding: 6px 8px !important;
+  box-shadow: none !important;
+}
+
+.calendar-item-list .calendar-item-card + .calendar-item-card {
+  border-top: 1px solid var(--ds-border) !important;
+}
+
+.calendar-selection-summary li button {
+  color: var(--ui-ink) !important;
+  font-weight: 590;
+}
+
+.calendar-selection-summary li small {
+  color: var(--ui-muted) !important;
+  font-weight: 500;
+}
+
+.calendar-empty-agenda {
+  min-height: 112px !important;
+  padding: var(--ds-space-4) !important;
+}
+
+.agenda-hero {
+  min-height: 68px !important;
+}
+
+.shopping-group-stack {
+  gap: var(--ds-space-3) !important;
+}
+
+.shopping-group-section {
+  box-shadow: var(--ds-shadow-card) !important;
+}
+
+/* Finance starts with one data anchor. Work/pay/spending are a compact metric
+   group, while actions and transactions use section + rows. */
+.finance-ledger-dashboard,
+.finance-accounts-view,
+.finance-transactions-view,
+.finance-work-v2,
+.finance-stats-view {
+  gap: var(--ds-space-3) !important;
+}
+
+.finance-net-worth-card {
+  min-height: 128px !important;
+  padding: var(--ds-space-5) !important;
+}
+
+.finance-net-worth-card > strong {
+  font-size: clamp(1.85rem, 7vw, 3rem) !important;
+}
+
+.finance-work-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 !important;
+  overflow: hidden;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-card);
+  background: var(--ui-surface);
+  box-shadow: var(--ds-shadow-card);
+}
+
+.finance-work-summary article,
+.finance-work-summary article:last-child {
+  min-height: 78px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  padding: 12px !important;
+  box-shadow: none !important;
+}
+
+.finance-work-summary article:nth-child(2) {
+  border-left: 1px solid var(--ds-border) !important;
+}
+
+.finance-work-summary article:last-child {
+  min-height: 54px !important;
+  grid-column: 1 / -1 !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  border-top: 1px solid var(--ds-border) !important;
+}
+
+.finance-work-summary strong {
+  font-size: clamp(1.05rem, 4.2vw, 1.42rem) !important;
+}
+
+.finance-section-card {
+  padding: 14px !important;
+}
+
+.finance-quick-actions > div {
+  gap: 0 !important;
+  overflow: hidden;
+  border-top: 1px solid var(--ds-border);
+  margin-top: 10px !important;
+}
+
+.finance-quick-actions > div button {
+  min-height: 52px !important;
+  border-left: 1px solid var(--ds-border);
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+
+.finance-quick-actions > div button:first-child {
+  border-left: 0;
+}
+
+.finance-account-snapshot li,
+.finance-transaction-list li {
+  min-height: var(--ds-row-height) !important;
+}
+
+/* One shared dock surface begins moving with the label/icon color handoff. */
+.mobile-tab-link,
+.mobile-tab-icon,
+.mobile-tab-label {
+  transition: color 300ms var(--ds-ease-move), opacity 300ms var(--ds-ease-move) !important;
+}
+
+.mobile-nav-material {
+  box-shadow: 0 1px 0 rgb(255 255 255 / 0.68) inset,
+    0 7px 20px rgb(20 21 20 / 0.07) !important;
+}
+
+@media (min-width: 720px) {
+  :root {
+    --ds-section-gap: 20px;
+  }
+
+  .finance-net-worth-card {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .finance-quick-actions {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .finance-work-summary {
+    grid-column: 1;
+    grid-row: 2;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .finance-work-summary article,
+  .finance-work-summary article:last-child {
+    min-height: 88px !important;
+    grid-column: auto !important;
+    grid-template-columns: 1fr !important;
+    border-top: 0 !important;
+  }
+
+  .finance-work-summary article:nth-child(3) {
+    border-left: 1px solid var(--ds-border) !important;
+  }
+
+  .finance-account-snapshot {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .finance-transaction-list {
+    grid-column: 1 / -1;
+    grid-row: 3;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mobile-tab-link,
+  .mobile-tab-icon,
+  .mobile-tab-label {
+    transition-duration: 120ms !important;
   }
 }

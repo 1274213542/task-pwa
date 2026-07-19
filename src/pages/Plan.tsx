@@ -451,7 +451,9 @@ export default function Plan() {
   const selectedItems = itemsForDate(selected)
   const futureAgendaGroups = agendaDates
     .map((date) => ({ date, items: itemsForDate(date) }))
-    .filter((group) => group.items.length > 0)
+    // The focused date is already fully represented by dayPanel. Excluding it
+    // keeps “未来 30 天” from repeating the same rows immediately below.
+    .filter((group) => group.date !== selected && group.items.length > 0)
   const futureAgendaCount = futureAgendaGroups.reduce((sum, group) => sum + group.items.length, 0)
   const selectedWork = (workRecords ?? []).filter((record) => record.date === selected)
   const monthLabel = `${cursor.year} 年 ${cursor.month} 月`
