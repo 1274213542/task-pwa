@@ -10,6 +10,7 @@ import type {
 
 const MIGRATION_ID = 'finance-funds-v3' as const
 export const LEGACY_UNSPECIFIED_POOL_ID = 'fund-pool:legacy-unspecified:JPY'
+export const legacyUnspecifiedPoolId = (currency: string) => `fund-pool:legacy-unspecified:${currency}`
 
 interface FinanceFundsSnapshot {
   id: string
@@ -35,12 +36,12 @@ function safetyDb(name: string) {
   return backup
 }
 
-function migrationPool(timestamp: string, openingBalanceMinor: number): FundPool {
+function migrationPool(timestamp: string, openingBalanceMinor: number, currency: Account['currency']): FundPool {
   return {
-    id: LEGACY_UNSPECIFIED_POOL_ID,
-    name: '未指定资金来源',
+    id: legacyUnspecifiedPoolId(currency),
+    name: `未指定资金来源 · ${currency}`,
     purpose: 'unspecified',
-    currency: 'JPY',
+    currency,
     // Old spending is represented for traceability but must not fabricate a
     // negative current-purpose balance. This synthetic opening allocation is
     // fully consumed/locked by the migrated rows, leaving current real assets
@@ -96,15 +97,16 @@ export async function ensureFinanceFundsMigration(
         !['expense', 'credit_purchase'].includes(transaction.type)
       ) continue
       const account = accountMap.get(transaction.accountId)
-      if (!account || owns(account) !== 'self' || transaction.currency !== 'JPY') continue
+      if (!account || owns(account) !== 'self') continue
       const effect = transaction.type === 'credit_purchase' ? 'reserve' : 'debit'
+      const fundPoolId = legacyUnspecifiedPoolId(transaction.currency)
       const reservationId = effect === 'reserve'
         ? `fund-reservation:migration:${transaction.id}`
         : undefined
       allocations.push({
         id: `fund-allocation:migration:${transaction.id}`,
         transactionId: transaction.id,
-        fundPoolId: LEGACY_UNSPECIFIED_POOL_ID,
+        fundPoolId,
         amountMinor: transaction.amountMinor,
         currency: transaction.currency,
         effect,
@@ -118,7 +120,7 @@ export async function ensureFinanceFundsMigration(
           id: reservationId,
           transactionId: transaction.id,
           creditAccountId: transaction.accountId,
-          fundPoolId: LEGACY_UNSPECIFIED_POOL_ID,
+          fundPoolId,
           amountMinor: transaction.amountMinor,
           settledAmountMinor: 0,
           releasedAmountMinor: 0,
@@ -150,10 +152,18 @@ export async function ensureFinanceFundsMigration(
       states,
       async () => {
         if (allocations.length > 0) {
-          await db.table('fundPools').put(migrationPool(
-            timestamp,
-            allocations.reduce((sum, allocation) => sum + allocation.amountMinor, 0),
-          ))
+          const openingByCurrency = new Map<Account['currency'], number>()
+          for (const allocation of allocations) {
+            openingByCurrency.set(
+              allocation.currency,
+              (openingByCurrency.get(allocation.currency) ?? 0) + allocation.amountMinor,
+            )
+          }
+          await db.table('fundPools').bulkPut(
+            [...openingByCurrency].map(([currency, openingBalanceMinor]) =>
+              migrationPool(timestamp, openingBalanceMinor, currency),
+            ),
+          )
           await db.table('transactionFundAllocations').bulkPut(allocations)
           if (reservations.length > 0) await db.table('fundReservations').bulkPut(reservations)
           await db.table('financeTransactions').bulkUpdate(
@@ -200,7 +210,7 @@ export async function rollbackFinanceFundsMigration(db: Dexie): Promise<void> {
       const transactionIds = [...new Set(allocations.map((row) => row.transactionId))]
       await db.table('transactionFundAllocations').where('id').startsWith('fund-allocation:migration:').delete()
       await db.table('fundReservations').where('id').startsWith('fund-reservation:migration:').delete()
-      await db.table('fundPools').delete(LEGACY_UNSPECIFIED_POOL_ID)
+      await db.table('fundPools').where('id').startsWith('fund-pool:legacy-unspecified:').delete()
       if (transactionIds.length > 0) {
         await db.table('financeTransactions').bulkUpdate(
           transactionIds.map((id) => ({
