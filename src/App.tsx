@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
   animate,
@@ -33,15 +33,26 @@ import {
 } from './lib/motion'
 import { CLOSE_TASK_MENU_EVENT, FOCUS_QUICK_ADD_EVENT } from './lib/appEvents'
 import { applyVisualPreferences, storeVisualPreferences } from './lib/visualPreferences'
-import Overview from './pages/Overview'
-import Today from './pages/Today'
-import Plan from './pages/Plan'
-import Shopping from './pages/Shopping'
-import Browse from './pages/Browse'
-import Settings from './pages/Settings'
-import Finance from './pages/Finance'
-import FinanceLedger from './pages/FinanceLedger'
 import { financeLedgerV2Enabled } from './config'
+
+const Overview = lazy(() => import('./pages/Overview'))
+const Today = lazy(() => import('./pages/Today'))
+const Plan = lazy(() => import('./pages/Plan'))
+const Shopping = lazy(() => import('./pages/Shopping'))
+const Browse = lazy(() => import('./pages/Browse'))
+const Settings = lazy(() => import('./pages/Settings'))
+const Finance = lazy(() => import('./pages/Finance'))
+const FinanceLedger = lazy(() => import('./pages/FinanceLedger'))
+
+function RouteLoadingFallback() {
+  return (
+    <div className="route-loading-placeholder" aria-label="正在加载页面" aria-busy="true">
+      <span className="route-loading-title" />
+      <span className="route-loading-control" />
+      <span className="route-loading-card" />
+    </div>
+  )
+}
 
 const TABS = [
   { to: '/overview', label: '总览', icon: 'dashboard', tone: 'overview' },
@@ -479,20 +490,22 @@ export default function App() {
               onDragEnd={finishRouteDrag}
               className="motion-route-page"
             >
-              <Routes location={location}>
-                <Route path="/" element={<Navigate to="/overview" replace />} />
-                <Route path="/overview" element={<Overview />} />
-                <Route path="/today" element={<Today />} />
-                <Route path="/plan" element={<Plan />} />
-                <Route path="/shopping" element={<Shopping />} />
-                <Route
-                  path="/finance"
-                  element={financeLedgerV2Enabled ? <FinanceLedger /> : <Finance />}
-                />
-                <Route path="/browse" element={<Browse />} />
-                <Route path="/settings" element={<Settings />} />
-                <Route path="*" element={<Navigate to="/overview" replace />} />
-              </Routes>
+              <Suspense fallback={<RouteLoadingFallback />}>
+                <Routes location={location}>
+                  <Route path="/" element={<Navigate to="/overview" replace />} />
+                  <Route path="/overview" element={<Overview />} />
+                  <Route path="/today" element={<Today />} />
+                  <Route path="/plan" element={<Plan />} />
+                  <Route path="/shopping" element={<Shopping />} />
+                  <Route
+                    path="/finance"
+                    element={financeLedgerV2Enabled ? <FinanceLedger /> : <Finance />}
+                  />
+                  <Route path="/browse" element={<Browse />} />
+                  <Route path="/settings" element={<Settings />} />
+                  <Route path="*" element={<Navigate to="/overview" replace />} />
+                </Routes>
+              </Suspense>
             </motion.div>
           </div>
         </div>
