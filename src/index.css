@@ -727,14 +727,6 @@ body.editor-open .app-shell main {
   display: none;
 }
 
-.location-management > summary::before {
-  content: '';
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: var(--cyan);
-}
-
 .location-management > summary::after {
   content: '›';
   display: inline-block;

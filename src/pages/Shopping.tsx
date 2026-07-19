@@ -51,6 +51,7 @@ import type { ColorToken } from '../lib/db'
 import MobilePageHeader from '../components/MobilePageHeader'
 import { FOCUS_QUICK_ADD_EVENT } from '../lib/appEvents'
 import { MOTION } from '../lib/motion'
+import { compareRanks } from '../lib/rank'
 
 const SHOPPING_TONES: ColorToken[] = ['green', 'blue', 'purple', 'orange', 'pink']
 
@@ -191,10 +192,6 @@ function ItemRow({
           )}
         </span>
       </button>
-
-      <span className="shopping-marker" aria-hidden>
-        <MarkerIcon symbol="squircle" color={tone} size={27} />
-      </span>
 
       <div className="min-w-0 flex-1">
         <p
@@ -654,7 +651,7 @@ export default function Shopping() {
     try {
       const targetItems = pending
         .filter((candidate) => candidate.id !== item.id && candidate.locationId === nextLocationId)
-        .sort((a, b) => a.rank.localeCompare(b.rank))
+        .sort((a, b) => compareRanks(a.rank, b.rank))
       const expectedUpdatedAt = await moveShoppingItem(
         item.id,
         nextLocationId,
@@ -728,7 +725,7 @@ export default function Shopping() {
       .filter((item) =>
         item.id !== active.id && (!grouped || item.locationId === normalizedLocationId),
       )
-      .sort((a, b) => a.rank.localeCompare(b.rank))
+      .sort((a, b) => compareRanks(a.rank, b.rank))
 
     let insertIndex = targetItems.length
     if (overItem) {

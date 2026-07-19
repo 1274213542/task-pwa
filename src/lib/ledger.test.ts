@@ -105,7 +105,7 @@ describe('账户余额与消费口径', () => {
     expect(summary.actualPaidMinor).toBe(3_500)
     expect(summary.externalPaidMinor).toBe(3_000)
     expect(summary.consumptionMinor).toBe(6_500)
-    expect(summary.assetAccountDecreaseMinor).toBe(3_500)
+    expect(summary.assetAccountDecreaseMinor).toBe(4_500)
   })
 
   it('信用卡还款不重复计入支出', () => {
@@ -161,6 +161,62 @@ describe('账户余额与消费口径', () => {
     expect(summary.consumptionMinor).toBe(7_492)
     expect(summary.liabilitiesMinor).toBe(0)
     expect(summary.netWorthMinor).toBe(0)
+  })
+
+  it('外部代付 8492 进入总消费但本人自付为 0', () => {
+    const fatherCard = {
+      ...account('father-card', 'credit', 'credit_card', 0),
+      name: '爸爸信用卡',
+      ownership: 'external' as const,
+      includeInNetWorth: false,
+    }
+    const summary = ledgerSummary({
+      accounts: [fatherCard],
+      transactions: [
+        transaction('rakuten', 'credit_purchase', 8_492, fatherCard.id, {
+          merchantNameSnapshot: 'Rakuten Ichiba',
+          fundingParty: 'external',
+          affectsNetWorth: false,
+        }),
+      ],
+      rates: [],
+      reportingCurrency: 'JPY',
+    })
+    expect(summary.consumptionMinor).toBe(8_492)
+    expect(summary.actualPaidMinor).toBe(0)
+    expect(summary.externalPaidMinor).toBe(8_492)
+    expect(summary.assetAccountDecreaseMinor).toBe(0)
+    expect(summary.liabilitiesMinor).toBe(0)
+  })
+
+  it('转账、充值和还款本金不算消费，手续费只统计一次', () => {
+    const accounts = [
+      account('bank', 'asset', 'bank', 20_000),
+      account('wallet', 'asset', 'stored_value', 0),
+      account('card', 'credit', 'credit_card', 0),
+    ]
+    const transactions = [
+      transaction('topup', 'topup', 2_000, 'bank', {
+        counterpartyAccountId: 'wallet',
+        counterpartyAmountMinor: 2_000,
+        includeInSpending: false,
+        feeMinor: 50,
+      }),
+      transaction('payment', 'credit_payment', 1_000, 'bank', {
+        counterpartyAccountId: 'card',
+        counterpartyAmountMinor: 1_000,
+        includeInSpending: false,
+        feeMinor: 25,
+      }),
+    ]
+    const balances = calculateAccountBalances(accounts, transactions)
+    expect(balances.get('bank')).toBe(16_925)
+    expect(balances.get('wallet')).toBe(2_000)
+    const summary = ledgerSummary({ accounts, transactions, rates: [], reportingCurrency: 'JPY' })
+    expect(summary.actualPaidMinor).toBe(75)
+    expect(summary.externalPaidMinor).toBe(0)
+    expect(summary.consumptionMinor).toBe(75)
+    expect(summary.assetAccountDecreaseMinor).toBe(3_075)
   })
 })
 

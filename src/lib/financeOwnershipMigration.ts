@@ -15,8 +15,11 @@ function hasHighConfidenceExternalOwnerHint(account: Account) {
 }
 
 function inferredOwnership(account: Account): 'self' | 'external' {
+  // A previous migration version filled missing ownership with `self`.
+  // Correct only unconfirmed high-confidence family-card records. Once the
+  // user edits the account, ownershipConfirmedAt protects that decision.
+  if (!account.ownershipConfirmedAt && hasHighConfidenceExternalOwnerHint(account)) return 'external'
   if (account.ownership === 'self' || account.ownership === 'external') return account.ownership
-  if (hasHighConfidenceExternalOwnerHint(account)) return 'external'
   return account.kind === 'external' ? 'external' : 'self'
 }
 
@@ -35,8 +38,9 @@ function inferredFundingParty(
 
 /**
  * 可重复执行：只补缺失的归属 / 资金来源快照，不复制、不清空，
- * 也不改写金额、主键或排序。之后修改账户归属时，历史流水的
- * fundingParty 保持不变，避免过去的统计被未来配置静默改写。
+ * 也不改写金额、主键或排序。只对旧迁移误写成 self、且账户尚未
+ * 经用户确认的高置信家人卡修正快照；其余历史 fundingParty 保持
+ * 不变，避免未来账户设置静默改写过去统计。
  */
 export async function ensureFinanceOwnershipMigration(db: Dexie): Promise<void> {
   const accountsTable = db.table<Account, string>('accounts')
@@ -44,13 +48,17 @@ export async function ensureFinanceOwnershipMigration(db: Dexie): Promise<void> 
   const categoriesTable = db.table<ExpenseCategory, string>('expenseCategories')
   const accounts = await accountsTable.toArray()
   const accountById = new Map<string, Account>()
+  const reclassifiedAccountIds = new Set<string>()
 
   await db.transaction('rw', accountsTable, transactionsTable, categoriesTable, async () => {
     for (const account of accounts) {
       const ownership = inferredOwnership(account)
       accountById.set(account.id, { ...account, ownership })
       const accountChanges: Partial<Account> = {}
-      if (!account.ownership) accountChanges.ownership = ownership
+      if (account.ownership !== ownership) {
+        accountChanges.ownership = ownership
+        reclassifiedAccountIds.add(account.id)
+      }
       if (ownership === 'external' && account.includeInNetWorth !== false) {
         accountChanges.includeInNetWorth = false
       }
@@ -61,9 +69,16 @@ export async function ensureFinanceOwnershipMigration(db: Dexie): Promise<void> 
 
     const transactions = await transactionsTable.toArray()
     for (const transaction of transactions) {
-      if (!transaction.fundingParty) {
+      const correctBrokenLegacySnapshot =
+        reclassifiedAccountIds.has(transaction.accountId) &&
+        transaction.fundingParty === 'self' &&
+        ['expense', 'credit_purchase', 'external_payment'].includes(transaction.type)
+      if (!transaction.fundingParty || correctBrokenLegacySnapshot) {
         await transactionsTable.update(transaction.id, {
-          fundingParty: inferredFundingParty(transaction, accountById),
+          fundingParty: correctBrokenLegacySnapshot
+            ? 'external'
+            : inferredFundingParty(transaction, accountById),
+          ...(correctBrokenLegacySnapshot && { affectsNetWorth: false }),
         })
       }
     }

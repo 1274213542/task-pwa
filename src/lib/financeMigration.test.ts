@@ -132,6 +132,37 @@ describe('账户归属与资金来源迁移', () => {
     })
     await db.table('accounts').bulkAdd([
       {
+        id: 'legacy-self-father-card',
+        name: '爸爸的信用卡',
+        kind: 'credit',
+        ownership: 'self',
+        subtype: 'credit_card',
+        currency: 'JPY',
+        openingBalanceMinor: 0,
+        includeInNetWorth: true,
+        includeInSpending: true,
+        rank: '1.5',
+        lifecycleStatus: 'active',
+        createdAt: '2026-07-19T00:00:00Z',
+        updatedAt: '2026-07-19T00:00:00Z',
+      },
+      {
+        id: 'confirmed-self-father-card',
+        name: '爸爸信用卡（本人承担）',
+        kind: 'credit',
+        ownership: 'self',
+        ownershipConfirmedAt: '2026-07-19T00:00:00Z',
+        subtype: 'credit_card',
+        currency: 'JPY',
+        openingBalanceMinor: 0,
+        includeInNetWorth: true,
+        includeInSpending: true,
+        rank: '1.6',
+        lifecycleStatus: 'active',
+        createdAt: '2026-07-19T00:00:00Z',
+        updatedAt: '2026-07-19T00:00:00Z',
+      },
+      {
         id: 'father-card-ja',
         name: '父親のクレジットカード',
         kind: 'credit',
@@ -175,6 +206,38 @@ describe('账户归属与资金来源迁移', () => {
       createdAt: '2026-07-19T12:00:00Z',
       updatedAt: '2026-07-19T12:00:00Z',
     })
+    await db.table('financeTransactions').bulkAdd([
+      {
+        id: 'legacy-rakuten-self-snapshot',
+        type: 'credit_purchase',
+        amountMinor: 8492,
+        currency: 'JPY',
+        occurredAt: '2026-07-19T12:00:00Z',
+        localDate: '2026-07-19',
+        accountId: 'legacy-self-father-card',
+        fundingParty: 'self',
+        includeInSpending: true,
+        affectsNetWorth: true,
+        lifecycleStatus: 'active',
+        createdAt: '2026-07-19T12:00:00Z',
+        updatedAt: '2026-07-19T12:00:00Z',
+      },
+      {
+        id: 'confirmed-self-snapshot',
+        type: 'credit_purchase',
+        amountMinor: 100,
+        currency: 'JPY',
+        occurredAt: '2026-07-19T12:00:00Z',
+        localDate: '2026-07-19',
+        accountId: 'confirmed-self-father-card',
+        fundingParty: 'self',
+        includeInSpending: true,
+        affectsNetWorth: true,
+        lifecycleStatus: 'active',
+        createdAt: '2026-07-19T12:00:00Z',
+        updatedAt: '2026-07-19T12:00:00Z',
+      },
+    ])
     await db.table('financeTransactions').add({
       id: 'historical-snapshot',
       type: 'credit_purchase',
@@ -203,6 +266,23 @@ describe('账户归属与资金来源迁移', () => {
     expect(await db.table('accounts').get('father-card-ja')).toMatchObject({
       ownership: 'external',
       includeInNetWorth: false,
+    })
+    expect(await db.table('accounts').get('legacy-self-father-card')).toMatchObject({
+      ownership: 'external',
+      includeInNetWorth: false,
+    })
+    expect(await db.table('financeTransactions').get('legacy-rakuten-self-snapshot')).toMatchObject({
+      amountMinor: 8492,
+      fundingParty: 'external',
+      affectsNetWorth: false,
+    })
+    expect(await db.table('accounts').get('confirmed-self-father-card')).toMatchObject({
+      ownership: 'self',
+      includeInNetWorth: true,
+    })
+    expect(await db.table('financeTransactions').get('confirmed-self-snapshot')).toMatchObject({
+      fundingParty: 'self',
+      affectsNetWorth: true,
     })
     expect(await db.table('accounts').get('explicit-external')).toMatchObject({
       ownership: 'external',

@@ -10,8 +10,9 @@ vi.mock('./db', async () => {
   const db = new Dexie('task-pwa-ledger-persistence-test')
   db.version(1).stores({
     accounts: 'id, kind, ownership, currency, lifecycleStatus',
-    financeTransactions: 'id, type, accountId, linkedTransactionId, lifecycleStatus',
+    financeTransactions: 'id, type, accountId, linkedTransactionId, categoryId, lifecycleStatus',
     expenseCategories: 'id, rank, lifecycleStatus',
+    expenseRecords: 'id, categoryId',
     merchants: 'id, name, lifecycleStatus',
     financeTransfers: 'id, transactionId, lifecycleStatus',
     creditCardSettlements: 'id, transactionId, status',
@@ -31,6 +32,7 @@ vi.mock('./db', async () => {
 let ledger: typeof import('./ledger')
 let recurring: typeof import('./recurringFinance')
 let funds: typeof import('./funds')
+let expenseCategories: typeof import('./expenseCategories')
 
 function account(overrides: Partial<Account> & Pick<Account, 'id' | 'name'>): Account {
   const { id, name, ...rest } = overrides
@@ -97,6 +99,7 @@ beforeAll(async () => {
   ledger = await import('./ledger')
   recurring = await import('./recurringFinance')
   funds = await import('./funds')
+  expenseCategories = await import('./expenseCategories')
   await (testState.db as Dexie).open()
 })
 
@@ -114,6 +117,34 @@ afterAll(async () => {
 })
 
 describe('财务账本持久化约束', () => {
+  it('支出分类可新增、重命名、排序并在归档时迁移既有流水', async () => {
+    const db = testState.db as Dexie
+    const foodId = await expenseCategories.saveExpenseCategory({ name: '餐饮' })
+    const travelId = await expenseCategories.saveExpenseCategory({ name: '旅行' })
+    await expenseCategories.saveExpenseCategory({ id: travelId, name: '旅行与住宿' })
+    await expenseCategories.moveExpenseCategory(travelId, -1)
+    await db.table('financeTransactions').add(transaction({
+      id: 'travel-expense',
+      type: 'external_payment',
+      accountId: 'external-card',
+      categoryId: travelId,
+      categoryNameSnapshot: '旅行与住宿',
+      fundingParty: 'external',
+      affectsNetWorth: false,
+    }))
+
+    await expenseCategories.archiveExpenseCategory(travelId, foodId)
+
+    expect(await db.table('expenseCategories').get(travelId)).toMatchObject({
+      archived: true,
+      lifecycleStatus: 'deleted',
+    })
+    expect(await db.table('financeTransactions').get('travel-expense')).toMatchObject({
+      categoryId: foodId,
+      categoryNameSnapshot: '餐饮',
+    })
+  })
+
   it('新支出的资金来源只能由支付账户归属派生', async () => {
     const db = testState.db as Dexie
     await db.table('accounts').add(account({

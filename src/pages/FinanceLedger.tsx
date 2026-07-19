@@ -7,6 +7,7 @@ import GestureSheet, { type GestureSheetHandle } from '../components/GestureShee
 import MobilePageHeader from '../components/MobilePageHeader'
 import MarkerIcon from '../components/MarkerIcon'
 import PageHeader from '../components/PageHeader'
+import SelectionPickerSheet, { type SelectionPickerItem } from '../components/SelectionPickerSheet'
 import { financeFundsV3Enabled } from '../config'
 import { db, type ColorToken, type ExpenseCategory, type MarkerSymbol } from '../lib/db'
 import { cachedRate, convertWithCachedRate, refreshExchangeRate, saveManualExchangeRate } from '../lib/exchangeRates'
@@ -53,6 +54,16 @@ import type {
 
 type FinanceView = 'overview' | 'accounts' | 'funds' | 'transactions' | 'planning' | 'work' | 'stats'
 type EntryKind = 'expense' | 'income' | 'transfer' | 'credit_payment' | 'topup' | 'refund'
+
+const ENTRY_KINDS: EntryKind[] = ['expense', 'income', 'transfer', 'credit_payment', 'topup', 'refund']
+const ENTRY_KIND_LABEL: Record<EntryKind, string> = {
+  expense: '支出',
+  income: '收入',
+  transfer: '转账',
+  credit_payment: '还信用卡',
+  topup: '充值',
+  refund: '退款',
+}
 
 const VIEW_ITEMS: { id: FinanceView; label: string }[] = financeFundsV3Enabled
   ? [
@@ -246,32 +257,34 @@ export default function FinanceLedger() {
 
   return (
     <section className="app-page page-finance finance-ledger-page finance-shell">
-      <MobilePageHeader
-        eyebrow="工时、收入与支出"
-        title="财务"
-        onPrimary={() => openEntry('expense')}
-        primaryLabel="快速记账"
-        primaryIcon="plus"
-      />
-      <PageHeader
-        eyebrow="工时、收入与支出"
-        title="财务"
-        actions={
-          <>
-            <button
-              type="button"
-              className="page-icon-button page-icon-button-primary"
-              aria-label="快速记账"
-              onClick={() => openEntry('expense')}
-            >
-              <AppIcon name="plus" size={22} />
-            </button>
-            <Link className="page-icon-button" aria-label="财务设置" to="/settings">
-              <AppIcon name="settings" size={21} />
-            </Link>
-          </>
-        }
-      />
+      <div className="finance-sticky-header">
+        <MobilePageHeader
+          eyebrow="工时、收入与支出"
+          title="财务"
+          onPrimary={() => openEntry('expense')}
+          primaryLabel="快速记账"
+          primaryIcon="plus"
+        />
+        <PageHeader
+          eyebrow="工时、收入与支出"
+          title="财务"
+          actions={
+            <>
+              <button
+                type="button"
+                className="page-icon-button page-icon-button-primary"
+                aria-label="快速记账"
+                onClick={() => openEntry('expense')}
+              >
+                <AppIcon name="plus" size={22} />
+              </button>
+              <Link className="page-icon-button" aria-label="财务设置" to="/settings">
+                <AppIcon name="settings" size={21} />
+              </Link>
+            </>
+          }
+        />
+      </div>
 
       <nav className="finance-ledger-tabs" aria-label="财务页面">
         <span
@@ -512,21 +525,22 @@ function FinanceOverview({
   return (
     <div className="finance-ledger-dashboard">
       <section className="finance-net-worth-card">
-        <span>{financeFundsV3Enabled ? '当前可自由支配金额' : '个人净资产'}</span>
-        <strong>{formatMoney(financeFundsV3Enabled ? fundsSummary.disposable : summary.netWorthMinor, currency)}</strong>
+        <span>个人净资产</span>
+        <strong>{formatMoney(summary.netWorthMinor, currency)}</strong>
         <div>
           <span>实际资产 {formatMoney(summary.assetsMinor, currency)}</span>
           <span>本人负债 {formatMoney(summary.liabilitiesMinor, currency)}</span>
+          {financeFundsV3Enabled && <span>可自由支配 {formatMoney(fundsSummary.disposable, currency)}</span>}
         </div>
       </section>
 
       {financeFundsV3Enabled && (
-        <div className="finance-work-summary finance-funds-summary">
-          <article><span>父亲专项资金</span><strong>{formatMoney(fundsSummary.fatherRestricted, currency)}</strong><small>计入资产，不可自由支配</small></article>
-          <article><span>个人储蓄</span><strong>{formatMoney(fundsSummary.savings, currency)}</strong><small>不含父亲专项</small></article>
-          <article><span>未分配资金</span><strong>{formatMoney(unallocatedMinor, currency)}</strong><small><button onClick={onOpenFunds}>分配用途</button></small></article>
-          <article><span>即将扣款</span><strong>{upcomingCount} 项</strong><small>待确认或资金不足</small></article>
-        </div>
+        <section className="finance-overview-support" aria-label="资金用途摘要">
+          <button type="button" onClick={onOpenFunds}><span>父亲专项资金</span><strong>{formatMoney(fundsSummary.fatherRestricted, currency)}</strong></button>
+          <button type="button" onClick={onOpenFunds}><span>个人储蓄</span><strong>{formatMoney(fundsSummary.savings, currency)}</strong></button>
+          <button type="button" onClick={onOpenFunds}><span>未分配资金</span><strong>{formatMoney(unallocatedMinor, currency)}</strong></button>
+          <button type="button" onClick={onOpenFunds}><span>即将扣款</span><strong>{upcomingCount} 项</strong></button>
+        </section>
       )}
 
       <div className="finance-work-summary">
@@ -538,7 +552,6 @@ function FinanceOverview({
           <small>
             <span>本人自付 {formatMoney(summary.actualPaidMinor, currency)}</span>
             <span>外部代付 {formatMoney(summary.externalPaidMinor, currency)}</span>
-            <span>资产账户实际减少 {formatMoney(summary.assetAccountDecreaseMinor, currency)}</span>
           </small>
         </article>
       </div>
@@ -781,9 +794,10 @@ function TransactionList({
       {transactions.length ? <ul>{transactions.map((transaction) => {
         const account = accountMap.get(transaction.accountId)
         const positive = transaction.type === 'income' || transaction.type === 'refund'
+        const external = transaction.type === 'external_payment' || transaction.fundingParty === 'external' || accountOwnership(account) === 'external'
         return <li key={transaction.id}>
           <span className={`finance-transaction-icon is-${transaction.type}`}><AppIcon name={positive ? 'plus' : transaction.type.includes('transfer') || transaction.type === 'topup' || transaction.type === 'credit_payment' ? 'sync' : 'receipt'} size={18} /></span>
-          <div><strong>{transaction.merchantNameSnapshot || transaction.note || TRANSACTION_LABEL[transaction.type]}</strong><span>{transaction.localDate} · {account?.name ?? '未知账户'} · {TRANSACTION_LABEL[transaction.type]}</span></div>
+          <div><strong>{transaction.merchantNameSnapshot || transaction.note || TRANSACTION_LABEL[transaction.type]}</strong><span>{transaction.localDate} · {account?.name ?? '未知账户'} · {TRANSACTION_LABEL[transaction.type]} {external && <em>外部代付</em>}</span></div>
           <b className={positive ? 'is-positive' : ''}>{positive ? '+' : transaction.type === 'external_payment' ? '' : '−'}{formatMoney(transaction.amountMinor, transaction.currency)}</b>
           {(onEdit || onDelete) && <span className="finance-row-actions">{onEdit && ['expense', 'credit_purchase', 'external_payment'].includes(transaction.type) && <button aria-label="编辑流水" onClick={() => onEdit(transaction)}><AppIcon name="edit" size={17} /></button>}{onDelete && <button aria-label="删除流水" onClick={() => onDelete(transaction)}><AppIcon name="trash" size={17} /></button>}</span>}
         </li>
@@ -1273,60 +1287,33 @@ function ExpenseCategoryManagerSheet({
   )
 }
 
-function ExpenseCategoryPickerSheet({
-  categories,
-  accounts,
-  fundPools,
-  selectedId,
-  onSelect,
-  onClose,
+type FinancePickerTarget =
+  | { kind: 'category' }
+  | { kind: 'source' }
+  | { kind: 'destination' }
+  | { kind: 'refund-origin' }
+  | { kind: 'refund-account' }
+  | { kind: 'fund-pool'; index: number }
+
+function FinancePickerRow({
+  label,
+  value,
+  placeholder,
+  onClick,
 }: {
-  categories: ExpenseCategory[]
-  accounts: Account[]
-  fundPools: FundPool[]
-  selectedId: string
-  onSelect: (id: string) => void
-  onClose: () => void
+  label: string
+  value?: string
+  placeholder: string
+  onClick: () => void
 }) {
-  const dialogRef = useRef<HTMLElement>(null)
-  const sheetRef = useRef<GestureSheetHandle>(null)
-  const [search, setSearch] = useState('')
-  const [newName, setNewName] = useState('')
-  const [managing, setManaging] = useState(false)
-  const [feedback, setFeedback] = useState('')
-  const filtered = categories.filter((category) => category.name.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()))
-
-  async function createAndSelect() {
-    try {
-      const id = await saveExpenseCategory({ name: newName })
-      onSelect(id)
-      sheetRef.current?.close()
-    } catch (error) {
-      setFeedback(error instanceof Error ? error.message : '分类添加失败')
-    }
-  }
-
   return (
-    <GestureSheet ref={sheetRef} dialogRef={dialogRef} labelledBy="expense-category-picker-title" className="editor-sheet expense-category-sheet" onClose={onClose}>
-      <div className="category-sheet-layout">
-        <header><div><span>快速记账</span><h2 id="expense-category-picker-title">{managing ? '管理分类' : '选择分类'}</h2></div><button type="button" aria-label="关闭" onClick={() => sheetRef.current?.close()}><AppIcon name="close" size={20} /></button></header>
-        {managing ? (
-          <div className="category-sheet-scroll"><ExpenseCategoryManager categories={categories} accounts={accounts} fundPools={fundPools} onFeedback={setFeedback} /></div>
-        ) : (
-          <>
-            <div className="category-picker-search"><AppIcon name="search" size={18} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索分类" /></div>
-            <div className="category-sheet-scroll category-picker-list" role="listbox" aria-label="支出分类">
-              <button type="button" role="option" aria-selected={!selectedId} onClick={() => { onSelect(''); sheetRef.current?.close() }}><span>未分类</span>{!selectedId && <AppIcon name="check" size={18} />}</button>
-              {filtered.map((category) => (
-                <button key={category.id} type="button" role="option" aria-selected={selectedId === category.id} onClick={() => { onSelect(category.id); sheetRef.current?.close() }}><span>{category.name}</span>{selectedId === category.id && <AppIcon name="check" size={18} />}</button>
-              ))}
-            </div>
-            <div className="category-picker-create"><input value={newName} onChange={(event) => setNewName(event.target.value)} placeholder="＋ 新建分类" /><button type="button" disabled={!newName.trim()} onClick={() => void createAndSelect()}>添加并选中</button></div>
-          </>
-        )}
-        <footer><span role="status">{feedback}</span><button type="button" onClick={() => setManaging((value) => !value)}>{managing ? '返回选择' : '管理分类'}</button></footer>
-      </div>
-    </GestureSheet>
+    <div className="finance-picker-field">
+      <span>{label}</span>
+      <button type="button" className="finance-picker-row" onClick={onClick}>
+        <strong data-placeholder={!value || undefined}>{value || placeholder}</strong>
+        <AppIcon name="chevronRight" size={17} />
+      </button>
+    </div>
   )
 }
 
@@ -1356,6 +1343,7 @@ function FinanceEntrySheet({
   const dialogRef = useRef<HTMLElement>(null)
   const sheetRef = useRef<GestureSheetHandle>(null)
   const kindBarRef = useRef<HTMLDivElement>(null)
+  const previousKindRef = useRef(initialKind)
   const savedMessageRef = useRef('')
   const submittedRef = useRef(false)
   const draftsRef = useRef<Partial<Record<EntryKind, {
@@ -1364,6 +1352,7 @@ function FinanceEntrySheet({
     categoryId: string
     merchant: string
     linkedTransactionId: string
+    fee: string
   }>>>({})
   const reduceMotion = useReducedMotion()
   const [kind, setKind] = useState<EntryKind>(initialKind)
@@ -1372,6 +1361,7 @@ function FinanceEntrySheet({
   const [accountId, setAccountId] = useState(editing?.accountId ?? accounts[0]?.id ?? '')
   const [destinationId, setDestinationId] = useState('')
   const [destinationAmount, setDestinationAmount] = useState('')
+  const [fee, setFee] = useState('')
   const [categoryId, setCategoryId] = useState(editing?.categoryId ?? '')
   const existingAllocations = transactionFundAllocations.filter((row) =>
     row.transactionId === editing?.id && ['debit', 'reserve'].includes(row.effect),
@@ -1387,7 +1377,8 @@ function FinanceEntrySheet({
   const [note, setNote] = useState(editing?.note ?? '')
   const [includeInSpending, setIncludeInSpending] = useState(editing?.includeInSpending ?? true)
   const [linkedTransactionId, setLinkedTransactionId] = useState('')
-  const [categoryPickerOpen, setCategoryPickerOpen] = useState(false)
+  const [pickerTarget, setPickerTarget] = useState<FinancePickerTarget | null>(null)
+  const [categoryManagerOpen, setCategoryManagerOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const transferKinds = ['transfer', 'credit_payment', 'topup'].includes(kind)
@@ -1434,17 +1425,53 @@ function FinanceEntrySheet({
     if (account.isArchived) return false
     if (account.id === accountId) return false
     if (kind === 'credit_payment') return account.kind === 'credit' && accountOwnership(account) === 'self'
-    if (kind === 'topup') return account.kind === 'asset' && accountOwnership(account) === 'self'
+    if (kind === 'topup') return account.kind === 'asset' && accountOwnership(account) === 'self' && ['stored_value', 'wallet'].includes(account.subtype)
     return account.kind === 'asset' && accountOwnership(account) === 'self'
   })
+  const refundFundingParty = selectedRefundOrigin
+    ? selectedRefundOrigin.fundingParty ?? accountOwnership(
+        accounts.find((account) => account.id === selectedRefundOrigin.accountId),
+      )
+    : undefined
+  const refundAccountOptions = accounts.filter((account) =>
+    !account.isArchived &&
+    account.currency === currency &&
+    (refundFundingParty === 'external'
+      ? accountOwnership(account) === 'external'
+      : accountOwnership(account) === 'self'),
+  )
   const dirty = Boolean(
-    amount || destinationAmount || categoryId || merchant.trim() || note.trim() || linkedTransactionId ||
+    amount || destinationAmount || fee || categoryId || merchant.trim() || note.trim() || linkedTransactionId ||
     date !== (editing?.localDate ?? todayISO()) || accountId !== (editing?.accountId ?? accounts[0]?.id ?? '') ||
     fundAllocationDrafts.length > 0
   )
   const selectedCategory = categories.find((category) => category.id === categoryId)
   const eligibleFundPools = fundPools.filter((pool) =>
     pool.lifecycleStatus === 'active' && pool.currency === currency,
+  )
+  const amountNumber = Number(amount)
+  const amountValid = Number.isFinite(amountNumber) && amountNumber > 0
+  const destinationAmountNumber = Number(destinationAmount)
+  const destinationAmountValid = !destinationAmount || (
+    Number.isFinite(destinationAmountNumber) && destinationAmountNumber > 0
+  )
+  const feeNumber = Number(fee)
+  const feeValid = !fee || (Number.isFinite(feeNumber) && feeNumber >= 0)
+  const allocationsTotal = fundAllocationDrafts.reduce(
+    (sum, row) => sum + (Number.isFinite(Number(row.amount)) ? Number(row.amount) : 0),
+    0,
+  )
+  const needsFundAllocation = kind === 'expense' && accountOwnership(source) === 'self' && financeFundsV3Enabled
+  const canSubmit = Boolean(
+    amountValid && date &&
+    (kind === 'refund' ? linkedTransactionId && destinationId : source) &&
+    (!transferKinds || destinationId) &&
+    destinationAmountValid && feeValid &&
+    (!needsFundAllocation || (
+      fundAllocationDrafts.length > 0 &&
+      fundAllocationDrafts.every((row) => row.fundPoolId && Number(row.amount) > 0) &&
+      Math.abs(allocationsTotal - amountNumber) < 0.000001
+    )),
   )
 
   useEffect(() => {
@@ -1491,25 +1518,46 @@ function FinanceEntrySheet({
   }
 
   function switchKind(next: EntryKind) {
+    if (next === kind) return
     draftsRef.current[kind] = {
       destinationId,
       destinationAmount,
       categoryId,
       merchant,
       linkedTransactionId,
+      fee,
     }
     const nextDraft = draftsRef.current[next]
+    previousKindRef.current = kind
     setKind(next)
     setDestinationId(nextDraft?.destinationId ?? '')
     setDestinationAmount(nextDraft?.destinationAmount ?? '')
     setCategoryId(nextDraft?.categoryId ?? '')
     setMerchant(nextDraft?.merchant ?? '')
     setLinkedTransactionId(nextDraft?.linkedTransactionId ?? '')
+    setFee(nextDraft?.fee ?? '')
+    setError('')
   }
 
   async function submit(event: FormEvent) {
     event.preventDefault()
     if (saving || submittedRef.current) return
+    if (!canSubmit) {
+      setError(!amountValid
+        ? '请输入大于 0 的金额'
+        : kind === 'refund' && !linkedTransactionId
+          ? '请选择原消费记录'
+          : transferKinds && !destinationId
+            ? `请选择${kind === 'credit_payment' ? '信用卡账户' : kind === 'topup' ? '充值账户' : '转入账户'}`
+            : !destinationAmountValid
+              ? '请输入大于 0 的到账金额'
+              : !feeValid
+                ? '手续费不能小于 0'
+            : needsFundAllocation
+              ? '承担资金池的分摊总额必须与支出金额一致'
+              : '请完成必填信息')
+      return
+    }
     submittedRef.current = true
     setSaving(true)
     setError('')
@@ -1560,6 +1608,8 @@ function FinanceEntrySheet({
           currency,
           localDate: date,
           accountId,
+          categoryId: categoryId || undefined,
+          sourceName: merchant,
           note,
           ...(converted && {
             reportingCurrency,
@@ -1571,7 +1621,13 @@ function FinanceEntrySheet({
         })
       } else if (kind === 'refund') {
         if (!linkedTransactionId) throw new Error('请选择原消费记录')
-        await saveRefund({ amountMinor, localDate: date, linkedTransactionId, note })
+        await saveRefund({
+          amountMinor,
+          localDate: date,
+          linkedTransactionId,
+          accountId: destinationId || selectedRefundOrigin?.accountId,
+          note,
+        })
       } else {
         if (!destinationId) throw new Error('请选择转入账户')
         const destination = accounts.find((account) => account.id === destinationId)
@@ -1581,6 +1637,7 @@ function FinanceEntrySheet({
           destinationAccountId: destinationId,
           sourceAmountMinor: amountMinor,
           destinationAmountMinor: toMinor(Number(destinationAmount || amount), destination.currency),
+          feeMinor: fee ? toMinor(Number(fee), currency) : undefined,
           localDate: date,
           kind,
           note,
@@ -1599,72 +1656,239 @@ function FinanceEntrySheet({
     }
   }
 
+  const selectedAccount = accounts.find((account) => account.id === accountId)
+  const selectedDestination = accounts.find((account) => account.id === destinationId)
+  const pickerItems: SelectionPickerItem[] = !pickerTarget
+    ? []
+    : pickerTarget.kind === 'category'
+      ? [
+          { id: '', title: '未分类', subtitle: '系统保底分类' },
+          ...categories.map((category) => ({ id: category.id, title: category.name })),
+        ]
+      : pickerTarget.kind === 'refund-origin'
+        ? refundableTransactions.map((transaction) => {
+            const remaining = transaction.amountMinor - (refundedByOriginal.get(transaction.id) ?? 0)
+            return {
+              id: transaction.id,
+              title: transaction.merchantNameSnapshot || transaction.note || '未命名消费',
+              subtitle: `${transaction.localDate} · 可退 ${formatMoney(remaining, transaction.currency)}`,
+            }
+          })
+        : pickerTarget.kind === 'fund-pool'
+          ? eligibleFundPools.map((pool) => ({ id: pool.id, title: pool.name, subtitle: pool.currency }))
+          : (pickerTarget.kind === 'source'
+              ? sourceOptions
+              : pickerTarget.kind === 'refund-account'
+                ? refundAccountOptions
+                : destinationOptions
+            ).map((account) => ({
+              id: account.id,
+              title: account.name,
+              subtitle: `${ACCOUNT_SUBTYPE_LABEL[account.subtype]} · ${account.currency}${accountOwnership(account) === 'external' ? ' · 外部代付' : ''}`,
+            }))
+  const pickerTitle = !pickerTarget
+    ? ''
+    : pickerTarget.kind === 'category'
+      ? '选择分类'
+      : pickerTarget.kind === 'refund-origin'
+        ? '选择原消费记录'
+        : pickerTarget.kind === 'fund-pool'
+          ? '选择承担资金池'
+          : pickerTarget.kind === 'destination'
+            ? kind === 'credit_payment' ? '选择信用卡账户' : kind === 'topup' ? '选择充值账户' : '选择转入账户'
+            : pickerTarget.kind === 'refund-account'
+              ? '选择退款到账账户'
+              : kind === 'expense' ? '选择支付账户' : kind === 'income' ? '选择入账账户' : '选择转出账户'
+  const selectedPickerId = !pickerTarget
+    ? ''
+    : pickerTarget.kind === 'category'
+      ? categoryId
+      : pickerTarget.kind === 'refund-origin'
+        ? linkedTransactionId
+        : pickerTarget.kind === 'fund-pool'
+          ? fundAllocationDrafts[pickerTarget.index]?.fundPoolId ?? ''
+          : pickerTarget.kind === 'destination' || pickerTarget.kind === 'refund-account'
+            ? destinationId
+            : accountId
+
+  function selectPickerValue(id: string) {
+    if (!pickerTarget) return
+    if (pickerTarget.kind === 'category') selectCategory(id)
+    else if (pickerTarget.kind === 'source') setAccountId(id)
+    else if (pickerTarget.kind === 'destination' || pickerTarget.kind === 'refund-account') setDestinationId(id)
+    else if (pickerTarget.kind === 'fund-pool') {
+      setAllocationsTouched(true)
+      setFundAllocationDrafts((current) => current.map((row, index) =>
+        index === pickerTarget.index ? { ...row, fundPoolId: id } : row,
+      ))
+    } else {
+      const origin = refundableTransactions.find((transaction) => transaction.id === id)
+      setLinkedTransactionId(id)
+      setDestinationId(origin?.accountId ?? '')
+      if (origin) {
+        const remaining = origin.amountMinor - (refundedByOriginal.get(origin.id) ?? 0)
+        setAmount(String(fromMinor(remaining, origin.currency)))
+      }
+    }
+    setError('')
+    setPickerTarget(null)
+  }
+
   return (
     <>
-    <GestureSheet
-      ref={sheetRef}
-      dialogRef={dialogRef}
-      labelledBy="finance-entry-title"
-      className="editor-sheet finance-ledger-sheet"
-      canClose={() => Boolean(savedMessageRef.current) || !dirty || window.confirm('还有未保存的内容，确定关闭吗？')}
-      onClose={() => savedMessageRef.current ? onSaved(savedMessageRef.current) : onClose()}
-    >
-      <form className="finance-sheet-layout" onSubmit={submit}>
-        <header className="finance-sheet-header"><div><span>原币种金额会永久保留</span><h2 id="finance-entry-title">{editing ? '编辑流水' : '快速记账'}</h2></div><button type="button" aria-label="关闭" onClick={() => sheetRef.current?.close()}><AppIcon name="close" size={20} /></button></header>
-        {!editing && <div ref={kindBarRef} className="finance-entry-kind">{(['expense', 'income', 'transfer', 'credit_payment', 'topup', 'refund'] as EntryKind[]).map((value) => <button type="button" data-kind={value} key={value} aria-pressed={kind === value} onClick={() => switchKind(value)}>{value === 'expense' ? '支出' : value === 'income' ? '收入' : value === 'transfer' ? '转账' : value === 'credit_payment' ? '还信用卡' : value === 'topup' ? '充值' : '退款'}</button>)}</div>}
-        <div className="finance-sheet-body">
-        <label className="finance-amount-field"><span>金额 · {currency}</span><input inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="0" /></label>
-        <div className="finance-sheet-grid">
-          <label>日期<input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label>
-          {kind === 'refund' ? (
-            <label className="wide">原消费记录<select required value={linkedTransactionId} onChange={(event) => setLinkedTransactionId(event.target.value)}><option value="">请选择可退款消费</option>{refundableTransactions.map((transaction) => {
-              const remaining = transaction.amountMinor - (refundedByOriginal.get(transaction.id) ?? 0)
-              return <option key={transaction.id} value={transaction.id}>{transaction.localDate} · {transaction.merchantNameSnapshot || transaction.note || '未命名消费'} · 可退 {fromMinor(remaining, transaction.currency)} {transaction.currency}</option>
-            })}</select></label>
-          ) : kind !== 'expense' ? (
-            <label>{transferKinds ? '转出账户' : '入账账户'}<select value={accountId} onChange={(event) => setAccountId(event.target.value)}>{sourceOptions.map((account) => <option key={account.id} value={account.id}>{account.name} · {account.currency}</option>)}</select></label>
-          ) : null}
-          {transferKinds && <><label>转入账户<select value={destinationId} onChange={(event) => setDestinationId(event.target.value)}><option value="">请选择</option>{destinationOptions.map((account) => <option key={account.id} value={account.id}>{account.name} · {account.currency}</option>)}</select></label><label>到账金额<input inputMode="decimal" value={destinationAmount} onChange={(event) => setDestinationAmount(event.target.value)} placeholder={amount || '0'} /></label></>}
-          {kind === 'expense' && <>
-            <label className="wide">分类<button type="button" className="finance-category-trigger" onClick={() => setCategoryPickerOpen(true)}><span>{selectedCategory?.name ?? '未分类'}</span><AppIcon name="chevronRight" size={17} /></button></label>
-            {accountOwnership(source) !== 'external' && (
-              <fieldset className="wide finance-fund-allocation-fieldset">
-                <legend>承担资金池</legend>
-                {fundAllocationDrafts.map((row, index) => (
-                  <div key={`${row.fundPoolId}:${index}`}>
-                    <select value={row.fundPoolId} onChange={(event) => {
-                      setAllocationsTouched(true)
-                      setFundAllocationDrafts((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, fundPoolId: event.target.value } : item))
-                    }}><option value="">请选择</option>{eligibleFundPools.map((pool) => <option key={pool.id} value={pool.id}>{pool.name}</option>)}</select>
-                    <input aria-label="分摊金额" inputMode="decimal" value={row.amount} onChange={(event) => {
-                      setAllocationsTouched(true)
-                      setFundAllocationDrafts((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, amount: event.target.value } : item))
-                    }} />
-                    {fundAllocationDrafts.length > 1 && <button type="button" aria-label="移除分摊" onClick={() => setFundAllocationDrafts((current) => current.filter((_, itemIndex) => itemIndex !== index))}><AppIcon name="close" size={16} /></button>}
-                  </div>
+      <GestureSheet
+        ref={sheetRef}
+        dialogRef={dialogRef}
+        labelledBy="finance-entry-title"
+        className="editor-sheet finance-ledger-sheet"
+        canClose={() => Boolean(savedMessageRef.current) || !dirty || window.confirm('还有未保存的内容，确定关闭吗？')}
+        onClose={() => savedMessageRef.current ? onSaved(savedMessageRef.current) : onClose()}
+      >
+        <form className="finance-sheet-layout" onSubmit={submit}>
+          <header className="finance-sheet-header" data-sheet-drag-handle>
+            <h2 id="finance-entry-title">{editing ? '编辑流水' : '快速记账'}</h2>
+            <button type="button" aria-label="关闭" onClick={() => sheetRef.current?.close()}><AppIcon name="close" size={20} /></button>
+          </header>
+          {!editing && (
+            <div ref={kindBarRef} className="finance-entry-kind-scroll">
+              <div className="finance-entry-kind">
+                <span
+                  className="finance-entry-kind-indicator"
+                  aria-hidden="true"
+                  style={{ transform: `translate3d(${ENTRY_KINDS.indexOf(kind) * 100}%, 0, 0)` }}
+                />
+                {ENTRY_KINDS.map((value) => (
+                  <button type="button" data-kind={value} key={value} aria-pressed={kind === value} onClick={() => switchKind(value)}>{ENTRY_KIND_LABEL[value]}</button>
                 ))}
-                {fundAllocationDrafts.length === 0 && <p>{eligibleFundPools.length ? '请选择承担这笔支出的资金池' : '请先在“财务 → 资金池”中分配实际账户余额'}</p>}
-                {eligibleFundPools.length > 0 && <button type="button" className="finance-add-allocation" onClick={() => {
-                  setAllocationsTouched(fundAllocationDrafts.length > 0)
-                  setFundAllocationDrafts((current) => [...current, { fundPoolId: eligibleFundPools.find((pool) => !current.some((item) => item.fundPoolId === pool.id))?.id ?? eligibleFundPools[0].id, amount: current.length === 0 ? amount : '' }])
-                }}>＋ {fundAllocationDrafts.length ? '增加分摊' : '选择资金池'}</button>}
-              </fieldset>
-            )}
-            <label>实际支付账户<select value={accountId} onChange={(event) => setAccountId(event.target.value)}>{sourceOptions.map((account) => <option key={account.id} value={account.id}>{account.name} · {account.currency}</option>)}</select></label>
-            <label>商家 / 地点<input value={merchant} onChange={(event) => setMerchant(event.target.value)} placeholder="例如 Amazon、药局" /></label>
-          </>}
-          <label className="wide">备注<input value={note} onChange={(event) => setNote(event.target.value)} /></label>
-          {kind === 'expense' && <button type="button" role="switch" aria-checked={includeInSpending} className="wide finance-sheet-setting finance-stat-switch" onClick={() => setIncludeInSpending((value) => !value)}><span>计入消费统计<small>资金来源由支付账户归属决定</small></span><i aria-hidden /></button>}
-        </div>
-        {kind === 'refund' && selectedRefundOrigin && <p className="finance-entry-notice">退款会沿用原消费的账户、币种、分类和资金来源，并冲减原统计。</p>}
-        {kind === 'expense' && accountOwnership(source) === 'external' && <p className="finance-entry-notice">外部代付会进入消费行为统计，但不会减少个人资产或增加个人负债。</p>}
-        {kind === 'expense' && source?.kind === 'credit' && accountOwnership(source) === 'self' && <p className="finance-entry-notice">本人信用卡消费会增加待还金额；之后还款不会再次计为支出。</p>}
-        {error && <p className="finance-sheet-error" role="alert">{error}</p>}
-        </div>
-        <div className="finance-sheet-actions"><button type="button" onClick={() => sheetRef.current?.close()}>取消</button><button className="primary" disabled={saving || !amount}>{saving ? '保存中…' : editing ? '保存修改' : '保存'}</button></div>
-      </form>
-    </GestureSheet>
-    {categoryPickerOpen && <ExpenseCategoryPickerSheet categories={categories} accounts={accounts} fundPools={fundPools} selectedId={categoryId} onSelect={selectCategory} onClose={() => setCategoryPickerOpen(false)} />}
+              </div>
+            </div>
+          )}
+          <div className="finance-sheet-body">
+            <motion.div
+              key={kind}
+              className="finance-sheet-form"
+              initial={reduceMotion ? false : { x: ENTRY_KINDS.indexOf(kind) >= ENTRY_KINDS.indexOf(previousKindRef.current) ? 10 : -10, opacity: 0.97 }}
+              animate={{ x: 0, opacity: 1 }}
+              transition={reduceMotion ? MOTION.reduced : MOTION.route}
+            >
+              <label className="finance-amount-field">
+                <span>{kind === 'refund' ? '退款金额' : kind === 'credit_payment' ? '还款金额' : kind === 'topup' ? '充值金额' : '金额'} · {currency}</span>
+                <input inputMode="decimal" value={amount} onChange={(event) => { setAmount(event.target.value); setError('') }} onBlur={() => !amountValid && amount && setError('请输入大于 0 的金额')} placeholder="0" />
+                <small>原币种金额会保留；汇总只使用交易时保存的参考汇率。</small>
+              </label>
+              <div className="finance-sheet-grid">
+                <label className="finance-date-field">日期<input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label>
+
+                {kind === 'refund' ? (
+                  <>
+                    <FinancePickerRow label="原消费记录" value={selectedRefundOrigin?.merchantNameSnapshot || selectedRefundOrigin?.note} placeholder="选择可退款消费" onClick={() => setPickerTarget({ kind: 'refund-origin' })} />
+                    <FinancePickerRow label="退款到账账户" value={selectedDestination?.name} placeholder="选择到账账户" onClick={() => setPickerTarget({ kind: 'refund-account' })} />
+                  </>
+                ) : (
+                  <FinancePickerRow
+                    label={kind === 'expense' ? '实际支付账户' : kind === 'income' ? '入账账户' : kind === 'credit_payment' ? '还款账户' : kind === 'topup' ? '付款账户' : '转出账户'}
+                    value={selectedAccount?.name}
+                    placeholder="选择账户"
+                    onClick={() => setPickerTarget({ kind: 'source' })}
+                  />
+                )}
+
+                {kind === 'expense' && (
+                  <>
+                    <div className="finance-sheet-static-row"><span>资金来源</span><strong>{accountOwnership(source) === 'external' ? '外部代付' : '本人资金'}</strong></div>
+                    <FinancePickerRow label="分类" value={selectedCategory?.name ?? '未分类'} placeholder="未分类" onClick={() => setPickerTarget({ kind: 'category' })} />
+                    {accountOwnership(source) !== 'external' && (
+                      <fieldset className="finance-fund-allocation-fieldset">
+                        <legend>承担资金池</legend>
+                        {fundAllocationDrafts.map((row, index) => (
+                          <div key={`${row.fundPoolId}:${index}`}>
+                            <button type="button" className="finance-fund-picker" onClick={() => setPickerTarget({ kind: 'fund-pool', index })}>
+                              <span>{eligibleFundPools.find((pool) => pool.id === row.fundPoolId)?.name ?? '选择资金池'}</span>
+                              <AppIcon name="chevronRight" size={16} />
+                            </button>
+                            <input aria-label="分摊金额" inputMode="decimal" value={row.amount} onChange={(event) => {
+                              setAllocationsTouched(true)
+                              setFundAllocationDrafts((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, amount: event.target.value } : item))
+                            }} />
+                            {fundAllocationDrafts.length > 1 && <button type="button" aria-label="移除分摊" onClick={() => setFundAllocationDrafts((current) => current.filter((_, itemIndex) => itemIndex !== index))}><AppIcon name="close" size={16} /></button>}
+                          </div>
+                        ))}
+                        {fundAllocationDrafts.length === 0 && <p>{eligibleFundPools.length ? '选择承担本次支出的资金池' : '请先在“财务 → 资金池”分配余额'}</p>}
+                        {eligibleFundPools.length > 0 && <button type="button" className="finance-add-allocation" onClick={() => {
+                          setAllocationsTouched(fundAllocationDrafts.length > 0)
+                          setFundAllocationDrafts((current) => [...current, { fundPoolId: eligibleFundPools.find((pool) => !current.some((item) => item.fundPoolId === pool.id))?.id ?? eligibleFundPools[0].id, amount: current.length === 0 ? amount : '' }])
+                        }}>＋ {fundAllocationDrafts.length ? '增加分摊' : '选择资金池'}</button>}
+                      </fieldset>
+                    )}
+                    <label>商家 / 地点<input value={merchant} onChange={(event) => setMerchant(event.target.value)} placeholder="例如 Rakuten Ichiba" /></label>
+                  </>
+                )}
+
+                {kind === 'income' && (
+                  <>
+                    <FinancePickerRow label="收入分类" value={selectedCategory?.name} placeholder="选择分类（可选）" onClick={() => setPickerTarget({ kind: 'category' })} />
+                    <label>来源<input value={merchant} onChange={(event) => setMerchant(event.target.value)} placeholder="例如 工资、退款" /></label>
+                  </>
+                )}
+
+                {transferKinds && (
+                  <>
+                    <FinancePickerRow
+                      label={kind === 'credit_payment' ? '信用卡账户' : kind === 'topup' ? '充值账户' : '转入账户'}
+                      value={selectedDestination?.name}
+                      placeholder="请选择"
+                      onClick={() => setPickerTarget({ kind: 'destination' })}
+                    />
+                    <label>到账金额<input inputMode="decimal" value={destinationAmount} onChange={(event) => setDestinationAmount(event.target.value)} placeholder={amount || '0'} /></label>
+                    <label>手续费（可选）<input inputMode="decimal" value={fee} onChange={(event) => setFee(event.target.value)} placeholder="0" /></label>
+                  </>
+                )}
+
+                <label>备注<textarea rows={3} value={note} onChange={(event) => setNote(event.target.value)} placeholder="可选备注" /></label>
+                {kind === 'expense' && <button type="button" role="switch" aria-checked={includeInSpending} className="finance-sheet-setting finance-stat-switch" onClick={() => setIncludeInSpending((value) => !value)}><span>计入消费统计<small>转账、还款和充值不会计入消费</small></span><i aria-hidden /></button>}
+              </div>
+              {kind === 'refund' && selectedRefundOrigin && <p className="finance-entry-notice">退款沿用原消费的分类与资金归属，并冲减相同统计口径；支持部分退款。</p>}
+              {kind === 'expense' && accountOwnership(source) === 'external' && <p className="finance-entry-notice">外部代付会计入总消费，但不会减少个人资产或增加个人负债。</p>}
+              {kind === 'expense' && source?.kind === 'credit' && accountOwnership(source) === 'self' && <p className="finance-entry-notice">本人信用卡消费在发生时计入；还款不会再次计为支出。</p>}
+              {kind === 'credit_payment' && <p className="finance-entry-notice">信用卡消费已在发生时统计，还款不会再次计入支出。</p>}
+              {kind === 'topup' && <p className="finance-entry-notice">充值属于账户之间的资金移动，只有实际使用储值余额时才计入消费。</p>}
+              {error && <p className="finance-sheet-error" role="alert">{error}</p>}
+            </motion.div>
+          </div>
+          <div className="finance-sheet-actions">
+            <button type="button" onClick={() => sheetRef.current?.close()}>取消</button>
+            <button className="primary" disabled={saving || !canSubmit}>{saving ? '保存中…' : editing ? '保存修改' : '保存'}</button>
+          </div>
+        </form>
+      </GestureSheet>
+      {pickerTarget && (
+        <SelectionPickerSheet
+          id={`finance-${pickerTarget.kind}`}
+          eyebrow="快速记账"
+          title={pickerTitle}
+          items={pickerItems}
+          selectedId={selectedPickerId}
+          searchPlaceholder={`搜索${pickerTitle.replace('选择', '')}`}
+          createPlaceholder={pickerTarget.kind === 'category' ? '＋ 新建分类' : undefined}
+          onCreate={pickerTarget.kind === 'category' ? async (name) => saveExpenseCategory({ name }) : undefined}
+          footerActionLabel={pickerTarget.kind === 'category' ? '管理分类' : undefined}
+          onFooterAction={pickerTarget.kind === 'category' ? () => {
+            setPickerTarget(null)
+            setCategoryManagerOpen(true)
+          } : undefined}
+          onSelect={selectPickerValue}
+          onClose={() => setPickerTarget(null)}
+        />
+      )}
+      {categoryManagerOpen && (
+        <ExpenseCategoryManagerSheet
+          categories={categories}
+          accounts={accounts}
+          fundPools={fundPools}
+          onClose={() => setCategoryManagerOpen(false)}
+          onFeedback={setError}
+        />
+      )}
     </>
   )
 }

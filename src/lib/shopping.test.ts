@@ -2,6 +2,7 @@ import 'fake-indexeddb/auto'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { db, type ShoppingItem } from './db'
 import { moveShoppingItem, restoreShoppingItemPlacement } from './shopping'
+import { compareRanks } from './rank'
 
 const initialTimestamp = '2026-07-19T00:00:00.000Z'
 
@@ -96,5 +97,40 @@ describe('购物商品移动与安全撤销', () => {
     await expect(moveShoppingItem('missing', undefined, null, null)).rejects.toThrow(
       '商品不存在或已删除',
     )
+  })
+
+  it('同一地点内排序会写入稳定 rank，重新读取后仍保持新顺序', async () => {
+    const first = item('milk', 'market', 'a0')
+    const second = item('bread', 'market', 'b0')
+    const third = item('paper', 'market', 'c0')
+    await db.shoppingItems.bulkAdd([first, second, third])
+
+    await moveShoppingItem(
+      third.id,
+      'market',
+      null,
+      first.rank,
+      [third.id, first.id, second.id],
+    )
+
+    const reloaded = (await db.shoppingItems.toArray())
+      .filter((entry) => entry.locationId === 'market')
+      .sort((a, b) => compareRanks(a.rank, b.rank))
+      .map((entry) => entry.id)
+    expect(reloaded).toEqual(['paper', 'milk', 'bread'])
+  })
+
+  it('可以拖入空地点，关闭并重新打开数据库后地点仍正确', async () => {
+    const moving = item('water', 'pharmacy', 'a0')
+    await db.shoppingItems.add(moving)
+
+    await moveShoppingItem(moving.id, 'amazon', null, null)
+    db.close()
+    await db.open()
+
+    expect(await db.shoppingItems.get(moving.id)).toMatchObject({
+      locationId: 'amazon',
+      lifecycleStatus: 'active',
+    })
   })
 })

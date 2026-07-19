@@ -101,7 +101,9 @@ export function transactionBalanceDeltas(
       break
     case 'transfer':
     case 'topup':
-      if (account.kind === 'asset') add(account.id, -transaction.amountMinor)
+      if (account.kind === 'asset') {
+        add(account.id, -(transaction.amountMinor + (transaction.feeMinor ?? 0)))
+      }
       if (transaction.counterpartyAccountId) {
         const destination = accounts.get(transaction.counterpartyAccountId)
         if (destination?.kind === 'asset' && accountOwnership(destination) === 'self') {
@@ -110,7 +112,9 @@ export function transactionBalanceDeltas(
       }
       break
     case 'credit_payment':
-      if (account.kind === 'asset') add(account.id, -transaction.amountMinor)
+      if (account.kind === 'asset') {
+        add(account.id, -(transaction.amountMinor + (transaction.feeMinor ?? 0)))
+      }
       if (transaction.counterpartyAccountId) {
         const credit = accounts.get(transaction.counterpartyAccountId)
         if (credit?.kind === 'credit') {
@@ -213,6 +217,9 @@ export function ledgerSummary(opts: {
         ? transaction.reportingAmountMinor!
         : convert(transaction.amountMinor, transaction.currency)
     const fundingParty = transactionFundingParty(transaction, accountMap, transactionMap)
+    const reportFee = transaction.feeMinor
+      ? convert(transaction.feeMinor, transaction.currency)
+      : 0
     if (
       (transaction.type === 'external_payment' ||
         transaction.type === 'expense' ||
@@ -229,11 +236,20 @@ export function ledgerSummary(opts: {
     }
     if (
       fundingParty === 'self' &&
+      reportFee > 0 &&
+      ['transfer', 'topup', 'credit_payment'].includes(transaction.type)
+    ) {
+      actualPaidMinor += reportFee
+    }
+    if (
+      fundingParty === 'self' &&
       (transaction.type === 'expense' ||
+        transaction.type === 'transfer' ||
+        transaction.type === 'topup' ||
         transaction.type === 'credit_payment' ||
         (transaction.type === 'adjustment' && transaction.direction === 'outflow'))
     ) {
-      assetAccountDecreaseMinor += reportAmount
+      assetAccountDecreaseMinor += reportAmount + reportFee
     }
   }
 
@@ -287,6 +303,11 @@ export async function saveAccount(input: {
     name,
     kind: input.kind,
     ownership,
+    ...((input.ownership || existing?.ownershipConfirmedAt) && {
+      ownershipConfirmedAt: input.ownership
+        ? timestamp
+        : existing?.ownershipConfirmedAt,
+    }),
     subtype: input.subtype,
     currency: input.currency,
     openingBalanceMinor: Math.round(input.openingBalanceMinor ?? existing?.openingBalanceMinor ?? 0),
@@ -568,6 +589,8 @@ export async function saveIncome(input: {
   currency: CurrencyCode
   localDate: string
   accountId: string
+  categoryId?: string
+  sourceName?: string
   note?: string
   paycheckId?: string
   reportingCurrency?: CurrencyCode
@@ -592,6 +615,8 @@ export async function saveIncome(input: {
     localDate: input.localDate,
     accountId: account.id,
     fundingParty: 'self',
+    ...(input.categoryId && { categoryId: input.categoryId }),
+    ...(clean(input.sourceName) && { merchantNameSnapshot: clean(input.sourceName) }),
     ...(clean(input.note) && { note: clean(input.note) }),
     ...(input.paycheckId && { paycheckId: input.paycheckId }),
     ...(input.reportingCurrency && { reportingCurrency: input.reportingCurrency }),
@@ -620,6 +645,7 @@ export async function saveTransfer(input: {
   destinationAccountId: string
   sourceAmountMinor: number
   destinationAmountMinor?: number
+  feeMinor?: number
   localDate: string
   kind?: FinanceTransfer['kind']
   exchangeRate?: number
@@ -627,6 +653,9 @@ export async function saveTransfer(input: {
   dueDate?: string
 }): Promise<{ transactionId: string; transferId: string; settlementId?: string }> {
   positiveMinor(input.sourceAmountMinor)
+  if (input.feeMinor !== undefined && (!Number.isSafeInteger(input.feeMinor) || input.feeMinor < 0)) {
+    throw new Error('手续费金额无效')
+  }
   const [source, destination] = await Promise.all([
     db.accounts.get(input.sourceAccountId),
     db.accounts.get(input.destinationAccountId),
@@ -637,8 +666,11 @@ export async function saveTransfer(input: {
   if (kind === 'credit_payment' && (destination.kind !== 'credit' || accountOwnership(destination) !== 'self')) {
     throw new Error('信用卡还款的目标必须是本人信用卡')
   }
-  if (kind === 'topup' && (destination.kind !== 'asset' || accountOwnership(destination) !== 'self')) {
-    throw new Error('充值目标必须是本人储值或资产账户')
+  if (
+    kind === 'topup' &&
+    (destination.kind !== 'asset' || accountOwnership(destination) !== 'self' || !['stored_value', 'wallet'].includes(destination.subtype))
+  ) {
+    throw new Error('充值目标必须是本人的电子钱包或储值账户')
   }
   if (kind === 'transfer' && (destination.kind !== 'asset' || accountOwnership(destination) !== 'self')) {
     throw new Error('普通转账的目标必须是本人资产账户')
@@ -651,8 +683,9 @@ export async function saveTransfer(input: {
     db.financeTransactions.where('lifecycleStatus').equals('active').toArray(),
   ])
   const sourceBalance = calculateAccountBalances(allAccounts, allTransactions).get(source.id) ?? 0
-  if (input.sourceAmountMinor > sourceBalance) {
-    throw new Error(`转出账户余额不足，差额 ${fromMinor(input.sourceAmountMinor - sourceBalance, source.currency)}`)
+  const totalDebitMinor = input.sourceAmountMinor + (input.feeMinor ?? 0)
+  if (totalDebitMinor > sourceBalance) {
+    throw new Error(`转出账户余额不足，差额 ${fromMinor(totalDebitMinor - sourceBalance, source.currency)}`)
   }
   const timestamp = now()
   const transactionId = crypto.randomUUID()
@@ -669,6 +702,7 @@ export async function saveTransfer(input: {
     counterpartyAccountId: destination.id,
     counterpartyAmountMinor: destinationAmountMinor,
     counterpartyCurrency: destination.currency,
+    ...(input.feeMinor && { feeMinor: input.feeMinor }),
     ...(clean(input.note) && { note: clean(input.note) }),
     includeInSpending: false,
     affectsNetWorth: kind === 'credit_payment',
@@ -773,6 +807,7 @@ export async function saveRefund(input: {
   amountMinor: number
   localDate: string
   linkedTransactionId: string
+  accountId?: string
   note?: string
 }): Promise<string> {
   positiveMinor(input.amountMinor)
@@ -794,8 +829,9 @@ export async function saveRefund(input: {
     ) {
       throw new Error('请选择有效的原消费记录')
     }
-    const account = await db.accounts.get(linked.accountId)
-    if (!account || account.currency !== linked.currency) {
+    const originalAccount = await db.accounts.get(linked.accountId)
+    const account = await db.accounts.get(input.accountId ?? linked.accountId)
+    if (!originalAccount || !account || account.currency !== linked.currency) {
       throw new Error('原消费的账户或币种信息异常')
     }
     const transactions = await db.financeTransactions.toArray()
@@ -813,7 +849,7 @@ export async function saveRefund(input: {
     }
     const fundingParty = transactionFundingParty(
       linked,
-      new Map([[account.id, account]]),
+      new Map([[originalAccount.id, originalAccount]]),
     )
     const reportingAmountMinor = Number.isSafeInteger(linked.reportingAmountMinor)
       ? Math.round((linked.reportingAmountMinor! * input.amountMinor) / linked.amountMinor)
@@ -927,7 +963,7 @@ export async function saveRefund(input: {
       currency: linked.currency,
       occurredAt: `${input.localDate}T12:00:00.000Z`,
       localDate: input.localDate,
-      accountId: linked.accountId,
+      accountId: account.id,
       fundingParty,
       linkedTransactionId: linked.id,
       ...(linked.categoryId && { categoryId: linked.categoryId }),

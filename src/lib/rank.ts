@@ -36,3 +36,13 @@ export function appendRank(maxRank: string | undefined): string {
 export function normalizedRanks(n: number): string[] {
   return generateNKeysBetween(null, null, n)
 }
+
+/**
+ * fractional-indexing 的键必须按代码单元顺序比较。
+ * localeCompare 会受语言环境及大小写排序规则影响，可能与 IndexedDB 的
+ * `sortBy('rank')` 结果不一致，导致拖拽完成后视觉顺序回跳。
+ */
+export function compareRanks(a: string, b: string): number {
+  if (a === b) return 0
+  return a < b ? -1 : 1
+}

@@ -145,12 +145,15 @@ const GestureSheet = forwardRef<GestureSheetHandle, GestureSheetProps>(
     }
 
     return createPortal(
-      <motion.div
-        className="modal-backdrop fixed inset-0 z-40 flex items-end justify-center px-3 pt-8 lg:items-center"
-        style={{ opacity: scrimOpacity }}
-        onPointerDown={(event) => event.target === event.currentTarget && close()}
-      >
-        <motion.section
+      <div className="gesture-sheet-root fixed inset-0 z-40">
+        <motion.div
+          aria-hidden="true"
+          className="modal-backdrop gesture-sheet-scrim absolute inset-0"
+          style={{ opacity: scrimOpacity }}
+          onPointerDown={(event) => event.target === event.currentTarget && close()}
+        />
+        <div className="gesture-sheet-stage pointer-events-none absolute inset-0 flex items-end justify-center px-3 pt-8 lg:items-center">
+          <motion.section
           ref={dialogRef}
           tabIndex={-1}
           role="dialog"
@@ -165,23 +168,32 @@ const GestureSheet = forwardRef<GestureSheetHandle, GestureSheetProps>(
           onDragStart={onDragStart}
           onDrag={onDrag}
           onDragEnd={onDragEnd}
+          onPointerDown={(event) => {
+            if (!mobile || reduceMotion) return
+            const target = event.target as Element
+            if (!target.closest('[data-sheet-drag-handle]')) return
+            if (target.closest('button, a, input, textarea, select, [role="button"]')) return
+            onDragStart()
+            dragControls.start(event)
+          }}
           style={{ y }}
-          className={className}
-        >
-          <button
-            type="button"
-            aria-label="下拉关闭编辑面板"
-            className="editor-sheet-handle lg:hidden"
-            onPointerDown={(event) => {
-              onDragStart()
-              dragControls.start(event)
-            }}
+            className={`${className} pointer-events-auto`}
           >
-            <span aria-hidden />
-          </button>
-          {children}
-        </motion.section>
-      </motion.div>,
+            <button
+              type="button"
+              aria-label="下拉关闭编辑面板"
+              className="editor-sheet-handle lg:hidden"
+              onPointerDown={(event) => {
+                onDragStart()
+                dragControls.start(event)
+              }}
+            >
+              <span aria-hidden />
+            </button>
+            {children}
+          </motion.section>
+        </div>
+      </div>,
       document.body,
     )
   },

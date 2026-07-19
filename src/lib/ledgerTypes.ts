@@ -18,6 +18,8 @@ export interface Account {
   kind: AccountKind
   /** 账户类型与归属分离：本人信用卡和外部信用卡都可以是 credit。 */
   ownership?: AccountOwnership
+  /** 用户明确确认过归属后，自动迁移不得再按账户名称覆盖。 */
+  ownershipConfirmedAt?: string
   subtype: AccountSubtype
   currency: CurrencyCode
   /** 资产账户为正余额；信用账户为正的待还金额。 */
@@ -63,6 +65,8 @@ export interface FinanceTransaction {
   counterpartyAccountId?: string
   counterpartyAmountMinor?: number
   counterpartyCurrency?: CurrencyCode
+  /** 转账、还款或充值产生的真实手续费，不包含主体转移金额。 */
+  feeMinor?: number
   categoryId?: string
   categoryNameSnapshot?: string
   merchantId?: string
