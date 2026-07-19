@@ -7405,3 +7405,88 @@ select:focus {
     padding: var(--space-3) !important;
   }
 }
+
+/* Phase 1 · Finance / ledger. Heading and filters are compact tools;
+   repeated transactions are rows inside one section, with merchant/date/type
+   and amount aligned independently from the existing edit/delete callbacks. */
+@media (max-width: 1023px) {
+  .finance-shell .finance-transactions-view {
+    gap: var(--space-3) !important;
+  }
+
+  .finance-shell .finance-transactions-view > .finance-view-heading {
+    min-height: 52px;
+    padding: 0 var(--space-1);
+  }
+
+  .finance-shell .finance-transactions-view > .finance-view-heading button {
+    min-height: 40px;
+  }
+
+  .finance-shell .finance-compact-filter {
+    min-height: 44px;
+    gap: var(--space-1);
+    border-radius: var(--radius-control);
+    padding: 3px;
+  }
+
+  .finance-shell .finance-compact-filter button {
+    min-height: 36px;
+    border-radius: calc(var(--radius-control) - 4px);
+    padding-inline: 11px;
+  }
+
+  .finance-shell .finance-transaction-list {
+    overflow: visible;
+    padding: var(--space-3) !important;
+  }
+
+  .finance-shell .finance-transaction-list > header {
+    min-height: 38px;
+  }
+
+  .finance-shell .finance-transaction-list > ul {
+    margin-top: var(--space-2);
+  }
+
+  .finance-shell .finance-transaction-list li {
+    min-height: 58px !important;
+    grid-template-columns: 32px minmax(0, 1fr) auto auto;
+    gap: 7px;
+  }
+
+  .finance-shell .finance-transaction-icon {
+    width: 32px;
+    height: 32px;
+  }
+
+  .finance-shell .finance-transaction-list li strong {
+    color: var(--color-text-primary);
+    font-size: 0.82rem;
+    line-height: 1.2;
+  }
+
+  .finance-shell .finance-transaction-list li > div > span {
+    overflow: hidden;
+    color: var(--color-text-secondary);
+    font-size: 0.65rem;
+    line-height: 1.25;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .finance-shell .finance-transaction-list li > b {
+    color: var(--color-text-primary);
+    font-size: 0.76rem;
+    text-align: right;
+  }
+
+  .finance-shell .finance-row-actions button {
+    width: 40px;
+    height: 44px;
+  }
+
+  .finance-shell .finance-transaction-list .finance-empty-state {
+    min-height: 64px;
+  }
+}
