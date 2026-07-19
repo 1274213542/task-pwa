@@ -67,8 +67,11 @@
   --secondary-header-height: 64px;
   --icon-button-size: 48px;
   --icon-button-compact: 44px;
+  --icon-button-size-compact: var(--icon-button-compact);
   --control-height: 44px;
   --segmented-control-height: 48px;
+  --grouped-row-height: 56px;
+  --grouped-row-height-two-line: 68px;
   --bottom-tabbar-height: 68px;
   --bottom-content-inset: calc(
     var(--bottom-tabbar-height) + env(safe-area-inset-bottom, 0px) + var(--space-6)
@@ -187,6 +190,7 @@
   --gutter-mobile: var(--ds-gutter-mobile);
   --gutter-desktop: var(--ds-gutter-desktop);
 }
+
 
 :root[data-appearance='dark'] {
   --ds-border: rgb(255 255 255 / 0.11);
@@ -8559,5 +8563,311 @@ select:focus {
     font-size: var(--ds-type-desc);
     line-height: var(--ds-leading-desc);
     font-weight: 500;
+  }
+}
+
+/* Apple mobile normalization · management and picker surfaces. Secondary
+   screens keep a stable centered title; repeated settings and records live in
+   grouped surfaces with inset separators rather than individual cards. */
+@media (max-width: 1023px) {
+  .page-settings > .mobile-page-header,
+  .page-browse > .mobile-page-header {
+    margin-bottom: var(--space-3);
+  }
+
+  .page-settings .settings-theme-section,
+  .page-settings .settings-wage-section,
+  .page-settings .settings-finance-links,
+  .page-settings .settings-data-card,
+  .page-settings > .list-card,
+  .page-browse .browse-category-card,
+  .page-browse .record-list,
+  .page-browse .browse-empty-state {
+    border: 1px solid var(--color-border-subtle) !important;
+    border-radius: var(--radius-card-large) !important;
+    background: var(--color-surface-primary) !important;
+    box-shadow: var(--shadow-card) !important;
+  }
+
+  .page-settings .settings-section-heading h2,
+  .page-settings .settings-wage-section h2,
+  .page-settings .settings-finance-links h2,
+  .page-settings > .section-label,
+  .page-browse .browse-section-title {
+    font-size: var(--ds-type-section) !important;
+    line-height: var(--ds-leading-section) !important;
+    font-weight: 600 !important;
+    letter-spacing: 0 !important;
+  }
+
+  .page-settings .section-kicker,
+  .page-settings .settings-theme-section small,
+  .page-settings .settings-wage-section small,
+  .page-settings .settings-finance-links small,
+  .page-settings .settings-storage-help,
+  .page-browse .record-date,
+  .page-browse .record-meta {
+    font-size: var(--ds-type-description) !important;
+    line-height: var(--ds-leading-description) !important;
+  }
+
+  .page-settings .theme-choice-grid {
+    overflow: clip;
+    gap: 0 !important;
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-card-large);
+    background: var(--color-surface-primary);
+  }
+
+  .page-settings .theme-choice {
+    position: relative;
+    min-height: var(--grouped-row-height-two-line) !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  .page-settings .theme-choice + .theme-choice::before {
+    position: absolute;
+    top: 0;
+    right: var(--space-4);
+    left: 60px;
+    height: 1px;
+    background: var(--color-divider);
+    content: '';
+    pointer-events: none;
+  }
+
+  .page-settings .theme-choice-copy strong,
+  .page-settings .settings-data-label,
+  .page-settings .settings-data-action,
+  .page-settings .settings-finance-links a,
+  .page-settings .action-color-control strong {
+    font-size: var(--ds-type-card) !important;
+    line-height: var(--ds-leading-card) !important;
+    font-weight: 500 !important;
+  }
+
+  .page-settings .theme-choice-copy small,
+  .page-settings .action-color-control span {
+    font-size: var(--ds-type-description) !important;
+    line-height: var(--ds-leading-description) !important;
+  }
+
+  .page-settings .appearance-control,
+  .page-settings .settings-wage-control button,
+  .page-settings .settings-persist-action,
+  .page-settings .settings-data-inline-action,
+  .page-settings .settings-completed-select {
+    border-radius: var(--radius-pill) !important;
+  }
+
+  .page-settings .settings-data-row,
+  .page-settings .settings-data-action,
+  .page-settings .settings-finance-links a {
+    position: relative;
+    min-height: var(--grouped-row-height) !important;
+    border: 0 !important;
+    padding-inline: var(--space-4) !important;
+  }
+
+  .page-settings .settings-data-row + .settings-data-row::before,
+  .page-settings .settings-data-action + .settings-data-action::before,
+  .page-settings .settings-finance-links a + a::before {
+    position: absolute;
+    top: 0;
+    right: var(--space-4);
+    left: var(--space-4);
+    height: 1px;
+    background: var(--color-divider);
+    content: '';
+    pointer-events: none;
+  }
+
+  .page-settings .settings-data-value,
+  .page-settings .settings-completed-select {
+    font-size: var(--ds-type-status) !important;
+    line-height: var(--ds-leading-status) !important;
+    font-weight: 400 !important;
+  }
+
+  .page-browse .browse-layout {
+    gap: var(--space-8) !important;
+  }
+
+  .page-browse .browse-section-head {
+    min-height: 36px !important;
+    padding: 0 0 var(--space-3) !important;
+  }
+
+  .page-browse .browse-count-token {
+    min-width: 28px !important;
+    height: 24px !important;
+    border-radius: var(--radius-pill) !important;
+    padding-inline: var(--space-2) !important;
+    font-size: var(--ds-type-description) !important;
+    font-weight: 500 !important;
+  }
+
+  .page-browse .category-row,
+  .page-browse .record-row {
+    position: relative;
+    min-height: var(--grouped-row-height-two-line) !important;
+    border: 0 !important;
+  }
+
+  .page-browse .category-row + .category-row::before,
+  .page-browse .record-row + .record-row::before {
+    position: absolute;
+    top: 0;
+    right: var(--space-4);
+    left: 60px;
+    height: 1px;
+    background: var(--color-divider);
+    content: '';
+    pointer-events: none;
+  }
+
+  .page-browse .category-name-button,
+  .page-browse .category-name-input,
+  .page-browse .record-title {
+    font-size: var(--ds-type-card) !important;
+    line-height: var(--ds-leading-card) !important;
+    font-weight: 500 !important;
+  }
+
+  .page-browse .category-composer {
+    min-height: var(--grouped-row-height) !important;
+    border-top: 1px solid var(--color-divider) !important;
+    padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4) !important;
+  }
+
+  .page-browse .category-add,
+  .page-browse .category-delete-confirm {
+    min-height: 40px;
+    border-radius: var(--radius-pill) !important;
+    padding-inline: var(--space-4);
+    font-size: var(--ds-type-pill) !important;
+    line-height: var(--ds-leading-pill) !important;
+  }
+
+  .page-browse .category-delete,
+  .page-browse .record-restore,
+  .page-browse .browse-settings-token {
+    width: var(--icon-button-size-compact);
+    min-width: var(--icon-button-size-compact);
+    height: var(--icon-button-size-compact);
+    min-height: var(--icon-button-size-compact);
+    border-radius: 50% !important;
+  }
+
+  .page-browse .browse-empty-state {
+    min-height: 96px !important;
+    padding: var(--space-5) !important;
+    color: var(--color-text-secondary);
+    font-size: var(--ds-type-meta);
+    line-height: var(--ds-leading-meta);
+  }
+
+  .selection-picker-sheet {
+    border-radius: var(--radius-sheet) var(--radius-sheet) 0 0 !important;
+  }
+
+  .selection-picker-layout > header {
+    display: grid;
+    min-height: 60px;
+    grid-template-columns: var(--icon-button-size-compact) minmax(0, 1fr) var(--icon-button-size-compact);
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-1) var(--space-4) var(--space-2);
+  }
+
+  .selection-picker-layout > header > div {
+    min-width: 0;
+    grid-column: 2;
+    text-align: center;
+  }
+
+  .selection-picker-layout > header h2 {
+    font-size: var(--ds-type-nav-title) !important;
+    line-height: var(--ds-leading-nav) !important;
+    font-weight: 600 !important;
+  }
+
+  .selection-picker-layout > header span:not(.selection-picker-header-spacer) {
+    display: none;
+  }
+
+  .selection-picker-layout > header button,
+  .selection-picker-header-spacer {
+    width: var(--icon-button-size-compact) !important;
+    min-width: var(--icon-button-size-compact) !important;
+    height: var(--icon-button-size-compact) !important;
+    min-height: var(--icon-button-size-compact) !important;
+    border-radius: 50% !important;
+  }
+
+  .selection-picker-layout > header button {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .selection-picker-header-spacer {
+    grid-column: 3;
+    grid-row: 1;
+  }
+
+  .selection-picker-search,
+  .selection-picker-create {
+    min-height: var(--grouped-row-height);
+    border-radius: var(--radius-control) !important;
+  }
+
+  .selection-picker-list {
+    overflow: clip auto;
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-card-large);
+    background: var(--color-surface-primary);
+    padding: 0 var(--space-4) var(--space-3);
+  }
+
+  .selection-picker-list > button {
+    position: relative;
+    min-height: var(--grouped-row-height-two-line) !important;
+    border: 0 !important;
+    gap: var(--space-3);
+  }
+
+  .selection-picker-list > button + button::before {
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 44px;
+    height: 1px;
+    background: var(--color-divider);
+    content: '';
+    pointer-events: none;
+  }
+
+  .selection-picker-copy strong {
+    font-size: var(--ds-type-card) !important;
+    line-height: var(--ds-leading-card) !important;
+    font-weight: 500 !important;
+  }
+
+  .selection-picker-copy small,
+  .selection-picker-layout > footer span {
+    font-size: var(--ds-type-meta) !important;
+    line-height: var(--ds-leading-meta) !important;
+  }
+
+  .selection-picker-create button,
+  .selection-picker-layout > footer button {
+    min-height: 40px;
+    border-radius: var(--radius-pill) !important;
+    padding-inline: var(--space-4);
+    font-size: var(--ds-type-pill) !important;
+    line-height: var(--ds-leading-pill) !important;
   }
 }

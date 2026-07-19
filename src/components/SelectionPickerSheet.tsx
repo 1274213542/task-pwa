@@ -86,13 +86,14 @@ export default function SelectionPickerSheet({
     >
       <div className="selection-picker-layout">
         <header>
+          <button type="button" aria-label="关闭" onClick={() => sheetRef.current?.close()}>
+            <AppIcon name="close" size={20} />
+          </button>
           <div>
             {eyebrow && <span>{eyebrow}</span>}
             <h2 id={`${id}-title`}>{title}</h2>
           </div>
-          <button type="button" aria-label="关闭" onClick={() => sheetRef.current?.close()}>
-            <AppIcon name="close" size={20} />
-          </button>
+          <span className="selection-picker-header-spacer" aria-hidden />
         </header>
         <label className="selection-picker-search">
           <AppIcon name="search" size={18} />

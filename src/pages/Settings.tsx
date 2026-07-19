@@ -109,7 +109,7 @@ export default function Settings() {
   return (
     <section className="app-page page-settings">
       <MobilePageHeader
-        title="Settings"
+        title="设置"
         eyebrow="数据与偏好"
         backHref="#/overview"
         showSecondary={false}
