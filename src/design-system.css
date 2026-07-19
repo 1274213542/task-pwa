@@ -6675,3 +6675,98 @@ select:focus {
     padding: var(--space-5);
   }
 }
+
+/* Phase 1 · Overview. Header and content keep normal document flow; repeated
+   work becomes grouped rows and empty modules stop occupying card-scale space. */
+@media (max-width: 1023px) {
+  .page-overview > .mobile-page-header {
+    position: relative !important;
+    top: auto !important;
+    z-index: auto;
+    background: transparent !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  .page-overview {
+    align-content: start;
+    gap: var(--space-4) !important;
+  }
+
+  .page-overview .overview-hero {
+    min-height: 124px;
+    padding: var(--space-4) var(--space-5);
+  }
+
+  .page-overview .overview-hero-progress {
+    width: 76px;
+    height: 76px;
+    flex-basis: 76px;
+  }
+
+  .page-overview .overview-metrics {
+    gap: var(--space-2) !important;
+  }
+
+  .page-overview .overview-metric {
+    min-height: 80px !important;
+    padding: var(--space-3);
+  }
+
+  .page-overview .overview-today-list,
+  .page-overview .overview-calendar-strip,
+  .page-overview .overview-upcoming {
+    padding: var(--space-3) !important;
+  }
+
+  .page-overview .overview-today-list > header,
+  .page-overview .overview-calendar-strip > header,
+  .page-overview .overview-upcoming > header {
+    min-height: 40px;
+    margin-bottom: var(--space-1);
+    padding: 0;
+  }
+
+  .page-overview .overview-today-list ul,
+  .page-overview .overview-upcoming ul {
+    overflow: hidden;
+    gap: 0 !important;
+    border-top: 1px solid var(--color-divider);
+  }
+
+  .page-overview .overview-today-list li,
+  .page-overview .overview-upcoming li {
+    min-height: 52px;
+    border-top: 1px solid var(--color-divider);
+    background: transparent !important;
+    padding: 6px 2px;
+  }
+
+  .page-overview .overview-today-list li:first-child,
+  .page-overview .overview-upcoming li:first-child {
+    border-top: 0;
+  }
+
+  .page-overview .overview-empty {
+    min-height: 44px;
+    color: var(--color-text-secondary);
+  }
+
+  .page-overview .overview-days {
+    gap: 2px;
+  }
+
+  .page-overview .overview-days a {
+    min-height: 54px;
+    border-radius: var(--radius-control) !important;
+  }
+
+  .page-overview .overview-utility-links {
+    gap: var(--space-2);
+  }
+
+  .page-overview .overview-utility-links a {
+    min-height: 48px;
+    padding-inline: var(--space-3);
+  }
+}
