@@ -42,6 +42,7 @@ import { calculateFundPoolStates } from '../lib/fundMath'
 import { processDueRecurringRules } from '../lib/recurringFinance'
 import { FinanceFundsView, FinancePlanningPanel } from './FinanceFundsPanels'
 import SegmentedIndicator from '../components/SegmentedIndicator'
+import SwipeActionRow from '../components/SwipeActionRow'
 import type {
   Account,
   CurrencyCode,
@@ -899,12 +900,26 @@ function TransactionList({
         const account = accountMap.get(transaction.accountId)
         const positive = transaction.type === 'income' || transaction.type === 'refund'
         const external = transaction.type === 'external_payment' || transaction.fundingParty === 'external' || accountOwnership(account) === 'external'
-        return <li key={transaction.id}>
+        return <SwipeActionRow
+          key={transaction.id}
+          id={`finance-transaction:${transaction.id}`}
+          label={transaction.merchantNameSnapshot || transaction.note || TRANSACTION_LABEL[transaction.type]}
+          className="finance-transaction-swipe-row"
+          contentClassName="finance-transaction-row"
+          actions={[
+            ...(onEdit && ['expense', 'credit_purchase', 'external_payment'].includes(transaction.type)
+              ? [{ label: '编辑', icon: 'edit' as const, tone: 'neutral' as const, onSelect: () => onEdit(transaction) }]
+              : []),
+            ...(onDelete
+              ? [{ label: '删除', icon: 'trash' as const, tone: 'danger' as const, onSelect: () => onDelete(transaction) }]
+              : []),
+          ]}
+        >
           <span className={`finance-transaction-icon is-${transaction.type}`}><AppIcon name={positive ? 'plus' : transaction.type.includes('transfer') || transaction.type === 'topup' || transaction.type === 'credit_payment' ? 'sync' : 'receipt'} size={18} /></span>
           <div><strong>{transaction.merchantNameSnapshot || transaction.note || TRANSACTION_LABEL[transaction.type]}</strong><span>{transaction.localDate} · {account?.name ?? '未知账户'} · {TRANSACTION_LABEL[transaction.type]} {external && <em>外部代付</em>}</span></div>
           <b className={positive ? 'is-positive' : ''}><PrivateAmount>{`${positive ? '+' : transaction.type === 'external_payment' ? '' : '−'}${formatMoney(transaction.amountMinor, transaction.currency)}`}</PrivateAmount></b>
-          {(onEdit || onDelete) && <span className="finance-row-actions">{onEdit && ['expense', 'credit_purchase', 'external_payment'].includes(transaction.type) && <button aria-label="编辑流水" onClick={() => onEdit(transaction)}><AppIcon name="edit" size={17} /></button>}{onDelete && <button aria-label="删除流水" onClick={() => onDelete(transaction)}><AppIcon name="trash" size={17} /></button>}</span>}
-        </li>
+          {(onEdit || onDelete) && <span className="finance-row-actions">{onEdit && ['expense', 'credit_purchase', 'external_payment'].includes(transaction.type) && <button aria-label="编辑流水" data-no-row-swipe onClick={() => onEdit(transaction)}><AppIcon name="edit" size={17} /></button>}{onDelete && <button aria-label="删除流水" data-no-row-swipe onClick={() => onDelete(transaction)}><AppIcon name="trash" size={17} /></button>}</span>}
+        </SwipeActionRow>
       })}</ul> : <div className="finance-empty-state"><AppIcon name="receipt" size={24} /><span>还没有流水</span></div>}
     </section>
   )

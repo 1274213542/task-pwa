@@ -8941,3 +8941,135 @@ select:focus {
     color: #fff;
   }
 }
+
+/* Shared grouped-row swipe surface for finance and management lists. */
+@media (max-width: 1023px) {
+  .apple-swipe-row {
+    position: relative;
+    overflow: clip;
+    min-width: 0;
+    touch-action: pan-y;
+  }
+
+  .apple-swipe-content {
+    position: relative;
+    z-index: 1;
+    min-width: 0;
+    height: 100%;
+    background: var(--color-surface-primary);
+    will-change: transform;
+  }
+
+  .apple-swipe-actions {
+    position: absolute;
+    z-index: 0;
+    inset: 0 0 0 auto;
+    display: flex;
+    width: var(--apple-swipe-width);
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--space-1);
+    transform-origin: right center;
+    pointer-events: none;
+  }
+
+  .apple-swipe-row[data-swipe-open] .apple-swipe-actions {
+    pointer-events: auto;
+  }
+
+  .apple-swipe-action {
+    display: grid;
+    width: 68px;
+    height: 44px;
+    flex: 0 0 68px;
+    grid-template-rows: 18px 16px;
+    place-items: center;
+    align-content: center;
+    gap: 1px;
+    border-radius: var(--radius-card-medium);
+    background: var(--color-control-selected);
+    color: var(--color-text-primary);
+    font-size: 12px;
+    line-height: 16px;
+  }
+
+  .apple-swipe-action.is-accent {
+    background: color-mix(in srgb, var(--color-text-primary) 12%, var(--color-surface-primary));
+  }
+
+  .apple-swipe-action.is-danger {
+    background: #ff3b30;
+    color: #fff;
+  }
+
+  .apple-swipe-action:disabled {
+    opacity: 0.38;
+  }
+
+  .finance-shell .finance-transaction-list .finance-transaction-swipe-row {
+    display: block;
+    min-height: var(--grouped-row-height-two-line) !important;
+  }
+
+  .finance-shell .finance-transaction-list .finance-transaction-row {
+    display: grid;
+    min-height: var(--grouped-row-height-two-line);
+    grid-template-columns: 36px minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .finance-shell .finance-transaction-row > div {
+    display: grid;
+    min-width: 0;
+    gap: 2px;
+  }
+
+  .finance-shell .finance-transaction-row strong {
+    overflow: hidden;
+    font-size: var(--ds-type-card) !important;
+    line-height: var(--ds-leading-card) !important;
+    font-weight: 500 !important;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .finance-shell .finance-transaction-row > div > span {
+    overflow: hidden;
+    color: var(--color-text-secondary);
+    font-size: var(--ds-type-meta) !important;
+    line-height: var(--ds-leading-meta) !important;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .finance-shell .finance-transaction-row > b {
+    color: var(--color-text-primary);
+    font-size: var(--ds-type-status) !important;
+    line-height: var(--ds-leading-status);
+    font-weight: 400;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .page-browse .category-swipe-row {
+    display: block;
+    min-height: var(--grouped-row-height-two-line);
+  }
+
+  .page-browse .category-swipe-row + .category-swipe-row::before {
+    position: absolute;
+    z-index: 3;
+    top: 0;
+    right: var(--space-4);
+    left: 60px;
+    height: 1px;
+    background: var(--color-divider);
+    content: '';
+    pointer-events: none;
+  }
+
+  .page-browse .category-swipe-row .category-row {
+    min-height: var(--grouped-row-height-two-line) !important;
+  }
+}

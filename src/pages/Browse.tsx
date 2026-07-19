@@ -20,6 +20,7 @@ import {
 } from '../lib/themes'
 import MobilePageHeader from '../components/MobilePageHeader'
 import { voidRecord } from '../lib/tasks'
+import SwipeActionRow from '../components/SwipeActionRow'
 
 function CategoryRow({ cat, taskCount }: { cat: Category; taskCount: number }) {
   const [editing, setEditing] = useState(false)
@@ -38,7 +39,30 @@ function CategoryRow({ cat, taskCount }: { cat: Category; taskCount: number }) {
   }
 
   return (
-    <li className="category-row">
+    <SwipeActionRow
+      id={`category:${cat.id}`}
+      label={cat.name}
+      className="category-swipe-row"
+      contentClassName="category-row"
+      actions={[
+        {
+          label: '样式',
+          icon: 'palette',
+          onSelect: () => void setCategoryColor(cat.id, nextColorToken(cat.colorToken)),
+        },
+        {
+          label: '重命名',
+          icon: 'edit',
+          onSelect: () => setEditing(true),
+        },
+        {
+          label: '删除',
+          icon: 'trash',
+          tone: 'danger',
+          onSelect: armDelete,
+        },
+      ]}
+    >
       <button
         aria-label={`切换 ${cat.name} 的标记图形`}
         onClick={() => {
@@ -65,6 +89,7 @@ function CategoryRow({ cat, taskCount }: { cat: Category; taskCount: number }) {
         />
       ) : (
         <button
+          data-row-swipe-handle
           onClick={() => setEditing(true)}
           className="category-name-button min-w-0 truncate text-left"
         >
@@ -96,7 +121,7 @@ function CategoryRow({ cat, taskCount }: { cat: Category; taskCount: number }) {
           <AppIcon name="close" size={18} />
         </button>
       )}
-    </li>
+    </SwipeActionRow>
   )
 }
 
