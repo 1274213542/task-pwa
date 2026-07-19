@@ -8871,3 +8871,73 @@ select:focus {
     line-height: var(--ds-leading-pill) !important;
   }
 }
+
+/* Apple mobile normalization · task swipe actions. The grouped row remains
+   the only moving foreground surface; actions stay clipped behind it so the
+   dangerous color is never visible at rest. */
+@media (max-width: 1023px) {
+  .task-card-list .task-card-shell {
+    position: relative;
+    overflow: clip;
+    touch-action: pan-y;
+  }
+
+  .task-card-swipe-content {
+    position: relative;
+    z-index: 1;
+    min-width: 0;
+    background: var(--color-surface-primary);
+    will-change: transform;
+  }
+
+  .task-swipe-actions {
+    position: absolute;
+    z-index: 0;
+    inset: 0 0 0 auto;
+    display: flex;
+    width: 216px;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--space-1);
+    transform-origin: right center;
+    pointer-events: none;
+  }
+
+  .task-card-shell[data-swipe-open] .task-swipe-actions {
+    pointer-events: auto;
+  }
+
+  .task-card-open {
+    transition: opacity var(--duration-fast) var(--ease-standard);
+  }
+
+  .task-card-shell[data-swipe-open] .task-card-open {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .task-swipe-action {
+    display: grid;
+    width: 68px;
+    height: 44px;
+    flex: 0 0 68px;
+    grid-template-rows: 18px 16px;
+    place-items: center;
+    align-content: center;
+    gap: 1px;
+    border-radius: var(--radius-card-medium);
+    background: var(--color-control-selected);
+    color: var(--color-text-primary);
+    font-size: 12px;
+    line-height: 16px;
+  }
+
+  .task-swipe-action:disabled {
+    opacity: 0.38;
+  }
+
+  .task-swipe-delete {
+    background: #ff3b30;
+    color: #fff;
+  }
+}

@@ -1,6 +1,13 @@
 import { createPortal } from 'react-dom'
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { motion, useReducedMotion } from 'motion/react'
+import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import {
+  animate,
+  motion,
+  useMotionValue,
+  useReducedMotion,
+  useTransform,
+  type AnimationPlaybackControls,
+} from 'motion/react'
 import type { ColorToken, MarkerSymbol } from '../lib/db'
 import AppIcon from './AppIcon'
 import { MOTION } from '../lib/motion'
@@ -15,6 +22,11 @@ export interface RowActions {
 }
 
 type FeatureTone = 'charcoal' | 'lime' | 'purple' | 'custom'
+
+const TASK_SWIPE_REVEAL_PX = 216
+const TASK_SWIPE_COMMIT_PX = 58
+const TASK_SWIPE_DIRECTION_LOCK_PX = 10
+const TASK_SWIPE_OPEN_EVENT = 'task-pwa:task-swipe-open'
 
 /**
  * Shared task surface. Data and task actions stay independent from the visual
@@ -68,15 +80,32 @@ export default function TaskRow({
   const [draft, setDraft] = useState(title)
   const [confirming, setConfirming] = useState(false)
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const swipeRootRef = useRef<HTMLLIElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
+  const [swipeOpen, setSwipeOpen] = useState(false)
+  const swipeX = useMotionValue(0)
+  const swipeActionOpacity = useTransform(swipeX, [-24, -8, 0], [1, 0.45, 0])
+  const swipeActionScale = useTransform(swipeX, [-TASK_SWIPE_REVEAL_PX, -18, 0], [1, 0.96, 0.9])
+  const swipeAnimation = useRef<AnimationPlaybackControls | null>(null)
+  const swipeGesture = useRef<{
+    pointerId: number
+    startX: number
+    startY: number
+    startOffset: number
+    axis: 'pending' | 'horizontal' | 'vertical'
+    history: Array<{ x: number; time: number }>
+  } | null>(null)
   const [menuPosition, setMenuPosition] = useState<{
     top: number
     left: number
     transformOrigin: string
   } | null>(null)
 
-  useEffect(() => () => clearTimeout(timer.current), [])
+  useEffect(() => () => {
+    clearTimeout(timer.current)
+    swipeAnimation.current?.stop()
+  }, [])
   useEffect(() => setDraft(title), [title])
   useEffect(() => {
     if (!menuOpen) {
@@ -84,6 +113,141 @@ export default function TaskRow({
       clearTimeout(timer.current)
     }
   }, [menuOpen])
+
+  function settleSwipe(target: number, velocity = 0) {
+    swipeAnimation.current?.stop()
+    if (reduceMotion) {
+      swipeX.set(target)
+      return
+    }
+    swipeAnimation.current = animate(swipeX, target, {
+      type: 'spring',
+      stiffness: 430,
+      damping: 38,
+      mass: 0.78,
+      velocity,
+    })
+  }
+
+  function closeSwipe() {
+    setSwipeOpen(false)
+    settleSwipe(0)
+  }
+
+  function openSwipe() {
+    window.dispatchEvent(new CustomEvent(TASK_SWIPE_OPEN_EVENT, { detail: menuId ?? title }))
+    setSwipeOpen(true)
+    onMenuClose?.()
+  }
+
+  useEffect(() => {
+    if (swipeGesture.current?.axis === 'horizontal') return
+    settleSwipe(swipeOpen ? -TASK_SWIPE_REVEAL_PX : 0)
+    // The spring intentionally inherits the live presentation value.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reduceMotion, swipeOpen])
+
+  useEffect(() => {
+    const rowId = menuId ?? title
+    const closeForAnotherRow = (event: Event) => {
+      if ((event as CustomEvent<string>).detail !== rowId) closeSwipe()
+    }
+    const closeWhenHidden = () => {
+      if (document.visibilityState !== 'visible') closeSwipe()
+    }
+    const closeOnRoute = () => closeSwipe()
+    window.addEventListener(TASK_SWIPE_OPEN_EVENT, closeForAnotherRow)
+    window.addEventListener('hashchange', closeOnRoute)
+    document.addEventListener('visibilitychange', closeWhenHidden)
+    return () => {
+      window.removeEventListener(TASK_SWIPE_OPEN_EVENT, closeForAnotherRow)
+      window.removeEventListener('hashchange', closeOnRoute)
+      document.removeEventListener('visibilitychange', closeWhenHidden)
+    }
+    // closeSwipe intentionally hands off from the current presentation value.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [menuId, title])
+
+  useEffect(() => {
+    if (!swipeOpen) return
+    const closeWhenOutside = (event: PointerEvent) => {
+      if (swipeRootRef.current?.contains(event.target as Node)) return
+      closeSwipe()
+    }
+    const closeOnScroll = () => closeSwipe()
+    document.addEventListener('pointerdown', closeWhenOutside, true)
+    document.addEventListener('scroll', closeOnScroll, true)
+    return () => {
+      document.removeEventListener('pointerdown', closeWhenOutside, true)
+      document.removeEventListener('scroll', closeOnScroll, true)
+    }
+    // closeSwipe intentionally hands off from the current presentation value.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [swipeOpen])
+
+  function onSwipePointerDown(event: ReactPointerEvent<HTMLDivElement>) {
+    if (dragging || event.button !== 0) return
+    const target = event.target as Element
+    if (target.closest('button, input, textarea, select, a, [role="menu"]')) return
+    swipeAnimation.current?.stop()
+    swipeGesture.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      startOffset: swipeX.get(),
+      axis: 'pending',
+      history: [{ x: event.clientX, time: event.timeStamp }],
+    }
+  }
+
+  function onSwipePointerMove(event: ReactPointerEvent<HTMLDivElement>) {
+    const state = swipeGesture.current
+    if (!state || state.pointerId !== event.pointerId) return
+    const dx = event.clientX - state.startX
+    const dy = event.clientY - state.startY
+    if (state.axis === 'pending') {
+      if (Math.hypot(dx, dy) < TASK_SWIPE_DIRECTION_LOCK_PX) return
+      if (Math.abs(dy) >= Math.abs(dx) * 0.9) {
+        state.axis = 'vertical'
+        closeSwipe()
+        return
+      }
+      state.axis = 'horizontal'
+      event.currentTarget.setPointerCapture(event.pointerId)
+      openSwipe()
+    }
+    if (state.axis !== 'horizontal') return
+    event.preventDefault()
+    const raw = state.startOffset + dx
+    const next = raw < -TASK_SWIPE_REVEAL_PX
+      ? -TASK_SWIPE_REVEAL_PX - Math.min(18, Math.abs(raw + TASK_SWIPE_REVEAL_PX) * 0.22)
+      : raw > 0
+        ? Math.min(12, raw * 0.18)
+        : raw
+    swipeX.set(next)
+    state.history.push({ x: event.clientX, time: event.timeStamp })
+    if (state.history.length > 4) state.history.shift()
+  }
+
+  function finishSwipe(event: ReactPointerEvent<HTMLDivElement>, cancelled = false) {
+    const state = swipeGesture.current
+    if (!state || state.pointerId !== event.pointerId) return
+    swipeGesture.current = null
+    if (state.axis !== 'horizontal') return
+    const recent = state.history[state.history.length - 1]
+    const older = state.history[0]
+    const elapsed = Math.max(1, recent.time - older.time)
+    const velocity = ((recent.x - older.x) / elapsed) * 1000
+    const current = swipeX.get()
+    const projected = current + velocity * 0.06
+    const shouldOpen = !cancelled && (
+      current <= -TASK_SWIPE_COMMIT_PX ||
+      (current < -18 && projected <= -TASK_SWIPE_COMMIT_PX)
+    )
+    if (shouldOpen) openSwipe()
+    else setSwipeOpen(false)
+    settleSwipe(shouldOpen ? -TASK_SWIPE_REVEAL_PX : 0, velocity)
+  }
 
   useLayoutEffect(() => {
     if (!menuOpen || !triggerRef.current) {
@@ -186,13 +350,71 @@ export default function TaskRow({
 
   return (
     <motion.li
+      ref={swipeRootRef}
       layout="position"
       initial={false}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.98 }}
       transition={reduceMotion ? MOTION.reduced : MOTION.list}
+      data-no-route-swipe
+      data-task-swipe-id={menuId ?? title}
+      data-swipe-open={swipeOpen || undefined}
       className="task-card-shell"
     >
+      <motion.div
+        className="task-swipe-actions"
+        aria-label={`${title} 的滑动操作`}
+        style={{ opacity: swipeActionOpacity, scale: swipeActionScale }}
+      >
+        <button
+          type="button"
+          className="task-swipe-action task-swipe-more"
+          aria-label={`更多 ${title}`}
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={() => {
+            closeSwipe()
+            onMenuToggle?.()
+          }}
+        >
+          <AppIcon name="more" size={18} />
+          <span>更多</span>
+        </button>
+        <button
+          type="button"
+          className="task-swipe-action task-swipe-edit"
+          aria-label={`编辑 ${title}`}
+          disabled={!actions.onEdit}
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={() => {
+            closeSwipe()
+            actions.onEdit?.()
+          }}
+        >
+          <AppIcon name="edit" size={18} />
+          <span>编辑</span>
+        </button>
+        <button
+          type="button"
+          className="task-swipe-action task-swipe-delete"
+          aria-label={`删除 ${title}`}
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={() => {
+            closeSwipe()
+            actions.onDelete()
+          }}
+        >
+          <AppIcon name="trash" size={18} />
+          <span>删除</span>
+        </button>
+      </motion.div>
+      <motion.div
+        className="task-card-swipe-content"
+        style={{ x: swipeX }}
+        onPointerDown={onSwipePointerDown}
+        onPointerMove={onSwipePointerMove}
+        onPointerUp={(event) => finishSwipe(event)}
+        onPointerCancel={(event) => finishSwipe(event, true)}
+      >
       <div
         ref={liRef}
         style={liStyle}
@@ -366,6 +588,7 @@ export default function TaskRow({
         document.body,
       )}
       </div>
+      </motion.div>
     </motion.li>
   )
 }
