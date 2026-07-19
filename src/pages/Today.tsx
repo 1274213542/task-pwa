@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from 'motion/react'
 import {
@@ -57,6 +57,8 @@ import MarkerIcon from '../components/MarkerIcon'
 import RecurrencePicker from '../components/RecurrencePicker'
 import PageHeader from '../components/PageHeader'
 import MobilePageHeader from '../components/MobilePageHeader'
+import TaskToolbar from '../components/TaskToolbar'
+import TaskViewSettingsSheet from '../components/TaskViewSettingsSheet'
 import { MOTION } from '../lib/motion'
 import {
   defaultFixedRecurrence,
@@ -64,6 +66,13 @@ import {
   weekEndISO,
   weekStartISO,
 } from '../lib/taskPeriods'
+import { synchronizeTaskPeriod } from '../lib/taskPeriodSync'
+import {
+  activeTaskViewSettingCount,
+  applyTaskViewSettings,
+  parseTaskViewSettings,
+  type TaskViewSettings,
+} from '../lib/taskViewSettings'
 
 /** 今天视图的投影条目（TaskOccurrenceView 的子集） */
 interface TodayItem {
@@ -268,6 +277,13 @@ export default function Today() {
   const [feedback, setFeedback] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [composerOpen, setComposerOpen] = useState(false)
+  const [viewSettingsOpen, setViewSettingsOpen] = useState(false)
+  const [viewSettings, setViewSettings] = useState<TaskViewSettings>(() =>
+    parseTaskViewSettings(localStorage.getItem('taskViewSettingsV1')),
+  )
+  const [syncingPeriod, setSyncingPeriod] = useState(false)
+  const [toolbarStuck, setToolbarStuck] = useState(false)
+  const [contentDirection, setContentDirection] = useState<1 | -1>(1)
   const [showDone, setShowDone] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null)
@@ -277,8 +293,10 @@ export default function Today() {
   // 完成感窗口（v4.2 §12）：勾选后原地保留 ~800ms 展示动画，再按策略归置
   const [recentlyDone, setRecentlyDone] = useState<Set<string>>(new Set())
   const inputRef = useRef<HTMLTextAreaElement>(null)
-  const filterRef = useRef<HTMLDivElement>(null)
+  const toolbarSentinelRef = useRef<HTMLDivElement>(null)
   const submittingRef = useRef(false)
+  const syncingPeriodRef = useRef(false)
+  const scrollPositionsRef = useRef<Record<TaskScope, number>>({ daily: 0, weekly: 0 })
 
   function holdInPlace(itemKey: string) {
     setRecentlyDone((prev) => new Set(prev).add(itemKey))
@@ -335,11 +353,27 @@ export default function Today() {
   }, [])
 
   useEffect(() => {
-    const frame = window.requestAnimationFrame(() => {
-      filterRef.current?.scrollTo({ left: 0, behavior: 'auto' })
-    })
-    return () => window.cancelAnimationFrame(frame)
-  }, [scope])
+    localStorage.setItem('taskViewSettingsV1', JSON.stringify(viewSettings))
+  }, [viewSettings])
+
+  useEffect(() => {
+    const sentinel = toolbarSentinelRef.current
+    const scrollRoot = document.querySelector('.app-shell main')
+    if (!sentinel || !(scrollRoot instanceof HTMLElement)) return
+    const safeTop = Number.parseFloat(
+      getComputedStyle(document.documentElement).getPropertyValue('--ds-safe-top'),
+    ) || 0
+    const observer = new IntersectionObserver(
+      ([entry]) => setToolbarStuck(!entry.isIntersecting),
+      {
+        root: scrollRoot,
+        threshold: 1,
+        rootMargin: `${-(safeTop + 1)}px 0px 0px 0px`,
+      },
+    )
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [])
 
   const tasks = useLiveQuery(
     () => db.tasks.where('lifecycleStatus').equals('active').sortBy('rank'),
@@ -358,10 +392,24 @@ export default function Today() {
   const items =
     tasks && records ? buildItems(tasks, records, todayISO, scope) : undefined
   const keyOf = (i: TodayItem) => `${i.task.id}:${i.occurrenceKey}`
+  const projectedItems = useMemo(
+    () => items ? applyTaskViewSettings(items, viewSettings) : undefined,
+    [items, viewSettings],
+  )
   const pending =
-    items?.filter((i) => !i.completed || recentlyDone.has(keyOf(i))) ?? []
+    projectedItems?.filter((i) => !i.completed || recentlyDone.has(keyOf(i))) ?? []
   const done =
-    items?.filter((i) => i.completed && !recentlyDone.has(keyOf(i))) ?? []
+    projectedItems?.filter((i) => i.completed && !recentlyDone.has(keyOf(i))) ?? []
+  const allDoneCount = items?.filter((item) => item.completed).length ?? 0
+  const taskCounts = {
+    daily: tasks?.filter((task) => taskScopeOf(task) === 'daily').length ?? 0,
+    weekly: tasks?.filter((task) => taskScopeOf(task) === 'weekly').length ?? 0,
+  }
+  const activeSettingCount = activeTaskViewSettingCount(viewSettings)
+  const completedDisplayPolicy =
+    viewSettings.showCompleted || viewSettings.status === 'completed'
+      ? policy === 'hide' ? 'keep' : policy
+      : 'hide'
 
   const dateLabel = new Date().toLocaleDateString('zh-CN', {
     month: 'long',
@@ -372,17 +420,73 @@ export default function Today() {
   const weeklyRangeLabel = `${weekStartISO(todayISO).slice(5).replace('-', '/')} – ${weekEndISO(todayISO).slice(5).replace('-', '/')}`
 
   function switchScope(next: TaskScope) {
+    if (next === scope) return
     setOpenMenuTaskId(null)
+    setViewSettingsOpen(false)
+    setContentDirection(next === 'weekly' ? 1 : -1)
+    const scrollRoot = document.querySelector('.app-shell main')
+    let nextScrollTop: number | undefined
+    if (scrollRoot instanceof HTMLElement) {
+      const currentScrollTop = scrollRoot.scrollTop
+      scrollPositionsRef.current[scope] = currentScrollTop
+      const safeTop = Number.parseFloat(
+        getComputedStyle(document.documentElement).getPropertyValue('--ds-safe-top'),
+      ) || 0
+      const stickyThreshold = Math.max(
+        0,
+        (toolbarSentinelRef.current?.offsetTop ?? 0) - safeTop,
+      )
+      const rememberedScrollTop = scrollPositionsRef.current[next]
+      // A tab switch must not move the toolbar itself. Restore an independent
+      // position only when both scopes keep the toolbar in its sticky state;
+      // otherwise retain the current page skeleton and let the user scroll.
+      nextScrollTop = currentScrollTop >= stickyThreshold &&
+        rememberedScrollTop >= stickyThreshold
+        ? rememberedScrollTop
+        : currentScrollTop
+    }
     setScope(next)
     localStorage.setItem('taskScope', next)
     if (fixed) setRecurrence(defaultFixedRecurrence(next))
     setFeedback('')
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        if (scrollRoot instanceof HTMLElement) {
+          scrollRoot.scrollTo({
+            top: nextScrollTop ?? scrollPositionsRef.current[next],
+            behavior: 'auto',
+          })
+        }
+      })
+    })
   }
 
   function setTaskType(nextFixed: boolean) {
     setOpenMenuTaskId(null)
     setFixed(nextFixed)
     setRecurrence(nextFixed ? defaultFixedRecurrence(scope) : undefined)
+  }
+
+  async function syncCurrentPeriod() {
+    if (syncingPeriodRef.current) return
+    syncingPeriodRef.current = true
+    setSyncingPeriod(true)
+    setOpenMenuTaskId(null)
+    setFeedback(scope === 'daily' ? '正在同步今日固定任务…' : '正在同步本周固定任务…')
+    try {
+      const result = await synchronizeTaskPeriod(scope, todayISO)
+      setFeedback(result.repairs.length > 0
+        ? scope === 'daily'
+          ? '已同步今日固定任务'
+          : '已同步本周固定任务'
+        : '当前已是最新')
+      window.setTimeout(() => setFeedback(''), 2200)
+    } catch (reason) {
+      setFeedback(reason instanceof Error ? reason.message : '周期任务同步失败，请重试')
+    } finally {
+      syncingPeriodRef.current = false
+      setSyncingPeriod(false)
+    }
   }
 
   async function submit() {
@@ -632,33 +736,29 @@ export default function Today() {
         primaryIcon={composerOpen ? 'chevronUp' : 'plus'}
       />
 
-      <div className="task-filter-shell">
-        <span className="task-filter-icon" aria-hidden>
-          <AppIcon name="filter" size={22} />
-        </span>
-        <div ref={filterRef} className="task-filter-rail" role="tablist" aria-label="任务周期">
-        {(['daily', 'weekly'] as const).map((value) => {
-          const count = value === scope ? pending.length + done.length : undefined
-          return (
-            <button
-              key={value}
-              role="tab"
-              aria-selected={scope === value}
-              onClick={() => switchScope(value)}
-              className="task-filter-pill"
-            >
-              <span>{value === 'daily' ? '每日任务' : '每周任务'}</span>
-              <strong>{count ?? '·'}</strong>
-            </button>
-          )
-        })}
-        <span className="task-fixed-pill">
-          <AppIcon name="sync" size={17} />
-          固定任务 {items?.filter((item) => item.kind !== 'single').length ?? 0}
-        </span>
-        </div>
-      </div>
+      <div ref={toolbarSentinelRef} className="task-toolbar-sentinel" aria-hidden />
+      <TaskToolbar
+        scope={scope}
+        dailyCount={taskCounts.daily}
+        weeklyCount={taskCounts.weekly}
+        activeSettingCount={activeSettingCount}
+        syncing={syncingPeriod}
+        stuck={toolbarStuck}
+        onScopeChange={switchScope}
+        onOpenSettings={() => {
+          setOpenMenuTaskId(null)
+          setViewSettingsOpen(true)
+        }}
+        onSync={() => void syncCurrentPeriod()}
+      />
 
+      <motion.div
+        key={scope}
+        className={`task-content-surface task-density-${viewSettings.density}`}
+        initial={reduceMotion ? { opacity: 0.88 } : { x: contentDirection * 10, opacity: 0.97 }}
+        animate={{ x: 0, opacity: 1 }}
+        transition={reduceMotion ? MOTION.reduced : MOTION.taskContent}
+      >
       <div
         className="task-date-context"
         aria-label={scope === 'daily' ? dateLabel : `本周 ${weeklyRangeLabel}`}
@@ -667,9 +767,9 @@ export default function Today() {
       </div>
 
       <div className="task-progress-line" aria-label="任务进度">
-        <span>{scope === 'daily' ? '今日任务' : '本周任务'} {pending.length + done.length} 项</span>
+        <span>{activeSettingCount > 0 ? '筛选结果' : scope === 'daily' ? '今日任务' : '本周任务'} {pending.length + done.length} 项</span>
         <i aria-hidden>·</i>
-        <span>已完成 {done.length} 项</span>
+        <span>已完成 {allDoneCount} 项</span>
       </div>
 
       <AnimatePresence initial={false}>
@@ -764,14 +864,23 @@ export default function Today() {
       </p>
 
       {items === undefined ? null : pending.length + done.length === 0 ? (
-        <div className="task-empty-state mt-8">
+        <div className="task-empty-state">
           <MarkerIcon symbol={scope === 'daily' ? 'flower' : 'star'} color={scope === 'daily' ? 'green' : 'purple'} size={58} />
-          <strong>{scope === 'daily' ? '今天没有任务' : '本周没有任务'}</strong>
-          <span>在上方添加普通任务或会按周期更新的固定任务</span>
+          <strong>{activeSettingCount > 0
+            ? '没有符合筛选条件的任务'
+            : scope === 'daily' ? '今天没有任务' : '本周没有任务'}</strong>
+          <span>{activeSettingCount > 0
+            ? '调整任务视图设置即可查看其他任务'
+            : '在上方添加普通任务或会按周期更新的固定任务'}</span>
+          {activeSettingCount > 0 && (
+            <button type="button" onClick={() => setViewSettingsOpen(true)}>
+              调整筛选
+            </button>
+          )}
         </div>
       ) : (
         <LayoutGroup id={`task-layout-${scope}`}>
-          {pending.length > 0 && (
+          {pending.length > 0 && viewSettings.sort === 'manual' && (
             <DndContext
               sensors={sensors}
               collisionDetection={closestCenter}
@@ -811,6 +920,13 @@ export default function Today() {
               </DragOverlay>
             </DndContext>
           )}
+          {pending.length > 0 && viewSettings.sort !== 'manual' && (
+            <ul className="task-card-list task-compact-list">
+              <AnimatePresence initial={false}>
+                {pending.map((item) => rowFor(item))}
+              </AnimatePresence>
+            </ul>
+          )}
 
           {/* 桌面批量操作条（⌘click 多选，⌘↵ 完成） */}
           {selectedPending.length > 0 && (
@@ -846,14 +962,14 @@ export default function Today() {
           )}
 
           {/* 完成后展示策略（v4.2 需求 §1）：keep 原地保留 / collapse 折叠 / hide 隐藏 */}
-          {done.length > 0 && policy === 'keep' && (
+          {done.length > 0 && completedDisplayPolicy === 'keep' && (
             <ul className="task-card-list completed-card-list mt-3">
               <AnimatePresence initial={false}>
                 {done.map((i) => rowFor(i))}
               </AnimatePresence>
             </ul>
           )}
-          {done.length > 0 && policy === 'collapse' && (
+          {done.length > 0 && completedDisplayPolicy === 'collapse' && (
             <div className="mt-3">
               <button
                 onClick={() => setShowDone((s) => !s)}
@@ -877,6 +993,14 @@ export default function Today() {
           )}
           {/* hide：不渲染，已完成记录页可查 */}
         </LayoutGroup>
+      )}
+      </motion.div>
+      {viewSettingsOpen && (
+        <TaskViewSettingsSheet
+          settings={viewSettings}
+          onChange={setViewSettings}
+          onClose={() => setViewSettingsOpen(false)}
+        />
       )}
     </section>
   )

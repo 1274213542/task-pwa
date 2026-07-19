@@ -19,6 +19,16 @@ export const MOTION = {
     damping: 34,
     mass: 0.96,
   },
+  taskControl: {
+    type: 'spring',
+    stiffness: 430,
+    damping: 39,
+    mass: 0.88,
+  },
+  taskContent: {
+    duration: 0.2,
+    ease: [0.22, 1, 0.36, 1],
+  },
   route: { type: 'spring', bounce: 0, stiffness: 480, damping: 46, mass: 0.9 },
   push: { type: 'spring', bounce: 0, stiffness: 430, damping: 43, mass: 0.94 },
   sheet: { type: 'spring', bounce: 0, stiffness: 410, damping: 39, mass: 0.96 },
