@@ -232,6 +232,8 @@ export interface SyncedPreferences {
   actionColor?: ColorToken // 可选主操作按钮颜色；缺省使用主题深色
   defaultCompletedDisplay: 'keep' | 'collapse' | 'hide'
   fullSwipeToComplete: boolean
+  /** 全局财务展示偏好；只影响结果展示，不进入任何业务流水。 */
+  financeAmountsVisible?: boolean
   updatedAt: string
 }
 
@@ -436,11 +438,13 @@ db.on('ready', async () => {
       uiTheme: 'violet-lime',
       defaultCompletedDisplay: 'keep',
       fullSwipeToComplete: false,
+      financeAmountsVisible: true,
       updatedAt: new Date().toISOString(),
     })
-  } else if (!existing.uiTheme) {
+  } else if (!existing.uiTheme || existing.financeAmountsVisible === undefined) {
     await db.syncedPreferences.update('#prefs', {
-      uiTheme: 'violet-lime',
+      ...(!existing.uiTheme && { uiTheme: 'violet-lime' as const }),
+      ...(existing.financeAmountsVisible === undefined && { financeAmountsVisible: true }),
       updatedAt: new Date().toISOString(),
     })
   }

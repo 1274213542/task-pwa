@@ -9,6 +9,7 @@ import MarkerIcon from '../components/MarkerIcon'
 import PageHeader from '../components/PageHeader'
 import SelectionPickerSheet, { type SelectionPickerItem } from '../components/SelectionPickerSheet'
 import { financeFundsV3Enabled } from '../config'
+import { AmountPrivacyToggle, PrivateAmount } from '../components/AmountPrivacy'
 import { db, type ColorToken, type ExpenseCategory, type MarkerSymbol } from '../lib/db'
 import { cachedRate, convertWithCachedRate, refreshExchangeRate, saveManualExchangeRate } from '../lib/exchangeRates'
 import { MOTION } from '../lib/motion'
@@ -308,16 +309,19 @@ export default function FinanceLedger() {
 
       <div className="finance-ledger-toolbar">
         <span>{feedback || '原币种保留；汇总金额使用已缓存参考汇率'}</span>
-        <label>
-          汇总币种
-          <select
-            value={reportingCurrency}
-            onChange={(event) => setReportingCurrency(event.target.value as CurrencyCode)}
-          >
-            <option value="JPY">JPY</option>
-            <option value="CNY">CNY</option>
-          </select>
-        </label>
+        <div className="finance-ledger-toolbar-actions">
+          <AmountPrivacyToggle compact />
+          <label>
+            汇总币种
+            <select
+              value={reportingCurrency}
+              onChange={(event) => setReportingCurrency(event.target.value as CurrencyCode)}
+            >
+              <option value="JPY">JPY</option>
+              <option value="CNY">CNY</option>
+            </select>
+          </label>
+        </div>
       </div>
 
       <div
@@ -526,32 +530,32 @@ function FinanceOverview({
     <div className="finance-ledger-dashboard">
       <section className="finance-net-worth-card">
         <span>个人净资产</span>
-        <strong>{formatMoney(summary.netWorthMinor, currency)}</strong>
+        <strong><PrivateAmount>{formatMoney(summary.netWorthMinor, currency)}</PrivateAmount></strong>
         <div>
-          <span>实际资产 {formatMoney(summary.assetsMinor, currency)}</span>
-          <span>本人负债 {formatMoney(summary.liabilitiesMinor, currency)}</span>
-          {financeFundsV3Enabled && <span>可自由支配 {formatMoney(fundsSummary.disposable, currency)}</span>}
+          <span>实际资产 <PrivateAmount>{formatMoney(summary.assetsMinor, currency)}</PrivateAmount></span>
+          <span>本人负债 <PrivateAmount>{formatMoney(summary.liabilitiesMinor, currency)}</PrivateAmount></span>
+          {financeFundsV3Enabled && <span>可自由支配 <PrivateAmount>{formatMoney(fundsSummary.disposable, currency)}</PrivateAmount></span>}
         </div>
       </section>
 
       {financeFundsV3Enabled && (
         <section className="finance-overview-support" aria-label="资金用途摘要">
-          <button type="button" onClick={onOpenFunds}><span>父亲专项资金</span><strong>{formatMoney(fundsSummary.fatherRestricted, currency)}</strong></button>
-          <button type="button" onClick={onOpenFunds}><span>个人储蓄</span><strong>{formatMoney(fundsSummary.savings, currency)}</strong></button>
-          <button type="button" onClick={onOpenFunds}><span>未分配资金</span><strong>{formatMoney(unallocatedMinor, currency)}</strong></button>
+          <button type="button" onClick={onOpenFunds}><span>父亲专项资金</span><strong><PrivateAmount>{formatMoney(fundsSummary.fatherRestricted, currency)}</PrivateAmount></strong></button>
+          <button type="button" onClick={onOpenFunds}><span>个人储蓄</span><strong><PrivateAmount>{formatMoney(fundsSummary.savings, currency)}</PrivateAmount></strong></button>
+          <button type="button" onClick={onOpenFunds}><span>未分配资金</span><strong><PrivateAmount>{formatMoney(unallocatedMinor, currency)}</PrivateAmount></strong></button>
           <button type="button" onClick={onOpenFunds}><span>即将扣款</span><strong>{upcomingCount} 项</strong></button>
         </section>
       )}
 
       <div className="finance-work-summary">
         <article><span>本月至今工时</span><strong>{formatMinutes(workMinutes)}</strong><small>{monthWork.length} 个工作日</small></article>
-        <article><span>预计税前工资</span><strong>{formatMoney(estimatedPay, currency)}</strong><small>未结算工作记录</small></article>
+        <article><span>预计税前工资</span><strong><PrivateAmount>{formatMoney(estimatedPay, currency)}</PrivateAmount></strong><small>未结算工作记录</small></article>
         <article className="finance-consumption-summary">
           <span>本月至今消费</span>
-          <strong>{formatMoney(summary.consumptionMinor, currency)}</strong>
+          <strong><PrivateAmount>{formatMoney(summary.consumptionMinor, currency)}</PrivateAmount></strong>
           <small>
-            <span>本人自付 {formatMoney(summary.actualPaidMinor, currency)}</span>
-            <span>外部代付 {formatMoney(summary.externalPaidMinor, currency)}</span>
+            <span>本人自付 <PrivateAmount>{formatMoney(summary.actualPaidMinor, currency)}</PrivateAmount></span>
+            <span>外部代付 <PrivateAmount>{formatMoney(summary.externalPaidMinor, currency)}</PrivateAmount></span>
           </small>
         </article>
       </div>
@@ -581,7 +585,7 @@ function FinanceOverview({
               <li key={account.id}>
                 <span className={`finance-account-mark is-${account.kind}`} aria-hidden />
                 <div><strong>{account.name}</strong><span>{ACCOUNT_SUBTYPE_LABEL[account.subtype]}</span></div>
-                <b>{formatMoney(balances.get(account.id) ?? 0, account.currency)}</b>
+                <b><PrivateAmount>{formatMoney(balances.get(account.id) ?? 0, account.currency)}</PrivateAmount></b>
               </li>
             ))}
           </ul>
@@ -714,8 +718,8 @@ function AccountsView({
             <header><span className={`finance-account-mark is-${account.kind}`} /><span className="finance-account-card-actions"><button aria-label="上移账户" onClick={() => void moveAccount(account.id, -1)}>↑</button><button aria-label="下移账户" onClick={() => void moveAccount(account.id, 1)}>↓</button><button onClick={() => setEditingId(account.id)}>编辑</button><button onClick={() => void setAccountArchived(account.id, !account.isArchived)}>{account.isArchived ? '启用' : '停用'}</button></span></header>
             <span>{accountOwnership(account) === 'external' ? '外部账户' : '本人账户'} · {ACCOUNT_SUBTYPE_LABEL[account.subtype]}</span>
             <h3>{account.name}</h3>
-            <strong>{formatMoney(balances.get(account.id) ?? 0, account.currency)}</strong>
-            <small>{account.isArchived ? '已停用 · 历史仍保留' : accountOwnership(account) === 'external' ? '外部资金 · 不影响个人资产或负债' : account.kind === 'credit' ? `本期 ${formatMoney(monthPurchases, account.currency)} · 已还 ${formatMoney(monthPayments, account.currency)}${account.paymentDueDay ? ` · ${account.paymentDueDay} 日扣款` : ''}` : '当前余额'}</small>
+            <strong><PrivateAmount>{formatMoney(balances.get(account.id) ?? 0, account.currency)}</PrivateAmount></strong>
+            <small>{account.isArchived ? '已停用 · 历史仍保留' : accountOwnership(account) === 'external' ? '外部资金 · 不影响个人资产或负债' : account.kind === 'credit' ? <>本期 <PrivateAmount>{formatMoney(monthPurchases, account.currency)}</PrivateAmount> · 已还 <PrivateAmount>{formatMoney(monthPayments, account.currency)}</PrivateAmount>{account.paymentDueDay ? ` · ${account.paymentDueDay} 日扣款` : ''}</> : '当前余额'}</small>
           </article>
         })}
       </div>
@@ -798,7 +802,7 @@ function TransactionList({
         return <li key={transaction.id}>
           <span className={`finance-transaction-icon is-${transaction.type}`}><AppIcon name={positive ? 'plus' : transaction.type.includes('transfer') || transaction.type === 'topup' || transaction.type === 'credit_payment' ? 'sync' : 'receipt'} size={18} /></span>
           <div><strong>{transaction.merchantNameSnapshot || transaction.note || TRANSACTION_LABEL[transaction.type]}</strong><span>{transaction.localDate} · {account?.name ?? '未知账户'} · {TRANSACTION_LABEL[transaction.type]} {external && <em>外部代付</em>}</span></div>
-          <b className={positive ? 'is-positive' : ''}>{positive ? '+' : transaction.type === 'external_payment' ? '' : '−'}{formatMoney(transaction.amountMinor, transaction.currency)}</b>
+          <b className={positive ? 'is-positive' : ''}><PrivateAmount>{`${positive ? '+' : transaction.type === 'external_payment' ? '' : '−'}${formatMoney(transaction.amountMinor, transaction.currency)}`}</PrivateAmount></b>
           {(onEdit || onDelete) && <span className="finance-row-actions">{onEdit && ['expense', 'credit_purchase', 'external_payment'].includes(transaction.type) && <button aria-label="编辑流水" onClick={() => onEdit(transaction)}><AppIcon name="edit" size={17} /></button>}{onDelete && <button aria-label="删除流水" onClick={() => onDelete(transaction)}><AppIcon name="trash" size={17} /></button>}</span>}
         </li>
       })}</ul> : <div className="finance-empty-state"><AppIcon name="receipt" size={24} /><span>还没有流水</span></div>}
@@ -970,7 +974,7 @@ function WorkView({
 
   return (
     <div className="finance-work-v2">
-      <div className="finance-view-heading"><div><span>待结算 {pending.length} 条</span><h2>工资与工时</h2></div><strong>{pendingEstimateLabel} 预计税前</strong></div>
+      <div className="finance-view-heading"><div><span>待结算 {pending.length} 条</span><h2>工资与工时</h2></div><strong><PrivateAmount>{pendingEstimateLabel}</PrivateAmount> 预计税前</strong></div>
       <form className="finance-section-card finance-work-composer" onSubmit={submit}>
         <header><div><span>预计工资不计入余额</span><h2>记录工作</h2></div>{templates.length > 0 && <select value={templateId} onChange={(event) => applyTemplate(event.target.value)}><option value="">选择模板</option>{templates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select>}</header>
         <div className="finance-form-grid-v2">
@@ -988,7 +992,7 @@ function WorkView({
       </form>
       <section className="finance-section-card finance-work-records-v2">
         <header><div><span>按日期查看</span><h2>工作记录</h2></div><strong>{activeEntries.length} 条</strong></header>
-        {activeEntries.length ? <ul>{activeEntries.map((entry) => <li key={entry.id}><div><strong>{entry.workContent || entry.employer || '工作'}</strong><span>{entry.date} · {formatMinutes(entry.durationMinutes)}{entry.workLocation ? ` · ${entry.workLocation}` : ''}</span></div><b>{formatMoney(entry.estimatedGrossMinor, entry.currency)}</b>{entry.settlementStatus === 'settled' ? <em>已入账</em> : settlementEntryId === entry.id ? <div className="finance-settlement-inline"><label>实际到账<input autoFocus inputMode="decimal" value={actualPaidAmount} onChange={(event) => setActualPaidAmount(event.target.value)} /></label><button type="button" disabled={settling || !actualPaidAmount} onClick={() => void settleOne(entry)}>{settling ? '入账中…' : '确认入账'}</button><button type="button" disabled={settling} onClick={() => setSettlementEntryId('')}>取消</button></div> : <button type="button" onClick={() => beginSettlement(entry)}>实际入账</button>}</li>)}</ul> : <div className="finance-empty-state">还没有工作记录</div>}
+        {activeEntries.length ? <ul>{activeEntries.map((entry) => <li key={entry.id}><div><strong>{entry.workContent || entry.employer || '工作'}</strong><span>{entry.date} · {formatMinutes(entry.durationMinutes)}{entry.workLocation ? ` · ${entry.workLocation}` : ''}</span></div><b><PrivateAmount>{formatMoney(entry.estimatedGrossMinor, entry.currency)}</PrivateAmount></b>{entry.settlementStatus === 'settled' ? <em>已入账</em> : settlementEntryId === entry.id ? <div className="finance-settlement-inline"><label>实际到账<input autoFocus inputMode="decimal" value={actualPaidAmount} onChange={(event) => setActualPaidAmount(event.target.value)} /></label><button type="button" disabled={settling || !actualPaidAmount} onClick={() => void settleOne(entry)}>{settling ? '入账中…' : '确认入账'}</button><button type="button" disabled={settling} onClick={() => setSettlementEntryId('')}>取消</button></div> : <button type="button" onClick={() => beginSettlement(entry)}>实际入账</button>}</li>)}</ul> : <div className="finance-empty-state">还没有工作记录</div>}
       </section>
     </div>
   )
@@ -1096,10 +1100,10 @@ function StatsView({
         </div>
       </details>
       <div className="finance-ledger-metrics">
-        <article><span>净资产</span><strong>{formatMoney(summary.netWorthMinor, reportingCurrency)}</strong><small>资产减个人负债</small></article>
-        <article><span>全部消费</span><strong>{formatMoney(summary.consumptionMinor, reportingCurrency)}</strong><small>含外部代付</small></article>
-        <article><span>个人支付</span><strong>{formatMoney(summary.actualPaidMinor, reportingCurrency)}</strong><small>不含还款重复项</small></article>
-        <article><span>外部代付</span><strong>{formatMoney(summary.externalPaidMinor, reportingCurrency)}</strong><small>消费行为，不影响资产</small></article>
+        <article><span>净资产</span><strong><PrivateAmount>{formatMoney(summary.netWorthMinor, reportingCurrency)}</PrivateAmount></strong><small>资产减个人负债</small></article>
+        <article><span>全部消费</span><strong><PrivateAmount>{formatMoney(summary.consumptionMinor, reportingCurrency)}</PrivateAmount></strong><small>含外部代付</small></article>
+        <article><span>个人支付</span><strong><PrivateAmount>{formatMoney(summary.actualPaidMinor, reportingCurrency)}</PrivateAmount></strong><small>不含还款重复项</small></article>
+        <article><span>外部代付</span><strong><PrivateAmount>{formatMoney(summary.externalPaidMinor, reportingCurrency)}</PrivateAmount></strong><small>消费行为，不影响资产</small></article>
       </div>
       {categories.size || merchants.size ? (
         <div className="finance-breakdown-grid-v2">
@@ -1130,7 +1134,7 @@ function StatsView({
 }
 
 function Breakdown({ title, data, currency }: { title: string; data: [string, number][]; currency: CurrencyCode }) {
-  return <section className="finance-section-card finance-breakdown-v2"><header><div><span>本月消费</span><h2>{title}</h2></div></header>{data.length ? <ul>{data.slice(0, 10).map(([label, value]) => <li key={label}><span>{label}</span><strong>{formatMoney(value, currency)}</strong></li>)}</ul> : <div className="finance-empty-state">暂无可统计数据</div>}</section>
+  return <section className="finance-section-card finance-breakdown-v2"><header><div><span>本月消费</span><h2>{title}</h2></div></header>{data.length ? <ul>{data.slice(0, 10).map(([label, value]) => <li key={label}><span>{label}</span><strong><PrivateAmount>{formatMoney(value, currency)}</PrivateAmount></strong></li>)}</ul> : <div className="finance-empty-state">暂无可统计数据</div>}</section>
 }
 
 function ExpenseCategoryManager({

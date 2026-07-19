@@ -38,6 +38,7 @@ import { applyVisualPreferences, storeVisualPreferences } from './lib/visualPref
 import { financeFundsV3Enabled, financeLedgerV2Enabled } from './config'
 import { processDueRecurringRules } from './lib/recurringFinance'
 import { todayLocalISO } from './lib/dates'
+import { AmountPrivacyProvider } from './components/AmountPrivacy'
 
 const Overview = lazy(() => import('./pages/Overview'))
 const Today = lazy(() => import('./pages/Today'))
@@ -392,6 +393,13 @@ export default function App() {
   }).format(new Date())
 
   return (
+    <AmountPrivacyProvider
+      visible={prefs?.financeAmountsVisible ?? true}
+      onVisibleChange={(financeAmountsVisible) => db.syncedPreferences.update('#prefs', {
+        financeAmountsVisible,
+        updatedAt: new Date().toISOString(),
+      })}
+    >
     <div className="app-shell flex h-full flex-col lg:flex-row">
       <span
         aria-hidden="true"
@@ -554,5 +562,6 @@ export default function App() {
       <UpdateToast />
       {paletteOpen && <CommandPalette onClose={() => setPaletteOpen(false)} />}
     </div>
+    </AmountPrivacyProvider>
   )
 }

@@ -26,6 +26,7 @@ import {
   taskDueStatus,
   taskScheduleTypeOf,
 } from '../lib/taskSchedule'
+import { PrivateAmount } from '../components/AmountPrivacy'
 
 function labelDate(dateISO: string, options: Intl.DateTimeFormatOptions) {
   return new Date(`${dateISO}T00:00:00`).toLocaleDateString('zh-CN', options)
@@ -290,7 +291,7 @@ export default function Overview() {
         >
           <AppIcon name="finance" size={20} />
           <span>本月支出</span>
-          <strong>{compactMoney(view?.monthExpense ?? 0)}</strong>
+          <strong><PrivateAmount>{compactMoney(view?.monthExpense ?? 0)}</PrivateAmount></strong>
           <small>{Math.round((view?.monthWorkMinutes ?? 0) / 60)} 小时工作</small>
         </Link>
       </div>

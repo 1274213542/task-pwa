@@ -6,6 +6,7 @@ import AppIcon from '../components/AppIcon'
 import MarkerIcon from '../components/MarkerIcon'
 import MobilePageHeader from '../components/MobilePageHeader'
 import PageHeader from '../components/PageHeader'
+import { AmountPrivacyToggle, PrivateAmount } from '../components/AmountPrivacy'
 import {
   db,
   type ColorToken,
@@ -252,14 +253,18 @@ export default function Finance() {
         title="财务"
         eyebrow="把时间与日常花费放在同一条日期轴上"
         actions={(
-          <button
-            className="finance-header-add"
-            onClick={() => mode === 'work' ? setWorkEditorOpen(true) : setExpenseEditorOpen(true)}
-          >
-            <AppIcon name="plus" size={18} /> 新增{mode === 'work' ? '工时' : '支出'}
-          </button>
+          <>
+            <AmountPrivacyToggle compact />
+            <button
+              className="finance-header-add"
+              onClick={() => mode === 'work' ? setWorkEditorOpen(true) : setExpenseEditorOpen(true)}
+            >
+              <AppIcon name="plus" size={18} /> 新增{mode === 'work' ? '工时' : '支出'}
+            </button>
+          </>
         )}
       />
+      <div className="finance-legacy-mobile-privacy"><AmountPrivacyToggle compact /></div>
 
       <div className="finance-mode-switch" role="tablist" aria-label="财务视图">
         <button role="tab" aria-selected={mode === 'work'} onClick={() => switchMode('work')}>
@@ -278,12 +283,12 @@ export default function Finance() {
         </article>
         <article>
           <span>预估税前工资</span>
-          <strong>{money(monthWork.gross)}</strong>
+          <strong><PrivateAmount>{money(monthWork.gross)}</PrivateAmount></strong>
           <small>按每条记录的时薪快照</small>
         </article>
         <article>
           <span>本月至今支出</span>
-          <strong>{money(monthExpense.total)}</strong>
+          <strong><PrivateAmount>{money(monthExpense.total)}</PrivateAmount></strong>
           <small>{monthExpense.count} 笔记录</small>
         </article>
       </div>
@@ -338,7 +343,7 @@ export default function Finance() {
               <li key={record.id}>
                 <MarkerIcon symbol="squircle" color={record.worked ? 'green' : 'gray'} size={30} />
                 <div><strong>{record.date}</strong><span>{record.worked ? `${hours(record.durationMinutes)} · ${record.workLocation || record.workType || '工作'}` : '休息日'}</span></div>
-                <span className="finance-record-value">{record.worked ? money(record.durationMinutes / 60 * record.hourlyRate) : '—'}</span>
+                <span className="finance-record-value">{record.worked ? <PrivateAmount>{money(record.durationMinutes / 60 * record.hourlyRate)}</PrivateAmount> : '—'}</span>
                 <button aria-label="编辑工作记录" onClick={() => editWork(record)}><AppIcon name="edit" size={17} /></button>
                 <button aria-label="删除工作记录" onClick={() => void softDeleteWorkRecord(record.id)}><AppIcon name="trash" size={17} /></button>
               </li>
@@ -368,8 +373,8 @@ export default function Finance() {
           </section>
 
           <div className="finance-breakdowns">
-            <section><span>按分类</span>{rangeExpense.byCategory.slice(0, 6).map(([name, value]) => <div key={name}><strong>{name}</strong><span>{money(value)}</span></div>)}</section>
-            <section><span>按地点 / 商家</span>{rangeExpense.byMerchant.slice(0, 6).map(([name, value]) => <div key={name}><strong>{name}</strong><span>{money(value)}</span></div>)}</section>
+            <section><span>按分类</span>{rangeExpense.byCategory.slice(0, 6).map(([name, value]) => <div key={name}><strong>{name}</strong><span><PrivateAmount>{money(value)}</PrivateAmount></span></div>)}</section>
+            <section><span>按地点 / 商家</span>{rangeExpense.byMerchant.slice(0, 6).map(([name, value]) => <div key={name}><strong>{name}</strong><span><PrivateAmount>{money(value)}</PrivateAmount></span></div>)}</section>
           </div>
 
           <section className="finance-records">
@@ -378,7 +383,7 @@ export default function Finance() {
               <li key={record.id}>
                 <MarkerIcon symbol="dot" color={categories.find((category) => category.id === record.categoryId)?.colorToken ?? 'orange'} size={30} />
                 <div><strong>{record.merchant || '未填写地点'}</strong><span>{record.date} · {record.categoryNameSnapshot || '未分类'}</span></div>
-                <span className="finance-record-value">{money(record.amount)}</span>
+                <span className="finance-record-value"><PrivateAmount>{money(record.amount)}</PrivateAmount></span>
                 <button aria-label="编辑支出" onClick={() => editExpense(record)}><AppIcon name="edit" size={17} /></button>
                 <button aria-label="删除支出" onClick={() => void softDeleteExpense(record.id)}><AppIcon name="trash" size={17} /></button>
               </li>

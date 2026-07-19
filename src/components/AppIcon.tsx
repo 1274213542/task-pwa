@@ -18,6 +18,8 @@ import { Clock } from '@phosphor-icons/react/dist/icons/Clock'
 import { Compass } from '@phosphor-icons/react/dist/icons/Compass'
 import { DotsSixVertical } from '@phosphor-icons/react/dist/icons/DotsSixVertical'
 import { DotsThree } from '@phosphor-icons/react/dist/icons/DotsThree'
+import { Eye } from '@phosphor-icons/react/dist/icons/Eye'
+import { EyeSlash } from '@phosphor-icons/react/dist/icons/EyeSlash'
 import { FolderSimple } from '@phosphor-icons/react/dist/icons/FolderSimple'
 import { GearSix } from '@phosphor-icons/react/dist/icons/GearSix'
 import { HouseSimple } from '@phosphor-icons/react/dist/icons/HouseSimple'
@@ -73,6 +75,8 @@ export type AppIconName =
   | 'finance'
   | 'receipt'
   | 'work'
+  | 'eye'
+  | 'eyeOff'
 
 const icons: Record<AppIconName, Icon> = {
   dashboard: ChartPieSlice,
@@ -111,6 +115,8 @@ const icons: Record<AppIconName, Icon> = {
   finance: Wallet,
   receipt: Receipt,
   work: Briefcase,
+  eye: Eye,
+  eyeOff: EyeSlash,
 }
 
 export default function AppIcon({

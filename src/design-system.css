@@ -5886,3 +5886,92 @@ select:focus {
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
   .finance-sticky-header { background: var(--ui-bg); backdrop-filter: none; -webkit-backdrop-filter: none; }
 }
+
+/* --------------------------------------------------------------------------
+   Global finance amount privacy
+
+   The preference changes only rendered results. Inputs and editing surfaces
+   deliberately stay readable, so users can always verify what they enter.
+   -------------------------------------------------------------------------- */
+
+.finance-ledger-toolbar-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.amount-privacy-toggle {
+  display: inline-grid;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  place-items: center;
+  border: 1px solid var(--ds-border);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--ui-surface) 92%, transparent);
+  color: var(--ui-muted);
+  box-shadow: var(--ds-shadow-control, none);
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    transform 140ms var(--ds-ease-out),
+    background-color 160ms var(--ds-ease-out),
+    color 160ms var(--ds-ease-out);
+}
+
+.amount-privacy-toggle.is-compact {
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  min-height: 40px;
+}
+
+.amount-privacy-toggle:hover,
+.amount-privacy-toggle:focus-visible,
+.amount-privacy-toggle[aria-pressed='true'] {
+  background: var(--neutral-selected);
+  color: var(--ui-ink);
+}
+
+.amount-privacy-toggle:active { transform: scale(0.96); }
+.amount-privacy-toggle:disabled { cursor: progress; opacity: 0.62; }
+
+.private-amount {
+  display: inline-block;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.private-amount[data-amount-hidden] {
+  min-inline-size: 4.5ch;
+  letter-spacing: 0.055em;
+}
+
+.finance-legacy-mobile-privacy { display: none; }
+
+@media (max-width: 1023px) {
+  .finance-ledger-toolbar {
+    height: 44px;
+    min-height: 44px !important;
+    max-height: 44px;
+  }
+
+  .finance-ledger-toolbar > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .finance-legacy-mobile-privacy {
+    display: flex;
+    justify-content: flex-end;
+    min-height: 40px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .amount-privacy-toggle { transition-duration: 1ms; }
+}

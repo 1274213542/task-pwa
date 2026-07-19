@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useMemo, useState, type FormEvent } from 'react'
 import AppIcon from '../components/AppIcon'
+import { PrivateAmount } from '../components/AmountPrivacy'
 import { db, type ExpenseCategory } from '../lib/db'
 import { calculateFundPoolStates } from '../lib/fundMath'
 import {
@@ -190,9 +191,9 @@ export function FinanceFundsView({ accounts, onFeedback }: {
     <div className="finance-funds-view">
       <div className="finance-ledger-metrics finance-fund-metrics">
         {[...byCurrency].flatMap(([code, summary]) => [
-          <article key={`${code}:free`}><span>可自由支配 · {code}</span><strong>{formatMoney(summary.disposable, code)}</strong><small>已扣除信用卡锁定 {formatMoney(summary.reserved, code)}</small></article>,
-          <article key={`${code}:restricted`}><span>不可自由支配 · {code}</span><strong>{formatMoney(summary.restricted, code)}</strong><small>父亲专项、学费及税费等</small></article>,
-          <article key={`${code}:savings`}><span>个人储蓄 · {code}</span><strong>{formatMoney(summary.savings, code)}</strong><small>不包含父亲专项</small></article>,
+          <article key={`${code}:free`}><span>可自由支配 · {code}</span><strong><PrivateAmount>{formatMoney(summary.disposable, code)}</PrivateAmount></strong><small>已扣除信用卡锁定 <PrivateAmount>{formatMoney(summary.reserved, code)}</PrivateAmount></small></article>,
+          <article key={`${code}:restricted`}><span>不可自由支配 · {code}</span><strong><PrivateAmount>{formatMoney(summary.restricted, code)}</PrivateAmount></strong><small>父亲专项、学费及税费等</small></article>,
+          <article key={`${code}:savings`}><span>个人储蓄 · {code}</span><strong><PrivateAmount>{formatMoney(summary.savings, code)}</PrivateAmount></strong><small>不包含父亲专项</small></article>,
         ])}
       </div>
 
@@ -200,7 +201,7 @@ export function FinanceFundsView({ accounts, onFeedback }: {
         <header><div><span>用途分配不产生收入或支出</span><h2>资金池</h2></div><strong>{pools.length} 个</strong></header>
         {pools.length ? <ul>{pools.map((pool) => {
           const state = states.get(pool.id)
-          return <li key={pool.id}><div><strong>{pool.name}</strong><span>{purposeLabels[pool.purpose]} · {pool.currency}</span></div><div className="finance-fund-row-value"><b>{formatMoney(state?.availableMinor ?? 0, pool.currency)}</b>{(state?.reservedMinor ?? 0) > 0 && <small>锁定 {formatMoney(state?.reservedMinor ?? 0, pool.currency)}</small>}<span className="finance-inline-actions"><button type="button" onClick={() => {
+          return <li key={pool.id}><div><strong>{pool.name}</strong><span>{purposeLabels[pool.purpose]} · {pool.currency}</span></div><div className="finance-fund-row-value"><b><PrivateAmount>{formatMoney(state?.availableMinor ?? 0, pool.currency)}</PrivateAmount></b>{(state?.reservedMinor ?? 0) > 0 && <small>锁定 <PrivateAmount>{formatMoney(state?.reservedMinor ?? 0, pool.currency)}</PrivateAmount></small>}<span className="finance-inline-actions"><button type="button" onClick={() => {
             setEditingPoolId(pool.id)
             setName(pool.name)
             setPurpose(pool.purpose)
@@ -237,7 +238,7 @@ export function FinanceFundsView({ accounts, onFeedback }: {
         {transfers.length > 0 && <ul className="finance-fund-transfer-list">{[...transfers].sort((a, b) => b.localDate.localeCompare(a.localDate)).map((transfer) => {
           const source = pools.find((pool) => pool.id === transfer.sourcePoolId)
           const destination = pools.find((pool) => pool.id === transfer.destinationPoolId)
-          return <li key={transfer.id}><div><strong>{source?.name ?? '未分配资金'} → {destination?.name ?? '未分配资金'}</strong><span>{transfer.localDate}{transfer.note ? ` · ${transfer.note}` : ''}</span></div><div><b>{formatMoney(transfer.amountMinor, transfer.currency)}</b><span className="finance-inline-actions"><button type="button" onClick={() => {
+          return <li key={transfer.id}><div><strong>{source?.name ?? '未分配资金'} → {destination?.name ?? '未分配资金'}</strong><span>{transfer.localDate}{transfer.note ? ` · ${transfer.note}` : ''}</span></div><div><b><PrivateAmount>{formatMoney(transfer.amountMinor, transfer.currency)}</PrivateAmount></b><span className="finance-inline-actions"><button type="button" onClick={() => {
             setEditingTransferId(transfer.id)
             setSourcePoolId(transfer.sourcePoolId ?? '')
             setDestinationPoolId(transfer.destinationPoolId ?? '')
@@ -253,7 +254,7 @@ export function FinanceFundsView({ accounts, onFeedback }: {
           const state = states.get(goal.fundPoolId)
           const current = Math.max(0, state?.grossMinor ?? 0)
           const percentage = Math.min(100, Math.round((current / goal.targetAmountMinor) * 100))
-          return <li key={goal.id}><div><strong>{goal.name}</strong><span>{formatMoney(current, goal.currency)} / {formatMoney(goal.targetAmountMinor, goal.currency)}</span></div><progress value={percentage} max={100}>{percentage}%</progress></li>
+          return <li key={goal.id}><div><strong>{goal.name}</strong><span><PrivateAmount>{formatMoney(current, goal.currency)}</PrivateAmount> / <PrivateAmount>{formatMoney(goal.targetAmountMinor, goal.currency)}</PrivateAmount></span></div><progress value={percentage} max={100}>{percentage}%</progress></li>
         })}</ul>}
         <form className="finance-form-grid-v2" onSubmit={createGoal}>
           <label>目标名称<input value={goalName} onChange={(event) => setGoalName(event.target.value)} placeholder="例如 应急金" /></label>
@@ -387,9 +388,9 @@ export function FinancePlanningPanel({
         <header><div><span>每个规则与账期只有一个稳定实例</span><h2>固定扣款</h2></div><button onClick={() => void runDueCheck()}>检查到期</button></header>
         {actionable.length > 0 && <ul className="finance-actionable-instances">{actionable.map((instance) => {
           const rule = rules.find((item) => item.id === instance.ruleId)
-          return <li key={instance.id}><div><strong>{rule?.name ?? '固定扣款'}</strong><span>{instance.scheduledDate} · {formatMoney(instance.amountMinor, instance.currency)}{instance.shortageReason ? ` · ${instance.shortageReason}` : ''}</span></div><button onClick={() => void confirmRecurringInstance(instance.id).then(() => onFeedback('固定扣款已确认入账')).catch((error: unknown) => onFeedback(error instanceof Error ? error.message : '入账失败'))}>确认</button><button onClick={() => void skipRecurringInstance(instance.id).then(() => onFeedback('本期已跳过'))}>跳过</button></li>
+          return <li key={instance.id}><div><strong>{rule?.name ?? '固定扣款'}</strong><span>{instance.scheduledDate} · <PrivateAmount>{formatMoney(instance.amountMinor, instance.currency)}</PrivateAmount>{instance.shortageReason ? ` · ${instance.shortageReason}` : ''}</span></div><button onClick={() => void confirmRecurringInstance(instance.id).then(() => onFeedback('固定扣款已确认入账')).catch((error: unknown) => onFeedback(error instanceof Error ? error.message : '入账失败'))}>确认</button><button onClick={() => void skipRecurringInstance(instance.id).then(() => onFeedback('本期已跳过'))}>跳过</button></li>
         })}</ul>}
-        {rules.length > 0 && <ul>{rules.map((rule) => <li key={rule.id}><div><strong>{rule.name}</strong><span>每月 {rule.billingDay} 日 · {rule.postingMode === 'automatic' ? '自动入账' : '待确认'} · {rule.enabled ? '已启用' : '已暂停'}</span></div><div><b>{formatMoney(rule.amountMinor, rule.currency)}</b><span className="finance-inline-actions"><button type="button" onClick={() => void setRecurringRuleEnabled(rule.id, !rule.enabled).then(() => onFeedback(rule.enabled ? '固定扣款已暂停' : '固定扣款已启用')).catch((error: unknown) => onFeedback(error instanceof Error ? error.message : '更新失败'))}>{rule.enabled ? '暂停' : '启用'}</button></span></div></li>)}</ul>}
+        {rules.length > 0 && <ul>{rules.map((rule) => <li key={rule.id}><div><strong>{rule.name}</strong><span>每月 {rule.billingDay} 日 · {rule.postingMode === 'automatic' ? '自动入账' : '待确认'} · {rule.enabled ? '已启用' : '已暂停'}</span></div><div><b><PrivateAmount>{formatMoney(rule.amountMinor, rule.currency)}</PrivateAmount></b><span className="finance-inline-actions"><button type="button" onClick={() => void setRecurringRuleEnabled(rule.id, !rule.enabled).then(() => onFeedback(rule.enabled ? '固定扣款已暂停' : '固定扣款已启用')).catch((error: unknown) => onFeedback(error instanceof Error ? error.message : '更新失败'))}>{rule.enabled ? '暂停' : '启用'}</button></span></div></li>)}</ul>}
         <form className="finance-form-grid-v2 finance-recurring-composer" onSubmit={createRule}>
           <label>名称<input value={name} onChange={(event) => setName(event.target.value)} placeholder="例如 房租" /></label>
           <label>金额<input inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} /></label>
@@ -403,7 +404,7 @@ export function FinancePlanningPanel({
       </section>
 
       <section className="finance-section-card finance-projection-card">
-        <header><div><span>{currentMonth()} · 公式和假设可编辑</span><h2>预计月底可储蓄</h2></div><strong>{formatMoney(projection.projectedSavingsMinor, reportingCurrency)}</strong></header>
+        <header><div><span>{currentMonth()} · 公式和假设可编辑</span><h2>预计月底可储蓄</h2></div><strong><PrivateAmount>{formatMoney(projection.projectedSavingsMinor, reportingCurrency)}</PrivateAmount></strong></header>
         <p>预计收入 − 固定扣款 − 已发生本人支出 − 已知计划支出 − 剩余生活预算</p>
         <form className="finance-form-grid-v2" onSubmit={saveProjection}>
           <label>预计收入<input inputMode="decimal" value={expectedIncome} onChange={(event) => setExpectedIncome(event.target.value)} placeholder={String(fromMinor(budget?.expectedIncomeMinor ?? 0, reportingCurrency))} /></label>
