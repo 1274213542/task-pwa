@@ -62,6 +62,7 @@ import MobilePageHeader from '../components/MobilePageHeader'
 import { FOCUS_QUICK_ADD_EVENT } from '../lib/appEvents'
 import { MOTION } from '../lib/motion'
 import { compareRanks } from '../lib/rank'
+import SegmentedIndicator from '../components/SegmentedIndicator'
 
 const SHOPPING_TONES: ColorToken[] = ['green', 'blue', 'purple', 'orange', 'pink']
 
@@ -993,7 +994,12 @@ export default function Shopping() {
         primaryLabel={composerOpen ? '收起新增商品' : '新增商品'}
         primaryIcon={composerOpen ? 'chevronUp' : 'plus'}
       />
-      <div className="mobile-shopping-view-switch" role="tablist" aria-label="清单视图">
+      <div className="mobile-shopping-view-switch" data-shared-indicator role="tablist" aria-label="清单视图">
+        <SegmentedIndicator
+          className="shopping-view-indicator"
+          count={2}
+          index={grouped ? 0 : 1}
+        />
         <button role="tab" aria-selected={grouped} onClick={() => switchGrouped(true)}>
           <AppIcon name="category" size={18} />
           按地点
@@ -1009,8 +1015,14 @@ export default function Shopping() {
         actions={<div
           role="tablist"
           aria-label="清单视图"
+          data-shared-indicator
           className="segmented-control flex rounded-lg bg-black/5 p-0.5 text-[13px] dark:bg-white/10"
         >
+          <SegmentedIndicator
+            className="shopping-view-indicator"
+            count={2}
+            index={grouped ? 0 : 1}
+          />
           <button
             role="tab"
             aria-selected={grouped}

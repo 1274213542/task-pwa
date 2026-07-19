@@ -41,6 +41,7 @@ import {
 import { calculateFundPoolStates } from '../lib/fundMath'
 import { processDueRecurringRules } from '../lib/recurringFinance'
 import { FinanceFundsView, FinancePlanningPanel } from './FinanceFundsPanels'
+import SegmentedIndicator from '../components/SegmentedIndicator'
 import type {
   Account,
   CurrencyCode,
@@ -327,12 +328,11 @@ export default function FinanceLedger() {
         />
       </div>
 
-      <nav className="finance-ledger-tabs" aria-label="财务页面">
-        <span
-          aria-hidden="true"
+      <nav className="finance-ledger-tabs" data-shared-indicator aria-label="财务页面">
+        <SegmentedIndicator
           className="finance-ledger-tab-surface"
-          data-ready="true"
-          style={{ transform: `translate3d(${currentViewIndex * 100}%, 0, 0)` }}
+          count={VIEW_ITEMS.length}
+          index={currentViewIndex}
         />
         {VIEW_ITEMS.map((item) => (
           <button
@@ -417,11 +417,12 @@ export default function FinanceLedger() {
           )}
           {view === 'planning' && financeFundsV3Enabled && (
             <div className="finance-planning-shell">
-              <nav className="finance-planning-sections" aria-label="财务计划内容">
-                <span
+              <nav className="finance-planning-sections" data-shared-indicator aria-label="财务计划内容">
+                <SegmentedIndicator
                   className="finance-planning-section-indicator"
-                  aria-hidden="true"
-                  style={{ transform: `translate3d(${PLANNING_SECTIONS.findIndex((item) => item.id === planningSection) * 100}%, 0, 0)` }}
+                  count={PLANNING_SECTIONS.length}
+                  index={PLANNING_SECTIONS.findIndex((item) => item.id === planningSection)}
+                  inset={3}
                 />
                 {PLANNING_SECTIONS.map((item) => (
                   <button

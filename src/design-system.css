@@ -1203,6 +1203,81 @@ select:focus {
   }
 }
 
+/* Phase 3 · one persistent selection surface per segmented control. Motion
+   owns only transform; button geometry and the control shell never animate.
+   A new selection retargets the current spring instead of mounting a second
+   background or queueing a transition. */
+.shared-segment-indicator {
+  position: absolute;
+  z-index: 0;
+  display: block;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: calc(var(--radius-control) - 2px);
+  background: var(--color-control-selected);
+  box-shadow: 0 1px 3px rgb(20 21 20 / 0.04);
+  pointer-events: none;
+  transform-origin: 0 50%;
+  will-change: transform;
+  transition: none !important;
+}
+
+[data-shared-indicator] {
+  position: relative;
+  isolation: isolate;
+}
+
+[data-shared-indicator] > button,
+[data-shared-indicator] > a {
+  position: relative;
+  z-index: 1;
+  transition: color var(--duration-standard) var(--ease-standard) !important;
+}
+
+[data-shared-indicator] > button[aria-selected='true'],
+[data-shared-indicator] > button.is-active,
+[data-shared-indicator] > a[aria-current='page'] {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.task-scope-indicator,
+.finance-ledger-tab-surface,
+.finance-planning-section-indicator,
+.plan-mode-indicator,
+.shopping-view-indicator,
+.finance-mode-indicator {
+  transition: none !important;
+  will-change: transform !important;
+}
+
+.shared-segment-indicator.finance-ledger-tab-surface {
+  opacity: 1 !important;
+}
+
+.task-scope-indicator {
+  border-radius: calc(var(--ds-radius-control) - 3px);
+  background: var(--ui-surface);
+}
+
+.finance-ledger-tab-surface,
+.finance-planning-section-indicator,
+.plan-mode-indicator,
+.shopping-view-indicator,
+.finance-mode-indicator {
+  background: var(--neutral-selected);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-shared-indicator] > button,
+  [data-shared-indicator] > a {
+    transition-duration: var(--duration-fast) !important;
+  }
+
+  .shared-segment-indicator {
+    will-change: auto;
+  }
+}
+
 @media (prefers-reduced-transparency: reduce), (update: slow) {
   .mobile-nav-material,
   .mobile-page-header,

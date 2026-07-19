@@ -31,6 +31,7 @@ import MarkerIcon from '../components/MarkerIcon'
 import { FOCUS_QUICK_ADD_EVENT } from '../lib/appEvents'
 import { MOTION } from '../lib/motion'
 import MobilePageHeader from '../components/MobilePageHeader'
+import SegmentedIndicator from '../components/SegmentedIndicator'
 
 const WEEK_LABELS_MON = ['一', '二', '三', '四', '五', '六', '日']
 const WEEK_LABELS_SUN = ['日', '一', '二', '三', '四', '五', '六']
@@ -592,7 +593,12 @@ export default function Plan() {
         primaryIcon={mode === 'agenda' && composerOpen ? 'chevronUp' : 'plus'}
         showSecondary={false}
       />
-      <div className="plan-mobile-mode-switch" role="tablist" aria-label="视图模式">
+      <div className="plan-mobile-mode-switch" data-shared-indicator role="tablist" aria-label="视图模式">
+        <SegmentedIndicator
+          className="plan-mode-indicator"
+          count={3}
+          index={MODE_ORDER[mode]}
+        />
         {([
           ['month', 'month', '月历'],
           ['week', 'week', '时间'],
@@ -613,7 +619,12 @@ export default function Plan() {
         title="计划"
         eyebrow="日历与安排"
         actions={(
-          <div role="tablist" aria-label="视图模式" className="segmented-control plan-mode-switch">
+          <div role="tablist" aria-label="视图模式" data-shared-indicator className="segmented-control plan-mode-switch">
+            <SegmentedIndicator
+              className="plan-mode-indicator"
+              count={3}
+              index={MODE_ORDER[mode]}
+            />
             {([
               ['month', 'month', '月'],
               ['week', 'week', '周'],

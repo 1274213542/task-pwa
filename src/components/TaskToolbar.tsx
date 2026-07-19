@@ -1,8 +1,9 @@
-import { motion, useReducedMotion } from 'motion/react'
+import { useReducedMotion } from 'motion/react'
 import type { TaskScope } from '../lib/db'
 import { MOTION } from '../lib/motion'
 import { shouldSpinTaskSync } from '../lib/taskToolbarMotion'
 import AppIcon from './AppIcon'
+import SegmentedIndicator from './SegmentedIndicator'
 
 export default function TaskToolbar({
   scope,
@@ -47,13 +48,13 @@ export default function TaskToolbar({
           )}
         </button>
 
-        <div className="task-scope-control" role="tablist" aria-label="任务周期">
-          <motion.span
-            aria-hidden
+        <div className="task-scope-control" data-shared-indicator role="tablist" aria-label="任务周期">
+          <SegmentedIndicator
             className="task-scope-indicator"
-            initial={false}
-            animate={{ x: scope === 'daily' ? '0%' : '100%' }}
-            transition={reduceMotion ? { duration: 0.01 } : MOTION.taskControl}
+            count={2}
+            index={scope === 'daily' ? 0 : 1}
+            inset={3}
+            transition={MOTION.taskControl}
           />
           <button
             type="button"

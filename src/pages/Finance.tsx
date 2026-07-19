@@ -6,6 +6,7 @@ import AppIcon from '../components/AppIcon'
 import MarkerIcon from '../components/MarkerIcon'
 import MobilePageHeader from '../components/MobilePageHeader'
 import PageHeader from '../components/PageHeader'
+import SegmentedIndicator from '../components/SegmentedIndicator'
 import { AmountPrivacyToggle, PrivateAmount } from '../components/AmountPrivacy'
 import {
   db,
@@ -266,7 +267,12 @@ export default function Finance() {
       />
       <div className="finance-legacy-mobile-privacy"><AmountPrivacyToggle compact /></div>
 
-      <div className="finance-mode-switch" role="tablist" aria-label="财务视图">
+      <div className="finance-mode-switch" data-shared-indicator role="tablist" aria-label="财务视图">
+        <SegmentedIndicator
+          className="finance-mode-indicator"
+          count={2}
+          index={mode === 'work' ? 0 : 1}
+        />
         <button role="tab" aria-selected={mode === 'work'} onClick={() => switchMode('work')}>
           <AppIcon name="work" size={18} /> 工作收入
         </button>
