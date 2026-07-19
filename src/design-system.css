@@ -8,30 +8,86 @@
  */
 
 :root {
+  /* Public semantic tokens. Page and component rules consume these values;
+     the ds-* aliases below keep older feature markup on the same scale. */
+  --color-page-bg: var(--ui-bg);
+  --color-surface-primary: var(--ui-surface);
+  --color-surface-secondary: var(--ui-soft);
+  --color-surface-floating: color-mix(in srgb, var(--ui-surface) 88%, transparent);
+  --color-text-primary: var(--ui-ink);
+  --color-text-secondary: var(--ui-muted);
+  --color-text-tertiary: var(--ui-faint);
+  --color-border-subtle: var(--ui-line);
+  --color-divider: color-mix(in srgb, var(--ui-ink) 8%, transparent);
+  --color-control-selected: color-mix(in srgb, var(--ui-soft) 86%, var(--ui-surface));
+  --color-control-pressed: color-mix(in srgb, var(--ui-ink) 7%, var(--ui-surface));
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  --radius-control: 12px;
+  --radius-input: 14px;
+  --radius-card-small: 16px;
+  --radius-card-medium: 20px;
+  --radius-card-large: 24px;
+  --radius-sheet: 28px;
+  --radius-pill: 999px;
+
+  --shadow-card: 0 1px 1px rgb(24 27 23 / 0.02),
+    0 4px 14px rgb(24 27 23 / 0.035);
+  --shadow-floating: 0 1px 0 rgb(255 255 255 / 0.62) inset,
+    0 12px 34px rgb(24 27 23 / 0.13);
+  --shadow-sheet: 0 24px 72px rgb(24 27 23 / 0.18);
+
+  --blur-floating: 16px;
+  --blur-sheet: 20px;
+  --surface-opacity-floating: 0.88;
+
+  --page-inline-padding: 16px;
+  --page-header-height: 74px;
+  --icon-button-size: 44px;
+  --control-height: 44px;
+  --segmented-control-height: 46px;
+  --bottom-tabbar-height: 68px;
+  --bottom-content-inset: calc(
+    var(--bottom-tabbar-height) + env(safe-area-inset-bottom, 0px) + var(--space-6)
+  );
+
+  --duration-fast: 140ms;
+  --duration-standard: 220ms;
+  --duration-sheet: 320ms;
+  --ease-standard: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-emphasized: cubic-bezier(0.32, 0.72, 0, 1);
+
   /* 4px spacing rhythm */
-  --ds-space-1: 4px;
-  --ds-space-2: 8px;
-  --ds-space-3: 12px;
-  --ds-space-4: 16px;
-  --ds-space-5: 20px;
-  --ds-space-6: 24px;
-  --ds-space-7: 32px;
+  --ds-space-1: var(--space-1);
+  --ds-space-2: var(--space-2);
+  --ds-space-3: var(--space-3);
+  --ds-space-4: var(--space-4);
+  --ds-space-5: var(--space-5);
+  --ds-space-6: var(--space-6);
+  --ds-space-7: var(--space-8);
   --ds-space-8: 40px;
 
-  --ds-gutter-mobile: 16px;
+  --ds-gutter-mobile: var(--page-inline-padding);
   --ds-gutter-desktop: 28px;
-  --ds-control-height: 44px;
+  --ds-control-height: var(--control-height);
   --ds-control-compact: 36px;
   --ds-icon-small: 16px;
   --ds-icon: 20px;
   --ds-icon-large: 24px;
 
   /* Concentric radius scale: panel > card > control > compact control. */
-  --ds-radius-panel: 24px;
-  --ds-radius-card: 19px;
-  --ds-radius-control: 15px;
-  --ds-radius-compact: 12px;
-  --ds-radius-pill: 999px;
+  --ds-radius-panel: var(--radius-card-large);
+  --ds-radius-card: var(--radius-card-medium);
+  --ds-radius-control: var(--radius-input);
+  --ds-radius-compact: var(--radius-control);
+  --ds-radius-pill: var(--radius-pill);
 
   /* Page rhythm: related controls use 8/12/16; separate sections use 20/24. */
   --ds-section-gap: 16px;
@@ -49,28 +105,26 @@
   --ds-leading-copy: 1.46;
   --ds-leading-meta: 1.35;
 
-  --ds-border: color-mix(in srgb, var(--ui-ink) 9%, transparent);
+  --ds-border: var(--color-border-subtle);
   --ds-border-strong: color-mix(in srgb, var(--ui-ink) 14%, transparent);
   --ds-control-bg: color-mix(in srgb, var(--ui-soft) 88%, var(--ui-surface));
-  --ds-shadow-card: 0 1px 1px rgb(24 27 23 / 0.02),
-    0 4px 14px rgb(24 27 23 / 0.035);
+  --ds-shadow-card: var(--shadow-card);
   --ds-shadow-primary: 0 1px 1px rgb(24 27 23 / 0.025),
     0 8px 24px rgb(24 27 23 / 0.05);
-  --ds-shadow-float: 0 1px 0 rgb(255 255 255 / 0.62) inset,
-    0 12px 34px rgb(24 27 23 / 0.13);
-  --ds-shadow-modal: 0 24px 72px rgb(24 27 23 / 0.18);
+  --ds-shadow-float: var(--shadow-floating);
+  --ds-shadow-modal: var(--shadow-sheet);
 
   --ds-glass-nav: color-mix(in srgb, var(--ui-surface) 82%, transparent);
   --ds-glass-toolbar: color-mix(in srgb, var(--ui-surface) 88%, transparent);
   --ds-glass-sheet: color-mix(in srgb, var(--ui-surface) 91%, transparent);
-  --ds-glass-blur-nav: 16px;
+  --ds-glass-blur-nav: var(--blur-floating);
   --ds-glass-blur-small: 12px;
 
-  --ds-duration-press: 140ms;
-  --ds-duration-control: 180ms;
-  --ds-duration-panel: 240ms;
-  --ds-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
-  --ds-ease-move: cubic-bezier(0.32, 0.72, 0, 1);
+  --ds-duration-press: var(--duration-fast);
+  --ds-duration-control: var(--duration-standard);
+  --ds-duration-panel: var(--duration-sheet);
+  --ds-ease-out: var(--ease-standard);
+  --ds-ease-move: var(--ease-emphasized);
 
   --ds-task-toolbar-height: 60px;
   --ds-task-toolbar-action: 48px;
@@ -80,6 +134,7 @@
   --ds-task-toolbar-fade: 22px;
   --ds-task-switch-distance: 10px;
   --ds-safe-top: env(safe-area-inset-top, 0px);
+  --ds-safe-bottom: env(safe-area-inset-bottom, 0px);
   --ds-finance-header-height: 74px;
   --ds-quick-sheet-height: 84dvh;
   --ds-quick-sheet-actionbar: 68px;
