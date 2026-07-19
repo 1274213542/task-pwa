@@ -53,6 +53,12 @@
   --material-nav-shadow: 0 1px 0 rgb(255 255 255 / 0.68) inset,
     0 8px 22px rgb(20 21 20 / 0.08);
   --material-nav-blur: 16px;
+  --material-toolbar-fill: color-mix(in srgb, var(--color-page-bg) 88%, transparent);
+  --material-toolbar-fallback: color-mix(in srgb, var(--color-page-bg) 97%, var(--color-surface-primary));
+  --material-toolbar-border: color-mix(in srgb, var(--color-text-primary) 8%, transparent);
+  --material-toolbar-shadow: 0 1px 0 rgb(255 255 255 / 0.5) inset,
+    0 5px 16px rgb(20 21 20 / 0.05);
+  --material-toolbar-blur: 14px;
 
   --page-inline-padding: 16px;
   --page-header-height: 74px;
@@ -172,6 +178,11 @@
   --material-nav-border: rgb(255 255 255 / 0.12);
   --material-nav-shadow: 0 1px 0 rgb(255 255 255 / 0.08) inset,
     0 10px 26px rgb(0 0 0 / 0.24);
+  --material-toolbar-fill: color-mix(in srgb, var(--ui-bg) 88%, transparent);
+  --material-toolbar-fallback: color-mix(in srgb, var(--ui-bg) 97%, var(--ui-surface));
+  --material-toolbar-border: rgb(255 255 255 / 0.1);
+  --material-toolbar-shadow: 0 1px 0 rgb(255 255 255 / 0.05) inset,
+    0 6px 18px rgb(0 0 0 / 0.18);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -188,6 +199,11 @@
     --material-nav-border: rgb(255 255 255 / 0.12);
     --material-nav-shadow: 0 1px 0 rgb(255 255 255 / 0.08) inset,
       0 10px 26px rgb(0 0 0 / 0.24);
+    --material-toolbar-fill: color-mix(in srgb, var(--ui-bg) 88%, transparent);
+    --material-toolbar-fallback: color-mix(in srgb, var(--ui-bg) 97%, var(--ui-surface));
+    --material-toolbar-border: rgb(255 255 255 / 0.1);
+    --material-toolbar-shadow: 0 1px 0 rgb(255 255 255 / 0.05) inset,
+      0 6px 18px rgb(0 0 0 / 0.18);
   }
 }
 
@@ -7639,5 +7655,101 @@ select:focus {
     background: var(--material-nav-fallback) !important;
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
+  }
+}
+
+/* Phase 2 · sticky toolbar material. Only chrome that is actually sticky is
+   translucent: ordinary page headers and content cards remain solid. Both
+   sticky shells keep their original flow height, so the fade never substitutes
+   for layout clearance. */
+@media (max-width: 1023px) {
+  .finance-shell > .finance-sticky-header {
+    position: sticky !important;
+    top: var(--ds-safe-top) !important;
+    z-index: 12;
+    min-height: var(--page-header-height);
+    margin-inline: calc(-1 * var(--page-inline-padding));
+    padding-inline: var(--page-inline-padding);
+    background: var(--material-toolbar-fallback) !important;
+    background: var(--material-toolbar-fill) !important;
+    backdrop-filter: blur(var(--material-toolbar-blur)) saturate(108%) !important;
+    -webkit-backdrop-filter: blur(var(--material-toolbar-blur)) saturate(108%) !important;
+  }
+
+  .finance-shell > .finance-sticky-header::after {
+    position: absolute;
+    right: 0;
+    bottom: -20px;
+    left: 0;
+    display: block;
+    height: 22px;
+    background: linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--color-page-bg) 84%, transparent) 0%,
+      color-mix(in srgb, var(--color-page-bg) 42%, transparent) 48%,
+      transparent 100%
+    );
+    content: '';
+    pointer-events: none;
+  }
+
+  .finance-shell > .finance-sticky-header .mobile-page-header {
+    position: static !important;
+    background: transparent !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  .task-toolbar-sticky[data-stuck] .task-toolbar {
+    border-color: var(--material-toolbar-border);
+    background: var(--material-toolbar-fallback);
+    background: var(--material-toolbar-fill);
+    box-shadow: var(--material-toolbar-shadow);
+    backdrop-filter: blur(var(--material-toolbar-blur)) saturate(108%);
+    -webkit-backdrop-filter: blur(var(--material-toolbar-blur)) saturate(108%);
+  }
+
+  .task-toolbar-sticky[data-stuck]::after {
+    background: linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--color-page-bg) 88%, transparent) 0%,
+      color-mix(in srgb, var(--color-page-bg) 48%, transparent) 48%,
+      transparent 100%
+    );
+  }
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  @media (max-width: 1023px) {
+    .finance-shell > .finance-sticky-header,
+    .task-toolbar-sticky[data-stuck] .task-toolbar {
+      background: var(--material-toolbar-fallback) !important;
+    }
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) and (max-width: 1023px) {
+  .finance-shell > .finance-sticky-header,
+  .task-toolbar-sticky[data-stuck] .task-toolbar {
+    background: var(--material-toolbar-fallback) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+}
+
+/* The production CSS optimizer folds paired backdrop declarations to the
+   WebKit spelling. Keep a standards-only branch so Chrome/Firefox-style
+   engines do not silently lose blur, while Safari continues using the rule
+   above. */
+@supports (backdrop-filter: blur(1px)) and (not (-webkit-backdrop-filter: blur(1px))) {
+  @media (max-width: 1023px) {
+    .mobile-nav-material {
+      backdrop-filter: blur(var(--material-nav-blur)) saturate(112%) !important;
+    }
+
+    .finance-shell > .finance-sticky-header,
+    .task-toolbar-sticky[data-stuck] .task-toolbar {
+      backdrop-filter: blur(var(--material-toolbar-blur)) saturate(108%) !important;
+    }
   }
 }
