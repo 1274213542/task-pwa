@@ -38,6 +38,7 @@ export const BUSINESS_TABLES = [
   'budgetPlans',
   'financialProjections',
   'financeFundsMigrations',
+  'taskScheduleMigrations',
   'syncedPreferences',
 ] as const
 

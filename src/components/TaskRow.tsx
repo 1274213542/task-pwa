@@ -7,6 +7,7 @@ import { MOTION } from '../lib/motion'
 
 export interface RowActions {
   onToggle: () => void
+  onEdit?: () => void
   onSkip?: () => void
   onDelete: () => void
   onDeleteOnce?: () => void
@@ -39,6 +40,7 @@ export default function TaskRow({
   menuId,
   onMenuToggle,
   onMenuClose,
+  nestingLevel = 0,
 }: {
   title: string
   subtitle?: string
@@ -59,6 +61,7 @@ export default function TaskRow({
   menuId?: string
   onMenuToggle?: () => void
   onMenuClose?: () => void
+  nestingLevel?: number
 }) {
   const reduceMotion = useReducedMotion()
   const [editing, setEditing] = useState(false)
@@ -100,7 +103,7 @@ export default function TaskRow({
       const safeBottom = navRect && navRect.top > 0 ? navRect.top - 8 : viewportHeight - 12
       const menuWidth = Math.min(196, viewportWidth - 16)
       const actionCount =
-        (actions.onRename ? 1 : 0) +
+        (actions.onEdit ? 1 : 0) +
         (actions.onSkip && !completed ? 1 : 0) +
         (confirming ? (actions.onDeleteOnce ? 2 : 1) : 1)
       const estimatedHeight = actionCount * 44 + 14
@@ -122,7 +125,7 @@ export default function TaskRow({
       window.removeEventListener('resize', updatePosition)
       window.visualViewport?.removeEventListener('resize', updatePosition)
     }
-  }, [actions.onDeleteOnce, actions.onRename, actions.onSkip, completed, confirming, menuOpen])
+  }, [actions.onDeleteOnce, actions.onEdit, actions.onSkip, completed, confirming, menuOpen])
 
   useEffect(() => {
     if (!menuOpen) return
@@ -200,6 +203,7 @@ export default function TaskRow({
         data-completed={completed || undefined}
         data-overdue={overdue || undefined}
         data-dragging={dragging || undefined}
+        data-task-depth={nestingLevel || undefined}
         onClick={(event) => {
           if ((event.metaKey || event.ctrlKey) && onMetaClick) {
             event.preventDefault()
@@ -299,13 +303,13 @@ export default function TaskRow({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           transition={reduceMotion ? MOTION.reduced : MOTION.control}
         >
-          {actions.onRename && (
+          {actions.onEdit && (
             <button
               type="button"
               role="menuitem"
               onClick={() => {
                 closeMenu()
-                setEditing(true)
+                actions.onEdit?.()
               }}
             >
               <AppIcon name="edit" size={17} />

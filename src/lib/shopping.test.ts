@@ -1,7 +1,12 @@
 import 'fake-indexeddb/auto'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { db, type ShoppingItem } from './db'
-import { moveShoppingItem, restoreShoppingItemPlacement } from './shopping'
+import {
+  moveShoppingItem,
+  restoreDeletedItem,
+  restoreShoppingItemPlacement,
+  softDeleteItem,
+} from './shopping'
 import { compareRanks } from './rank'
 
 const initialTimestamp = '2026-07-19T00:00:00.000Z'
@@ -36,6 +41,20 @@ afterAll(async () => {
 })
 
 describe('购物商品移动与安全撤销', () => {
+  it('软删除后立即消失，并且只有版本未变化时可撤销', async () => {
+    const water = item('water-delete', 'market', 'a0')
+    await db.shoppingItems.add(water)
+    const deletedAt = await softDeleteItem(water.id)
+    expect(await db.shoppingItems.get(water.id)).toMatchObject({
+      lifecycleStatus: 'deleted',
+      deletedAt,
+    })
+    expect(await restoreDeletedItem(water.id, deletedAt)).toBe(true)
+    expect(await db.shoppingItems.get(water.id)).toMatchObject({
+      lifecycleStatus: 'active',
+    })
+  })
+
   it('返回移动版本令牌，并可用该令牌恢复原地点与顺序', async () => {
     const moving = item('milk', 'market', 'a0')
     const target = item('bread', 'pharmacy', 'b0')

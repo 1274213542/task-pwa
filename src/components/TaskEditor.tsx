@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
+import { useLiveQuery } from 'dexie-react-hooks'
 import type { CalItem } from '../lib/calendar'
-import type { Category, ColorToken, MarkerSymbol, TaskScope } from '../lib/db'
+import { db, type Category, type ColorToken, type MarkerSymbol, type TaskScheduleType, type TaskScope } from '../lib/db'
 import { softDeleteTask, updateTask } from '../lib/tasks'
 import { taskScopeOf } from '../lib/taskPeriods'
 import VisualPicker from './VisualPicker'
 import GestureSheet, { type GestureSheetHandle } from './GestureSheet'
+import { civilDateOf, effectiveTaskSchedule, taskDueStatus, taskScheduleTypeOf } from '../lib/taskSchedule'
+import { useCivilDate } from '../lib/useCivilDate'
 
 export type EditableTaskStatus = 'pending' | 'completed' | 'skipped'
 
@@ -21,6 +24,7 @@ export default function TaskEditor({
   onStatusChange: (status: EditableTaskStatus) => Promise<void>
   onClose: () => void
 }) {
+  const todayISO = useCivilDate()
   const { task } = item
   const originalStatus: EditableTaskStatus = item.skipped
     ? 'skipped'
@@ -33,6 +37,19 @@ export default function TaskEditor({
   const [endDate, setEndDate] = useState(task.endDate ?? '')
   const [categoryId, setCategoryId] = useState(task.categoryId ?? '')
   const [scope, setScope] = useState<TaskScope>(taskScopeOf(task))
+  const [scheduleType, setScheduleType] = useState<TaskScheduleType>(taskScheduleTypeOf(task))
+  const [scheduleStart, setScheduleStart] = useState(
+    civilDateOf(task.startAt ?? task.startDate) ?? item.date,
+  )
+  const [scheduleDue, setScheduleDue] = useState(() => {
+    if (!task.dueAt) return ''
+    return task.dueAt.includes('T') ? task.dueAt.slice(0, 16) : `${task.dueAt}T23:59`
+  })
+  const [showBeforeStart, setShowBeforeStart] = useState(task.showBeforeStart ?? false)
+  const [surfaceDaysBeforeDue, setSurfaceDaysBeforeDue] = useState(task.surfaceDaysBeforeDue ?? 3)
+  const [parentTaskId, setParentTaskId] = useState(task.parentTaskId ?? '')
+  const [inheritsParentSchedule, setInheritsParentSchedule] = useState(task.inheritsParentSchedule ?? Boolean(task.parentTaskId))
+  const [extendParentDue, setExtendParentDue] = useState(false)
   const [visualToken, setVisualToken] = useState<ColorToken | undefined>(task.visualToken)
   const [markerSymbol, setMarkerSymbol] = useState<MarkerSymbol | undefined>(task.markerSymbol)
   const [status, setStatus] = useState<EditableTaskStatus>(originalStatus)
@@ -42,6 +59,14 @@ export default function TaskEditor({
   const savingRef = useRef(false)
   const dialogRef = useRef<HTMLElement>(null)
   const sheetRef = useRef<GestureSheetHandle>(null)
+  const allTasks = useLiveQuery(
+    () => db.tasks.where('lifecycleStatus').equals('active').sortBy('rank'),
+    [],
+  ) ?? []
+  const effective = effectiveTaskSchedule(task, allTasks)
+  const dueStatus = item.completed
+    ? { tone: 'completed' as const, label: '已完成', days: null }
+    : taskDueStatus(task, todayISO, allTasks)
 
   useEffect(() => {
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null
@@ -73,6 +98,14 @@ export default function TaskEditor({
         taskScope: scope,
         visualToken,
         markerSymbol,
+        scheduleType,
+        startAt: scheduleType === 'unscheduled' || inheritsParentSchedule ? undefined : scheduleStart,
+        dueAt: scheduleType === 'unscheduled' || inheritsParentSchedule ? undefined : scheduleDue || undefined,
+        showBeforeStart,
+        surfaceDaysBeforeDue,
+        parentTaskId: parentTaskId || undefined,
+        inheritsParentSchedule: Boolean(parentTaskId) && inheritsParentSchedule,
+        extendParentDue,
       })
       if (status !== originalStatus) await onStatusChange(status)
       sheetRef.current?.close()
@@ -215,6 +248,102 @@ export default function TaskEditor({
               </select>
             </label>
           </div>
+          <section className="task-editor-schedule" aria-labelledby="task-schedule-title">
+            <div className="task-editor-section-heading">
+              <div>
+                <span>时间关系</span>
+                <h3 id="task-schedule-title">排期与 DDL</h3>
+              </div>
+              {dueStatus.label && <strong data-due-tone={dueStatus.tone}>{dueStatus.label}</strong>}
+            </div>
+            <label>
+              父任务
+              <select
+                className="field mt-1"
+                value={parentTaskId}
+                onChange={(event) => {
+                  setParentTaskId(event.target.value)
+                  setInheritsParentSchedule(Boolean(event.target.value))
+                }}
+              >
+                <option value="">无父任务</option>
+                {allTasks.filter((candidate) => candidate.id !== task.id).map((candidate) => (
+                  <option key={candidate.id} value={candidate.id}>{candidate.title}</option>
+                ))}
+              </select>
+            </label>
+            {parentTaskId && (
+              <label className="task-editor-switch-row">
+                <input
+                  type="checkbox"
+                  checked={inheritsParentSchedule}
+                  onChange={(event) => setInheritsParentSchedule(event.target.checked)}
+                />
+                <span>继承父任务的开始日期与 DDL</span>
+              </label>
+            )}
+            <div className="task-editor-schedule-grid" aria-disabled={inheritsParentSchedule || undefined}>
+              <label>
+                时间类型
+                <select
+                  className="field mt-1"
+                  value={inheritsParentSchedule ? effective.type : scheduleType}
+                  disabled={inheritsParentSchedule}
+                  onChange={(event) => setScheduleType(event.target.value as TaskScheduleType)}
+                >
+                  <option value="today">今日必须完成</option>
+                  <option value="longTerm">长期任务</option>
+                  <option value="unscheduled">未排期</option>
+                </select>
+              </label>
+              {(inheritsParentSchedule ? effective.type : scheduleType) !== 'unscheduled' && (
+                <label>
+                  开始日期
+                  <input
+                    type="date"
+                    className="field mt-1"
+                    disabled={inheritsParentSchedule}
+                    value={inheritsParentSchedule ? civilDateOf(effective.startAt) ?? '' : scheduleStart}
+                    onChange={(event) => setScheduleStart(event.target.value)}
+                  />
+                </label>
+              )}
+              {(inheritsParentSchedule ? effective.type : scheduleType) !== 'unscheduled' && (
+                <label>
+                  DDL（可选时间）
+                  <input
+                    type="datetime-local"
+                    className="field mt-1"
+                    disabled={inheritsParentSchedule}
+                    min={scheduleStart ? `${scheduleStart}T00:00` : undefined}
+                    value={inheritsParentSchedule
+                      ? effective.dueAt?.includes('T')
+                        ? effective.dueAt.slice(0, 16)
+                        : effective.dueAt ? `${effective.dueAt}T23:59` : ''
+                      : scheduleDue}
+                    onChange={(event) => setScheduleDue(event.target.value)}
+                  />
+                </label>
+              )}
+            </div>
+            {scheduleType === 'longTerm' && !inheritsParentSchedule && (
+              <div className="task-editor-schedule-options">
+                <label className="task-editor-switch-row">
+                  <input type="checkbox" checked={showBeforeStart} onChange={(event) => setShowBeforeStart(event.target.checked)} />
+                  <span>开始日期前仍显示</span>
+                </label>
+                <label>
+                  提前 <input type="number" min={0} max={90} value={surfaceDaysBeforeDue} onChange={(event) => setSurfaceDaysBeforeDue(Number(event.target.value) || 0)} /> 天进入近期
+                </label>
+              </div>
+            )}
+            {parentTaskId && !inheritsParentSchedule && (
+              <label className="task-editor-switch-row">
+                <input type="checkbox" checked={extendParentDue} onChange={(event) => setExtendParentDue(event.target.checked)} />
+                <span>若子任务更晚，同步延长父任务 DDL</span>
+              </label>
+            )}
+          </section>
           <VisualPicker
             color={visualToken}
             marker={markerSymbol}

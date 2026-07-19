@@ -4538,6 +4538,92 @@ select:focus {
   }
 }
 
+/* Task scheduling: compact DDL metadata and parent/child spatial hierarchy. */
+.task-card[data-task-depth='1'] { width: calc(100% - 18px); margin-left: 18px; }
+.task-card[data-task-depth='2'] { width: calc(100% - 30px); margin-left: 30px; }
+.task-card[data-task-depth='3'],
+.task-card[data-task-depth='4'] { width: calc(100% - 40px); margin-left: 40px; }
+.task-card[data-task-depth]::before {
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: -10px;
+  width: 1px;
+  background: var(--ds-border-strong);
+  content: '';
+}
+.task-card-meta.is-overdue,
+[data-due-tone='overdue'] { color: #b42318 !important; }
+[data-due-tone='today'] { color: var(--ui-ink); font-weight: 720; }
+[data-due-tone='soon'] { color: #9a6700; }
+.task-schedule-composer {
+  display: grid;
+  width: 100%;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  border-top: 1px solid var(--ds-border);
+  padding-top: 10px;
+}
+.task-schedule-composer > label,
+.task-editor-schedule label {
+  display: grid;
+  gap: 5px;
+  color: var(--ui-muted);
+  font-size: 0.7rem;
+  font-weight: 610;
+}
+.task-schedule-composer select,
+.task-schedule-composer input,
+.task-surface-days-input,
+.task-editor-schedule-options input[type='number'] {
+  min-width: 0;
+  min-height: 44px;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-compact);
+  background: var(--neutral-control);
+  padding: 0 10px;
+  color: var(--ui-ink);
+  font-size: 0.8rem;
+}
+.task-schedule-toggle,
+.task-editor-switch-row {
+  display: flex !important;
+  min-height: 44px;
+  align-items: center;
+  grid-auto-flow: column;
+  justify-content: start;
+  gap: 9px !important;
+}
+.task-schedule-toggle input,
+.task-editor-switch-row input { width: 20px; height: 20px; accent-color: var(--ui-ink); }
+.task-surface-days-input { display: flex; align-items: center; gap: 5px; }
+.task-surface-days-input input { width: 54px; min-height: 36px; padding: 0; text-align: center; }
+.task-editor-schedule {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-card);
+  background: var(--ui-surface);
+  padding: 14px;
+}
+.task-editor-section-heading { display: flex; align-items: end; justify-content: space-between; gap: 12px; }
+.task-editor-section-heading span { color: var(--ui-muted); font-size: 0.67rem; }
+.task-editor-section-heading h3 { font-size: 0.94rem; font-weight: 720; }
+.task-editor-section-heading strong { font-size: 0.72rem; font-weight: 680; }
+.task-editor-schedule-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.task-editor-schedule-options { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.task-editor-schedule-options > label:last-child { display: flex; align-items: center; grid-auto-flow: column; }
+.task-editor-schedule-options input[type='number'] { width: 58px; }
+.overview-task-buckets { display: grid; gap: 12px; }
+.overview-task-buckets > section { display: grid; gap: 6px; }
+.overview-task-buckets h3 { display: flex; align-items: center; justify-content: space-between; color: var(--ui-muted); font-size: 0.72rem; font-weight: 680; }
+.overview-task-buckets h3 span { border-radius: var(--ds-radius-pill); background: var(--neutral-control); padding: 3px 7px; }
+
+@media (max-width: 520px) {
+  .task-schedule-composer,
+  .task-editor-schedule-grid { grid-template-columns: 1fr; }
+}
+
 /* Finance ownership, category picker and keyboard-safe quick-entry sheet. */
 .finance-consumption-summary small {
   display: flex;
@@ -4911,6 +4997,54 @@ select:focus {
   min-height: 58px !important;
   gap: 9px !important;
   padding: 7px 2px !important;
+}
+.shopping-swipe-row {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  border-radius: var(--ds-radius-control);
+  isolation: isolate;
+}
+.shopping-swipe-row[data-drag-enabled='true'] { cursor: grab; }
+.shopping-swipe-row[data-drag-enabled='true']:active { cursor: grabbing; }
+.shopping-swipe-row > .shopping-card {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  background: var(--ui-surface) !important;
+  touch-action: pan-y pinch-zoom;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.shopping-group-section .shopping-swipe-row {
+  border-radius: 0;
+}
+.shopping-group-section .shopping-swipe-row + .shopping-swipe-row {
+  border-top: 1px solid var(--ds-border);
+}
+.shopping-group-section .shopping-swipe-row > .shopping-card {
+  border-top: 0 !important;
+}
+.shopping-swipe-delete {
+  position: absolute;
+  z-index: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: grid;
+  width: 82px;
+  place-content: center;
+  gap: 3px;
+  border: 0;
+  background: #d92d20;
+  color: white;
+  font-size: 0.72rem;
+  font-weight: 680;
+  text-align: center;
+}
+.shopping-swipe-delete:active { background: #b42318; }
+.shopping-swipe-row[data-swipe-open] .shopping-card {
+  box-shadow: -5px 0 13px rgb(18 20 18 / 0.06);
 }
 .shopping-group-section .shopping-card p:first-child {
   font-size: 0.85rem !important;

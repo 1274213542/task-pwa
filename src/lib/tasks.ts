@@ -3,6 +3,7 @@ import {
   type ColorToken,
   type MarkerSymbol,
   type Task,
+  type TaskScheduleType,
   type TaskScope,
 } from './db'
 import { type Recurrence, nextAfterCompletion } from './recurrence'
@@ -14,9 +15,38 @@ import {
   type BatchCreateResult,
 } from './batch'
 import { periodAnchorISO } from './taskPeriods'
+import { civilDateOf, effectiveTaskSchedule, wouldCreateParentCycle } from './taskSchedule'
 
 const now = () => new Date().toISOString()
 const today = todayLocalISO // 本地民用日期，不是 UTC（v4.2 §7.5）
+
+export interface TaskScheduleInput {
+  scheduleType?: TaskScheduleType
+  startAt?: string
+  dueAt?: string
+  showBeforeStart?: boolean
+  surfaceDaysBeforeDue?: number
+  parentTaskId?: string
+  inheritsParentSchedule?: boolean
+}
+
+function scheduleFields(
+  input: TaskScheduleInput | undefined,
+  legacyStartDate: string | undefined,
+): Partial<Task> {
+  const scheduleType = input?.scheduleType ?? 'today'
+  const startAt = input?.startAt ?? (scheduleType === 'unscheduled' ? undefined : legacyStartDate ?? today())
+  const dueAt = input?.dueAt
+  return {
+    scheduleType,
+    ...(startAt && { startAt }),
+    ...(dueAt && { dueAt }),
+    showBeforeStart: input?.showBeforeStart ?? false,
+    surfaceDaysBeforeDue: Math.max(0, Math.min(90, input?.surfaceDaysBeforeDue ?? 3)),
+    ...(input?.parentTaskId && { parentTaskId: input.parentTaskId }),
+    inheritsParentSchedule: Boolean(input?.parentTaskId) && (input?.inheritsParentSchedule ?? true),
+  }
+}
 
 export class RecurrenceConflictError extends Error {
   constructor() {
@@ -31,8 +61,9 @@ export async function addTask(
   categoryId?: string,
   startDate?: string, // 缺省 = 今天（本地民用日期）
   taskScope: TaskScope = 'daily',
+  schedule?: TaskScheduleInput,
 ): Promise<void> {
-  await addTasks([title], recurrence, categoryId, startDate, taskScope)
+  await addTasks([title], recurrence, categoryId, startDate, taskScope, schedule)
 }
 
 /** 原子批量新增：保持行序、保留重复标题，失败时整批回滚。 */
@@ -42,6 +73,7 @@ export async function addTasks(
   categoryId?: string,
   startDate?: string,
   taskScope: TaskScope = 'daily',
+  schedule?: TaskScheduleInput,
 ): Promise<number> {
   const clean = Array.isArray(titles)
     ? titles.map((title) => title.trim()).filter(Boolean)
@@ -72,6 +104,7 @@ export async function addTasks(
         templateVersion: 1,
         createdAt: t,
         updatedAt: t,
+        ...scheduleFields(schedule, startDate ?? today()),
         ...(categoryId && { categoryId }),
         ...(recurrence && { recurrence }),
         ...(recurrence?.mode === 'after_completion' && {
@@ -95,6 +128,7 @@ export async function addTasksDetailed(
   categoryId?: string,
   startDate?: string,
   taskScope: TaskScope = 'daily',
+  schedule?: TaskScheduleInput,
 ): Promise<BatchCreateResult> {
   const entries = parseBatchEntries(titles)
   const failures: BatchCreateResult['failures'] = []
@@ -130,6 +164,7 @@ export async function addTasksDetailed(
           templateVersion: 1,
           createdAt: timestamp,
           updatedAt: timestamp,
+          ...scheduleFields(schedule, startDate ?? today()),
           ...(categoryId && { categoryId }),
           ...(recurrence && { recurrence }),
           ...(recurrence?.mode === 'after_completion' && {
@@ -169,6 +204,14 @@ export async function updateTask(
     taskScope?: TaskScope
     visualToken?: ColorToken
     markerSymbol?: MarkerSymbol
+    scheduleType?: TaskScheduleType
+    startAt?: string
+    dueAt?: string
+    showBeforeStart?: boolean
+    surfaceDaysBeforeDue?: number
+    parentTaskId?: string
+    inheritsParentSchedule?: boolean
+    extendParentDue?: boolean
   },
 ): Promise<void> {
   const title = changes.title.trim()
@@ -176,16 +219,62 @@ export async function updateTask(
   if (changes.endDate && changes.endDate < changes.startDate) {
     throw new Error('结束日期不能早于开始日期')
   }
-  await db.tasks.update(id, {
-    title,
-    notes: changes.notes?.trim() || undefined,
-    categoryId: changes.categoryId || undefined,
-    startDate: changes.startDate,
-    endDate: changes.endDate || undefined,
-    taskScope: changes.taskScope ?? 'daily',
-    visualToken: changes.visualToken,
-    markerSymbol: changes.markerSymbol,
-    updatedAt: now(),
+  const allTasks = await db.tasks.where('lifecycleStatus').equals('active').toArray()
+  if (wouldCreateParentCycle(id, changes.parentTaskId, allTasks)) {
+    throw new Error('父子任务不能形成循环关系')
+  }
+  const current = allTasks.find((task) => task.id === id)
+  if (!current) throw new Error('任务不存在或已删除')
+  const parent = changes.parentTaskId
+    ? allTasks.find((task) => task.id === changes.parentTaskId)
+    : undefined
+  const childDue = civilDateOf(changes.dueAt)
+  const parentDue = parent ? civilDateOf(effectiveTaskSchedule(parent, allTasks).dueAt) : undefined
+  if (
+    parent &&
+    changes.inheritsParentSchedule === false &&
+    childDue &&
+    parentDue &&
+    childDue > parentDue
+  ) {
+    if (!changes.extendParentDue) {
+      throw new Error(`子任务截止日期晚于父任务（${parentDue}）；请缩短日期或选择同步延长父任务`)
+    }
+  }
+  const timestamp = now()
+  await db.transaction('rw', db.tasks, async () => {
+    if (
+      parent &&
+      changes.inheritsParentSchedule === false &&
+      childDue &&
+      parentDue &&
+      childDue > parentDue &&
+      changes.extendParentDue
+    ) {
+      await db.tasks.update(parent.id, {
+        dueAt: changes.dueAt,
+        updatedAt: timestamp,
+      })
+    }
+    const updated = await db.tasks.update(id, {
+      title,
+      notes: changes.notes?.trim() || undefined,
+      categoryId: changes.categoryId || undefined,
+      startDate: changes.startDate,
+      endDate: changes.endDate || undefined,
+      taskScope: changes.taskScope ?? 'daily',
+      visualToken: changes.visualToken,
+      markerSymbol: changes.markerSymbol,
+      scheduleType: changes.scheduleType ?? current.scheduleType ?? 'today',
+      startAt: changes.startAt || undefined,
+      dueAt: changes.dueAt || undefined,
+      showBeforeStart: changes.showBeforeStart ?? false,
+      surfaceDaysBeforeDue: Math.max(0, Math.min(90, changes.surfaceDaysBeforeDue ?? 3)),
+      parentTaskId: changes.parentTaskId || undefined,
+      inheritsParentSchedule: Boolean(changes.parentTaskId) && (changes.inheritsParentSchedule ?? true),
+      updatedAt: timestamp,
+    })
+    if (updated !== 1) throw new Error('任务不存在或已删除')
   })
 }
 
@@ -248,7 +337,10 @@ async function upsertRecord(
 
 /** 普通任务完成 */
 export async function completeTask(task: Task): Promise<void> {
-  await upsertRecord(task, 'single', task.startDate ?? today(), 'completed')
+  await db.transaction('rw', db.tasks, db.completionRecords, db.categories, async () => {
+    await upsertRecord(task, 'single', task.startDate ?? today(), 'completed')
+    await db.tasks.update(task.id, { completedAt: now(), updatedAt: now() })
+  })
 }
 
 /** fixed 周期某一期完成（occurrenceDate = 原计划日期，改期不改 key） */
@@ -269,9 +361,17 @@ export async function skipFixedOccurrence(
 
 /** 取消完成 = 同一条记录置 voided，不删除（v4.2 §8.1） */
 export async function voidRecord(recordId: string): Promise<void> {
-  await db.completionRecords.update(recordId, {
-    resolution: 'voided',
-    updatedAt: now(),
+  await db.transaction('rw', db.completionRecords, db.tasks, async () => {
+    await db.completionRecords.update(recordId, {
+      resolution: 'voided',
+      updatedAt: now(),
+    })
+    if (recordId.endsWith(':single')) {
+      await db.tasks.update(recordId.slice(0, -':single'.length), {
+        completedAt: undefined,
+        updatedAt: now(),
+      })
+    }
   })
 }
 

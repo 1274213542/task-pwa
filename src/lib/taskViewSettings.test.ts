@@ -64,6 +64,39 @@ describe('task view settings', () => {
     expect(result.map((row) => row.id)).toEqual(['b'])
   })
 
+  it('filters a child by its inherited parent schedule', () => {
+    const inheritedRows: Array<TaskViewCandidate & { id: string }> = [
+      {
+        id: 'parent',
+        completed: false,
+        task: {
+          id: 'parent',
+          createdAt: '2026-07-01',
+          updatedAt: '2026-07-01',
+          scheduleType: 'longTerm',
+          startAt: '2026-07-20',
+          dueAt: '2026-07-31',
+        },
+      },
+      {
+        id: 'child',
+        completed: false,
+        task: {
+          id: 'child',
+          createdAt: '2026-07-01',
+          updatedAt: '2026-07-01',
+          parentTaskId: 'parent',
+          inheritsParentSchedule: true,
+        },
+      },
+    ]
+    const result = applyTaskViewSettings(inheritedRows, {
+      ...DEFAULT_TASK_VIEW_SETTINGS,
+      schedule: 'longTerm',
+    })
+    expect(result.map((row) => row.id)).toEqual(['parent', 'child'])
+  })
+
   it('recovers safely from invalid persisted settings and counts active changes', () => {
     expect(parseTaskViewSettings('{broken')).toEqual(DEFAULT_TASK_VIEW_SETTINGS)
     expect(activeTaskViewSettingCount({

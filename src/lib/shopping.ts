@@ -256,11 +256,39 @@ export async function unmarkPurchased(id: string): Promise<void> {
   })
 }
 
-export async function softDeleteItem(id: string): Promise<void> {
-  await db.shoppingItems.update(id, {
+export async function softDeleteItem(id: string): Promise<string> {
+  const deletedAt = now()
+  const changed = await db.shoppingItems.update(id, {
     lifecycleStatus: 'deleted',
-    deletedAt: now(),
-    updatedAt: now(),
+    deletedAt,
+    updatedAt: deletedAt,
+  })
+  if (changed !== 1) throw new Error('商品删除失败，请重试')
+  return deletedAt
+}
+
+/**
+ * 撤销软删除。expectedDeletedAt 是删除提交时的版本令牌；如果其他设备
+ * 已经修改这条商品，则拒绝覆盖较新的状态。
+ */
+export async function restoreDeletedItem(
+  id: string,
+  expectedDeletedAt: string,
+): Promise<boolean> {
+  return db.transaction('rw', db.shoppingItems, async () => {
+    const item = await db.shoppingItems.get(id)
+    if (
+      !item ||
+      item.lifecycleStatus !== 'deleted' ||
+      item.deletedAt !== expectedDeletedAt ||
+      item.updatedAt !== expectedDeletedAt
+    ) return false
+    await db.shoppingItems.update(id, {
+      lifecycleStatus: 'active',
+      deletedAt: undefined,
+      updatedAt: now(),
+    })
+    return true
   })
 }
 

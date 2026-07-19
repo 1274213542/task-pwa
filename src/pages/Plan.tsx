@@ -11,7 +11,7 @@ import {
   type TaskScope,
 } from '../lib/db'
 import { type CalItem, buildCalendarItems, monthGrid } from '../lib/calendar'
-import { todayLocalISO } from '../lib/dates'
+import { useCivilDate } from '../lib/useCivilDate'
 import { addEvent, softDeleteEvent, toggleEventCompletion } from '../lib/events'
 import {
   RecurrenceConflictError,
@@ -49,7 +49,7 @@ function dateLabel(dateISO: string, options?: Intl.DateTimeFormatOptions) {
 
 export default function Plan() {
   const navigate = useNavigate()
-  const todayISO = todayLocalISO()
+  const todayISO = useCivilDate()
   const reduceMotion = useReducedMotion()
   const [mode, setMode] = useState<PlanMode>(() => {
     const stored = localStorage.getItem('planMode')
@@ -140,9 +140,9 @@ export default function Plan() {
   const byDay = useMemo(
     () =>
       tasks && records && events
-        ? buildCalendarItems(tasks, records, events, rangeStart, rangeEnd)
+        ? buildCalendarItems(tasks, records, events, rangeStart, rangeEnd, todayISO)
         : undefined,
-    [tasks, records, events, rangeStart, rangeEnd],
+    [tasks, records, events, rangeStart, rangeEnd, todayISO],
   )
 
   useEffect(() => {

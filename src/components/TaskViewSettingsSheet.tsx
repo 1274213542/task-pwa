@@ -3,6 +3,7 @@ import {
   DEFAULT_TASK_VIEW_SETTINGS,
   type TaskListDensity,
   type TaskPropertyFilter,
+  type TaskScheduleFilter,
   type TaskSortMode,
   type TaskStatusFilter,
   type TaskViewSettings,
@@ -19,7 +20,16 @@ const PROPERTY: Array<[TaskPropertyFilter, string]> = [
   ['single', '普通任务'],
   ['recurring', '固定任务'],
 ]
+const SCHEDULE: Array<[TaskScheduleFilter, string]> = [
+  ['all', '全部时间类型'],
+  ['today', '今日必须完成'],
+  ['longTerm', '长期任务'],
+  ['dated', '有 DDL'],
+  ['undated', '无 DDL'],
+  ['overdue', '已逾期'],
+]
 const SORT: Array<[TaskSortMode, string]> = [
+  ['smart', '智能优先级'],
   ['manual', '手动排序'],
   ['updated', '最近更新'],
   ['created', '创建时间'],
@@ -109,6 +119,12 @@ export default function TaskViewSettingsSheet({
           options={PROPERTY}
           value={settings.property}
           onChange={(property) => onChange({ ...settings, property })}
+        />
+        <OptionGroup
+          label="时间与截止"
+          options={SCHEDULE}
+          value={settings.schedule}
+          onChange={(schedule) => onChange({ ...settings, schedule })}
         />
         <OptionGroup
           label="排序方式"

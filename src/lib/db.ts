@@ -28,6 +28,7 @@ import type {
 import { migrateLegacyFinanceData } from './financeMigration'
 import { ensureFinanceOwnershipMigration } from './financeOwnershipMigration'
 import { ensureFinanceFundsMigration } from './financeFundsMigration'
+import { ensureTaskScheduleMigration } from './taskScheduleMigration'
 
 /**
  * 数据模型见技术方案 v4.2 §8。
@@ -38,6 +39,7 @@ import { ensureFinanceFundsMigration } from './financeFundsMigration'
 export type LifecycleStatus = 'active' | 'deleted'
 export type Resolution = 'completed' | 'skipped' | 'voided'
 export type TaskScope = 'daily' | 'weekly'
+export type TaskScheduleType = 'today' | 'longTerm' | 'unscheduled'
 export type MarkerSymbol = 'dot' | 'flower' | 'star' | 'diamond' | 'spark' | 'squircle'
 export type UIThemeId = 'violet-lime' | 'aqua-garden' | 'mono-green' | 'soft-mix'
 
@@ -49,6 +51,18 @@ export interface Task {
   rank: string
   startDate?: string // PlainDate ISO
   endDate?: string // 周期任务的结束日；缺省 = 持续有效
+  /**
+   * 排期使用设备本地民用时间：YYYY-MM-DD 或 YYYY-MM-DDTHH:mm。
+   * startDate/endDate 继续保留为旧数据与周期模板锚点，不能改写或清除。
+   */
+  scheduleType?: TaskScheduleType
+  startAt?: string
+  dueAt?: string
+  showBeforeStart?: boolean
+  surfaceDaysBeforeDue?: number
+  completedAt?: string
+  parentTaskId?: string
+  inheritsParentSchedule?: boolean
   taskScope?: TaskScope // v7：旧记录缺省按 daily 读取，迁移时补齐
   visualToken?: ColorToken // 可选视觉覆盖；缺省继承分类或当前主题
   markerSymbol?: MarkerSymbol
@@ -221,6 +235,17 @@ export interface SyncedPreferences {
   updatedAt: string
 }
 
+export interface TaskScheduleMigrationState {
+  id: '#task-schedule-v12'
+  version: 12
+  status: 'pending' | 'complete' | 'rolled-back'
+  /** 仅保存迁移前受影响任务，供本地原样回滚。 */
+  backup: Task[]
+  createdAt: string
+  completedAt?: string
+  rolledBackAt?: string
+}
+
 export const db = new Dexie('task-pwa', { addons: [dexieCloud] }) as Dexie & {
   tasks: EntityTable<Task, 'id'>
   completionRecords: EntityTable<CompletionRecord, 'id'>
@@ -253,6 +278,7 @@ export const db = new Dexie('task-pwa', { addons: [dexieCloud] }) as Dexie & {
   budgetPlans: EntityTable<BudgetPlan, 'id'>
   financialProjections: EntityTable<FinancialProjection, 'id'>
   financeFundsMigrations: EntityTable<FinanceFundsMigrationState, 'id'>
+  taskScheduleMigrations: EntityTable<TaskScheduleMigrationState, 'id'>
 }
 
 db.version(2).stores({
@@ -381,6 +407,15 @@ db.version(11).stores({
   financeFundsMigrations: 'id, status, version',
 })
 
+// v12：任务排期、DDL 与父子关系。只增加可选索引；旧字段、主键、
+// 周期完成记录与 rank 全部保留。字段回填由 ready 后的幂等迁移完成，
+// 迁移前快照保存在 taskScheduleMigrations，支持原样回滚。
+db.version(12).stores({
+  tasks:
+    'id, lifecycleStatus, [lifecycleStatus+rank], [id+currentSequence], categoryId, taskScope, scheduleType, parentTaskId, dueAt',
+  taskScheduleMigrations: 'id, status, version',
+})
+
 if (cloudEnabled) {
   db.cloud.configure({
     databaseUrl: DEXIE_CLOUD_URL,
@@ -436,4 +471,5 @@ db.on('ready', async () => {
     await ensureFinanceOwnershipMigration(db)
   }
   if (financeFundsV3Enabled) await ensureFinanceFundsMigration(db)
+  await ensureTaskScheduleMigration(db)
 })

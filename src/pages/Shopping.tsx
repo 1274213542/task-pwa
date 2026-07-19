@@ -7,9 +7,18 @@ import {
   type ButtonHTMLAttributes,
   type CSSProperties,
   type HTMLAttributes,
+  type PointerEvent as ReactPointerEvent,
 } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from 'motion/react'
+import {
+  AnimatePresence,
+  LayoutGroup,
+  animate,
+  motion,
+  useMotionValue,
+  useReducedMotion,
+  type AnimationPlaybackControls,
+} from 'motion/react'
 import {
   DndContext,
   DragOverlay,
@@ -42,6 +51,7 @@ import {
   softDeleteLocation,
   suggestLocationId,
   restoreShoppingItemPlacement,
+  restoreDeletedItem,
   unmarkPurchased,
 } from '../lib/shopping'
 import PageHeader from '../components/PageHeader'
@@ -63,6 +73,9 @@ type ShoppingRowDragProps = Pick<
 type ShoppingDragHandleProps = ButtonHTMLAttributes<HTMLButtonElement>
 
 const MOVE_UNDO_TIMEOUT_MS = 7_000
+const SWIPE_REVEAL_PX = 82
+const SWIPE_COMMIT_PX = 44
+const SWIPE_DIRECTION_LOCK_PX = 10
 
 function stopDragActivation(event: { stopPropagation: () => void }) {
   event.stopPropagation()
@@ -76,6 +89,10 @@ function ItemRow({
   menuOpen = false,
   onMenuToggle,
   onMove,
+  onDelete,
+  swipeOpen = false,
+  onSwipeOpen,
+  onSwipeClose,
   liRef,
   liStyle,
   rowDragProps,
@@ -89,6 +106,10 @@ function ItemRow({
   menuOpen?: boolean
   onMenuToggle?: () => void
   onMove?: (locationId?: string) => void
+  onDelete?: () => void
+  swipeOpen?: boolean
+  onSwipeOpen?: () => void
+  onSwipeClose?: () => void
   liRef?: (node: HTMLLIElement | null) => void
   liStyle?: CSSProperties
   rowDragProps?: ShoppingRowDragProps
@@ -101,6 +122,104 @@ function ItemRow({
   const menuRef = useRef<HTMLDivElement>(null)
   const [menuPosition, setMenuPosition] = useState<CSSProperties | null>(null)
   const purchased = item.purchaseStatus === 'purchased'
+  const swipeX = useMotionValue(swipeOpen ? -SWIPE_REVEAL_PX : 0)
+  const swipeAnimation = useRef<AnimationPlaybackControls | null>(null)
+  const gesture = useRef<{
+    pointerId: number
+    startX: number
+    startY: number
+    startOffset: number
+    axis: 'pending' | 'horizontal' | 'vertical'
+    history: Array<{ x: number; time: number }>
+  } | null>(null)
+
+  function settleSwipe(target: number, velocity = 0) {
+    swipeAnimation.current?.stop()
+    if (reduceMotion) {
+      swipeX.set(target)
+      return
+    }
+    swipeAnimation.current = animate(swipeX, target, {
+      type: 'spring',
+      stiffness: 430,
+      damping: 38,
+      mass: 0.78,
+      velocity,
+    })
+  }
+
+  useEffect(() => {
+    if (gesture.current?.axis === 'horizontal') return
+    settleSwipe(swipeOpen ? -SWIPE_REVEAL_PX : 0)
+    // The spring intentionally starts from the current presentation value.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reduceMotion, swipeOpen])
+
+  useEffect(() => () => swipeAnimation.current?.stop(), [])
+
+  function onSwipePointerDown(event: ReactPointerEvent<HTMLDivElement>) {
+    if (purchased || dragging || event.button !== 0) return
+    const target = event.target as Element
+    if (target.closest('button, input, textarea, select, a, [role="menu"]')) return
+    swipeAnimation.current?.stop()
+    gesture.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      startOffset: swipeX.get(),
+      axis: 'pending',
+      history: [{ x: event.clientX, time: event.timeStamp }],
+    }
+  }
+
+  function onSwipePointerMove(event: ReactPointerEvent<HTMLDivElement>) {
+    const state = gesture.current
+    if (!state || state.pointerId !== event.pointerId) return
+    const dx = event.clientX - state.startX
+    const dy = event.clientY - state.startY
+    if (state.axis === 'pending') {
+      if (Math.hypot(dx, dy) < SWIPE_DIRECTION_LOCK_PX) return
+      if (Math.abs(dy) >= Math.abs(dx) * 0.9) {
+        state.axis = 'vertical'
+        onSwipeClose?.()
+        return
+      }
+      state.axis = 'horizontal'
+      event.currentTarget.setPointerCapture(event.pointerId)
+      onSwipeOpen?.()
+    }
+    if (state.axis !== 'horizontal') return
+    event.preventDefault()
+    const raw = state.startOffset + dx
+    const next = raw < -SWIPE_REVEAL_PX
+      ? -SWIPE_REVEAL_PX - Math.min(18, Math.abs(raw + SWIPE_REVEAL_PX) * 0.22)
+      : raw > 0
+        ? Math.min(12, raw * 0.18)
+        : raw
+    swipeX.set(next)
+    state.history.push({ x: event.clientX, time: event.timeStamp })
+    if (state.history.length > 4) state.history.shift()
+  }
+
+  function finishSwipe(event: ReactPointerEvent<HTMLDivElement>, cancelled = false) {
+    const state = gesture.current
+    if (!state || state.pointerId !== event.pointerId) return
+    gesture.current = null
+    if (state.axis !== 'horizontal') return
+    const recent = state.history[state.history.length - 1]
+    const older = state.history[0]
+    const elapsed = Math.max(1, recent.time - older.time)
+    const velocity = ((recent.x - older.x) / elapsed) * 1000
+    const current = swipeX.get()
+    const projected = current + velocity * 0.06
+    const shouldOpen = !cancelled && (
+      current <= -SWIPE_COMMIT_PX ||
+      (current < -18 && projected <= -SWIPE_COMMIT_PX)
+    )
+    if (shouldOpen) onSwipeOpen?.()
+    else onSwipeClose?.()
+    settleSwipe(shouldOpen ? -SWIPE_REVEAL_PX : 0, velocity)
+  }
 
   useLayoutEffect(() => {
     if (!menuOpen || !triggerRef.current) {
@@ -164,11 +283,34 @@ function ItemRow({
       data-color-token={tone}
       data-completed={purchased || undefined}
       data-menu-open={menuOpen || undefined}
-      className="shopping-card row-in relative flex items-center gap-3"
+      data-no-route-swipe
+      data-shopping-swipe-id={item.id}
+      data-swipe-open={swipeOpen || undefined}
+      className="shopping-swipe-row row-in"
       data-dragging={dragging || undefined}
       data-drag-enabled={rowDragProps ? true : undefined}
       {...rowDragProps}
     >
+      {!purchased && (
+        <button
+          type="button"
+          className="shopping-swipe-delete"
+          aria-label={`删除 ${item.name}`}
+          onPointerDown={stopDragActivation}
+          onClick={onDelete}
+        >
+          <AppIcon name="trash" size={18} />
+          <span>删除</span>
+        </button>
+      )}
+      <motion.div
+        className="shopping-card relative flex min-w-0 items-center gap-3"
+        style={{ x: swipeX }}
+        onPointerDown={onSwipePointerDown}
+        onPointerMove={onSwipePointerMove}
+        onPointerUp={(event) => finishSwipe(event)}
+        onPointerCancel={(event) => finishSwipe(event, true)}
+      >
       <button
         aria-label={purchased ? '恢复待购' : '已购买'}
         onClick={() =>
@@ -271,7 +413,7 @@ function ItemRow({
                   type="button"
                   role="menuitem"
                   className="shopping-menu-delete is-confirming"
-                  onClick={() => void softDeleteItem(item.id)}
+                  onClick={onDelete}
                 >
                   确认删除
                 </button>
@@ -293,6 +435,7 @@ function ItemRow({
           )}
         </div>
       )}
+      </motion.div>
     </motion.li>
   )
 }
@@ -459,16 +602,22 @@ export default function Shopping() {
   const [composerOpen, setComposerOpen] = useState(false)
   const [activeItemId, setActiveItemId] = useState<string | null>(null)
   const [moveMenuId, setMoveMenuId] = useState<string | null>(null)
+  const [openSwipeItemId, setOpenSwipeItemId] = useState<string | null>(null)
   const [lastMove, setLastMove] = useState<{
     itemId: string
     locationId?: string
     rank: string
     expectedUpdatedAt: string
   } | null>(null)
+  const [lastDeleted, setLastDeleted] = useState<{
+    item: ShoppingItem
+    expectedDeletedAt: string
+  } | null>(null)
   const [dragTargetGroupId, setDragTargetGroupId] = useState<string | null>(null)
   const nameRef = useRef<HTMLTextAreaElement>(null)
   const submittingRef = useRef(false)
   const undoTimerRef = useRef<number | null>(null)
+  const deleteUndoTimerRef = useRef<number | null>(null)
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 260, tolerance: 8 } }),
@@ -508,6 +657,7 @@ export default function Shopping() {
 
   useEffect(() => () => {
     if (undoTimerRef.current !== null) window.clearTimeout(undoTimerRef.current)
+    if (deleteUndoTimerRef.current !== null) window.clearTimeout(deleteUndoTimerRef.current)
   }, [])
 
   useEffect(() => {
@@ -538,6 +688,32 @@ export default function Shopping() {
       document.removeEventListener('visibilitychange', closeWhenHidden)
     }
   }, [moveMenuId])
+
+  useEffect(() => {
+    if (!openSwipeItemId) return
+    const closeOutside = (event: PointerEvent) => {
+      const row = (event.target as Element | null)?.closest('[data-shopping-swipe-id]')
+      if (row?.getAttribute('data-shopping-swipe-id') === openSwipeItemId) return
+      setOpenSwipeItemId(null)
+    }
+    const closeOnScroll = () => setOpenSwipeItemId(null)
+    const closeOnKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpenSwipeItemId(null)
+    }
+    const closeWhenHidden = () => {
+      if (document.visibilityState !== 'visible') setOpenSwipeItemId(null)
+    }
+    document.addEventListener('pointerdown', closeOutside, true)
+    window.addEventListener('scroll', closeOnScroll, true)
+    window.addEventListener('keydown', closeOnKey)
+    document.addEventListener('visibilitychange', closeWhenHidden)
+    return () => {
+      document.removeEventListener('pointerdown', closeOutside, true)
+      window.removeEventListener('scroll', closeOnScroll, true)
+      window.removeEventListener('keydown', closeOnKey)
+      document.removeEventListener('visibilitychange', closeWhenHidden)
+    }
+  }, [openSwipeItemId])
 
   // 频次建议：输入同名商品时按已购历史自动预选地点（手动选择优先）
   useEffect(() => {
@@ -585,6 +761,7 @@ export default function Shopping() {
 
   function switchGrouped(g: boolean) {
     setMoveMenuId(null)
+    setOpenSwipeItemId(null)
     setGrouped(g)
     localStorage.setItem('shoppingGrouped', g ? 'grouped' : 'flat')
   }
@@ -629,6 +806,9 @@ export default function Shopping() {
     expectedUpdatedAt: string,
     message: string,
   ) {
+    if (deleteUndoTimerRef.current !== null) window.clearTimeout(deleteUndoTimerRef.current)
+    deleteUndoTimerRef.current = null
+    setLastDeleted(null)
     if (undoTimerRef.current !== null) window.clearTimeout(undoTimerRef.current)
     setLastMove({
       itemId: item.id,
@@ -648,6 +828,7 @@ export default function Shopping() {
 
   async function moveTo(item: ShoppingItem, nextLocationId?: string) {
     setMoveMenuId(null)
+    setOpenSwipeItemId(null)
     try {
       const targetItems = pending
         .filter((candidate) => candidate.id !== item.id && candidate.locationId === nextLocationId)
@@ -688,8 +869,51 @@ export default function Shopping() {
     }
   }
 
+  async function deleteItem(item: ShoppingItem) {
+    setMoveMenuId(null)
+    setOpenSwipeItemId(null)
+    if (undoTimerRef.current !== null) window.clearTimeout(undoTimerRef.current)
+    undoTimerRef.current = null
+    setLastMove(null)
+    try {
+      const expectedDeletedAt = await softDeleteItem(item.id)
+      setLastDeleted({ item, expectedDeletedAt })
+      setFeedback(`已删除「${item.name}」`)
+      if (deleteUndoTimerRef.current !== null) window.clearTimeout(deleteUndoTimerRef.current)
+      deleteUndoTimerRef.current = window.setTimeout(() => {
+        setLastDeleted((current) =>
+          current?.expectedDeletedAt === expectedDeletedAt ? null : current,
+        )
+        setFeedback((current) => current === `已删除「${item.name}」` ? '' : current)
+        deleteUndoTimerRef.current = null
+      }, MOVE_UNDO_TIMEOUT_MS)
+    } catch (reason) {
+      console.error('删除商品失败', reason)
+      setFeedback(reason instanceof Error ? `删除失败：${reason.message}` : '删除失败，请重试')
+    }
+  }
+
+  async function undoLastDelete() {
+    if (!lastDeleted) return
+    if (deleteUndoTimerRef.current !== null) window.clearTimeout(deleteUndoTimerRef.current)
+    deleteUndoTimerRef.current = null
+    try {
+      const restored = await restoreDeletedItem(
+        lastDeleted.item.id,
+        lastDeleted.expectedDeletedAt,
+      )
+      setLastDeleted(null)
+      setFeedback(restored ? `已恢复「${lastDeleted.item.name}」` : '商品已发生新变化，无法撤销')
+    } catch (reason) {
+      console.error('撤销删除商品失败', reason)
+      setLastDeleted(null)
+      setFeedback(reason instanceof Error ? `撤销失败：${reason.message}` : '撤销失败，请重试')
+    }
+  }
+
   function onDragStart(event: DragStartEvent) {
     setMoveMenuId(null)
+    setOpenSwipeItemId(null)
     setActiveItemId(String(event.active.id))
     setDragTargetGroupId(null)
   }
@@ -876,6 +1100,7 @@ export default function Shopping() {
       <div role="status" className="shopping-feedback min-h-5 px-2 pt-1 text-[12px] text-neutral-500">
         <span>{feedback}</span>
         {lastMove && <button type="button" onClick={() => void undoLastMove()}>撤销</button>}
+        {lastDeleted && <button type="button" onClick={() => void undoLastDelete()}>撤销</button>}
       </div>
       <details className="location-management mt-1">
         <summary className="inline-flex min-h-11 cursor-pointer items-center gap-1 px-1
@@ -936,8 +1161,18 @@ export default function Shopping() {
                         item={item}
                         locations={locations ?? []}
                         menuOpen={moveMenuId === item.id}
-                        onMenuToggle={() => setMoveMenuId((current) => current === item.id ? null : item.id)}
+                        swipeOpen={openSwipeItemId === item.id}
+                        onSwipeOpen={() => {
+                          setMoveMenuId(null)
+                          setOpenSwipeItemId(item.id)
+                        }}
+                        onSwipeClose={() => setOpenSwipeItemId((current) => current === item.id ? null : current)}
+                        onMenuToggle={() => {
+                          setOpenSwipeItemId(null)
+                          setMoveMenuId((current) => current === item.id ? null : item.id)
+                        }}
                         onMove={(nextLocationId) => void moveTo(item, nextLocationId)}
+                        onDelete={() => void deleteItem(item)}
                         tone={SHOPPING_TONES[index % SHOPPING_TONES.length]}
                       />
                     ))}
@@ -985,8 +1220,18 @@ export default function Shopping() {
                   locationLabel={locName(item.locationId)}
                   locations={locations ?? []}
                   menuOpen={moveMenuId === item.id}
-                  onMenuToggle={() => setMoveMenuId((current) => current === item.id ? null : item.id)}
+                  swipeOpen={openSwipeItemId === item.id}
+                  onSwipeOpen={() => {
+                    setMoveMenuId(null)
+                    setOpenSwipeItemId(item.id)
+                  }}
+                  onSwipeClose={() => setOpenSwipeItemId((current) => current === item.id ? null : current)}
+                  onMenuToggle={() => {
+                    setOpenSwipeItemId(null)
+                    setMoveMenuId((current) => current === item.id ? null : item.id)
+                  }}
                   onMove={(nextLocationId) => void moveTo(item, nextLocationId)}
+                  onDelete={() => void deleteItem(item)}
                   tone={SHOPPING_TONES[index % SHOPPING_TONES.length]}
                 />
               ))}

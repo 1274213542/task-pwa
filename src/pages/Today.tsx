@@ -27,6 +27,7 @@ import {
   type Category,
   type CompletionRecord,
   type Task,
+  type TaskScheduleType,
   type TaskScope,
 } from '../lib/db'
 import {
@@ -37,6 +38,7 @@ import {
 } from '../lib/recurrence'
 import { checkAfterCompletionIntegrity } from '../lib/integrity'
 import { addDaysISO, todayLocalISO } from '../lib/dates'
+import { useCivilDate } from '../lib/useCivilDate'
 import {
   RecurrenceConflictError,
   addTasksDetailed,
@@ -59,6 +61,7 @@ import PageHeader from '../components/PageHeader'
 import MobilePageHeader from '../components/MobilePageHeader'
 import TaskToolbar from '../components/TaskToolbar'
 import TaskViewSettingsSheet from '../components/TaskViewSettingsSheet'
+import TaskEditor, { type EditableTaskStatus } from '../components/TaskEditor'
 import { MOTION } from '../lib/motion'
 import {
   defaultFixedRecurrence,
@@ -73,6 +76,12 @@ import {
   parseTaskViewSettings,
   type TaskViewSettings,
 } from '../lib/taskViewSettings'
+import {
+  childProgress,
+  effectiveTaskSchedule,
+  taskDueStatus,
+  taskScheduleLabel,
+} from '../lib/taskSchedule'
 
 /** 今天视图的投影条目（TaskOccurrenceView 的子集） */
 interface TodayItem {
@@ -104,6 +113,7 @@ function buildItems(
 ): TodayItem[] {
   const recMap = new Map(records.map((r) => [r.id, r]))
   const items: TodayItem[] = []
+  const taskMap = new Map(tasks.map((task) => [task.id, task]))
 
   for (const task of tasks) {
     if (taskScopeOf(task) !== scope) continue
@@ -140,13 +150,21 @@ function buildItems(
     }
     if (!r) {
       const rec = recMap.get(`${task.id}:single`)
+      const schedule = effectiveTaskSchedule(task, taskMap)
+      const due = taskDueStatus(task, todayISO, taskMap, rec?.resolution === 'completed' ? rec.resolvedAt : undefined)
       items.push({
         task,
         kind: 'single',
         occurrenceDate: task.startDate ?? todayISO,
         occurrenceKey: 'single',
         completed: rec?.resolution === 'completed',
-        overdue: false,
+        overdue: due.tone === 'overdue',
+        subtitle: taskScheduleLabel(
+          task,
+          todayISO,
+          tasks,
+          rec?.resolution === 'completed' ? rec.resolvedAt : undefined,
+        ) + (schedule.inheritedFrom ? ' · 继承父任务日期' : ''),
       })
     } else if (r.mode === 'fixed_schedule') {
       const start = task.startDate ?? todayISO
@@ -274,6 +292,11 @@ export default function Today() {
     () => (localStorage.getItem('taskScope') as TaskScope) || 'daily',
   )
   const [fixed, setFixed] = useState(false)
+  const [scheduleType, setScheduleType] = useState<TaskScheduleType>('today')
+  const [scheduleStart, setScheduleStart] = useState(() => todayLocalISO())
+  const [scheduleDue, setScheduleDue] = useState('')
+  const [showBeforeStart, setShowBeforeStart] = useState(false)
+  const [surfaceDaysBeforeDue, setSurfaceDaysBeforeDue] = useState(3)
   const [feedback, setFeedback] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [composerOpen, setComposerOpen] = useState(false)
@@ -290,6 +313,7 @@ export default function Today() {
   // A task menu is a page-level transient surface: task rows never own an
   // independent open state, so menus cannot accumulate on top of each other.
   const [openMenuTaskId, setOpenMenuTaskId] = useState<string | null>(null)
+  const [editingItem, setEditingItem] = useState<TodayItem | null>(null)
   // 完成感窗口（v4.2 §12）：勾选后原地保留 ~800ms 展示动画，再按策略归置
   const [recentlyDone, setRecentlyDone] = useState<Set<string>>(new Set())
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -412,7 +436,7 @@ export default function Today() {
   const prefs = useLiveQuery(() => db.syncedPreferences.get('#prefs'), [])
   const policy = prefs?.defaultCompletedDisplay ?? 'keep'
 
-  const todayISO = todayLocalISO() // 本地民用日期（v4.2 §7.5，勿用 UTC 切片）
+  const todayISO = useCivilDate() // 跨零点与 iOS 后台恢复时刷新本地民用日期
   const catMap = new Map((categories ?? []).map((c) => [c.id, c]))
   const items =
     tasks && records ? buildItems(tasks, records, todayISO, scope) : undefined
@@ -527,11 +551,25 @@ export default function Today() {
         categoryId || undefined,
         undefined,
         scope,
+        fixed
+          ? { scheduleType: 'today', startAt: todayISO }
+          : {
+              scheduleType,
+              ...(scheduleType !== 'unscheduled' && { startAt: scheduleStart || todayISO }),
+              ...(scheduleDue && { dueAt: scheduleDue }),
+              showBeforeStart,
+              surfaceDaysBeforeDue,
+            },
       )
       if (result.created > 0) {
         setTitle('')
         setCategoryId('')
         setComposerOpen(false)
+        setScheduleType('today')
+        setScheduleStart(todayISO)
+        setScheduleDue('')
+        setShowBeforeStart(false)
+        setSurfaceDaysBeforeDue(3)
         inputRef.current?.blur()
       }
       const failureText = result.failures.length
@@ -563,6 +601,10 @@ export default function Today() {
   function actionsFor(item: TodayItem) {
     const { task } = item
     return {
+      onEdit: () => {
+        setOpenMenuTaskId(null)
+        setEditingItem(item)
+      },
       onToggle: () => {
         setOpenMenuTaskId(null)
         void guarded(async () => {
@@ -625,10 +667,29 @@ export default function Today() {
     extra: TaskRowProjectionExtra = {},
   ) {
     const itemMenuId = keyOf(item)
+    let nestingLevel = 0
+    let parentId = item.task.parentTaskId
+    const visitedParents = new Set<string>()
+    while (parentId && !visitedParents.has(parentId) && nestingLevel < 4) {
+      visitedParents.add(parentId)
+      nestingLevel += 1
+      parentId = tasks?.find((candidate) => candidate.id === parentId)?.parentTaskId
+    }
     const cat = item.task.categoryId ? catMap.get(item.task.categoryId) : undefined
     const catText = cat ? cat.name : undefined
+    const progress = childProgress(
+      item.task.id,
+      tasks ?? [],
+      new Set((records ?? []).filter((record) => record.resolution === 'completed').map((record) => record.taskId)),
+    )
     const subtitle =
-      [item.kind === 'single' ? '普通' : '固定', item.conflict, catText, item.subtitle]
+      [
+        item.kind === 'single' ? '普通' : '固定',
+        progress ? `子任务 ${progress.completed}/${progress.total}` : undefined,
+        item.conflict,
+        catText,
+        item.subtitle,
+      ]
         .filter(Boolean)
         .join(' · ')
     return (
@@ -651,6 +712,7 @@ export default function Today() {
         }
         completed={item.completed}
         overdue={item.overdue}
+        nestingLevel={nestingLevel}
         actions={actionsFor(item)}
         menuOpen={openMenuTaskId === itemMenuId}
         menuId={`task-menu-${item.task.id}-${item.occurrenceKey}`}
@@ -677,6 +739,22 @@ export default function Today() {
     else if (item.kind === 'fixed')
       await completeFixedOccurrence(item.task, item.occurrenceDate)
     else await resolveAfterCompletion(item.task, 'completed')
+  }
+
+  async function setEditedItemStatus(item: TodayItem, status: EditableTaskStatus) {
+    const current: EditableTaskStatus = item.completed ? 'completed' : 'pending'
+    if (status === current) return
+    if (status === 'pending') {
+      if (item.kind === 'ac') await undoAfterCompletion(item.task)
+      else await voidRecord(`${item.task.id}:${item.occurrenceKey}`)
+      return
+    }
+    if (status === 'completed') {
+      await completeItem(item)
+      return
+    }
+    if (item.kind === 'fixed') await skipFixedOccurrence(item.task, item.occurrenceDate)
+    else if (item.kind === 'ac') await resolveAfterCompletion(item.task, 'skipped')
   }
 
   const selectedPending = pending.filter((i) => selectedIds.has(i.task.id))
@@ -881,6 +959,66 @@ export default function Today() {
               )}
             </>
           )}
+          {!fixed && title.trim() && (
+            <div className="task-schedule-composer" aria-label="任务时间设置">
+              <label>
+                时间类型
+                <select
+                  value={scheduleType}
+                  onChange={(event) => setScheduleType(event.target.value as TaskScheduleType)}
+                >
+                  <option value="today">今日必须完成</option>
+                  <option value="longTerm">长期任务</option>
+                  <option value="unscheduled">未排期</option>
+                </select>
+              </label>
+              {scheduleType !== 'unscheduled' && (
+                <label>
+                  {scheduleType === 'today' ? '执行日期' : '开始日期'}
+                  <input
+                    type="date"
+                    value={scheduleStart}
+                    onChange={(event) => setScheduleStart(event.target.value)}
+                  />
+                </label>
+              )}
+              {scheduleType !== 'unscheduled' && (
+                <label>
+                  DDL（可选时间）
+                  <input
+                    type="datetime-local"
+                    min={scheduleStart ? `${scheduleStart}T00:00` : undefined}
+                    value={scheduleDue}
+                    onChange={(event) => setScheduleDue(event.target.value)}
+                  />
+                </label>
+              )}
+              {scheduleType === 'longTerm' && (
+                <>
+                  <label className="task-schedule-toggle">
+                    <input
+                      type="checkbox"
+                      checked={showBeforeStart}
+                      onChange={(event) => setShowBeforeStart(event.target.checked)}
+                    />
+                    开始日期前仍显示
+                  </label>
+                  <label>
+                    提前进入近期
+                    <span className="task-surface-days-input">
+                      <input
+                        type="number"
+                        min={0}
+                        max={90}
+                        value={surfaceDaysBeforeDue}
+                        onChange={(event) => setSurfaceDaysBeforeDue(Number(event.target.value) || 0)}
+                      /> 天
+                    </span>
+                  </label>
+                </>
+              )}
+            </div>
+          )}
         </div>
       </motion.div>}
       </AnimatePresence>
@@ -1025,6 +1163,22 @@ export default function Today() {
           settings={viewSettings}
           onChange={setViewSettings}
           onClose={() => setViewSettingsOpen(false)}
+        />
+      )}
+      {editingItem && (
+        <TaskEditor
+          item={{
+            kind: 'task',
+            task: editingItem.task,
+            occurrenceKey: editingItem.occurrenceKey,
+            date: editingItem.occurrenceDate,
+            completed: editingItem.completed,
+            skipped: false,
+            subtitle: editingItem.subtitle,
+          }}
+          categories={categories ?? []}
+          onStatusChange={(status) => setEditedItemStatus(editingItem, status)}
+          onClose={() => setEditingItem(null)}
         />
       )}
     </section>

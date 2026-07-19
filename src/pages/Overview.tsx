@@ -4,7 +4,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { Temporal } from 'temporal-polyfill'
 import { db, type ColorToken } from '../lib/db'
 import { buildCalendarItems, type CalItem } from '../lib/calendar'
-import { todayLocalISO } from '../lib/dates'
+import { useCivilDate } from '../lib/useCivilDate'
 import MobilePageHeader from '../components/MobilePageHeader'
 import PageHeader from '../components/PageHeader'
 import AppIcon from '../components/AppIcon'
@@ -20,6 +20,12 @@ import { toggleEventCompletion } from '../lib/events'
 import { spatialOriginFromRect, type SpatialRouteSource } from '../lib/motion'
 import { fromMinor, ledgerSummary } from '../lib/ledger'
 import { dailyCompletionRate } from '../lib/dailyCompletion'
+import {
+  isTaskExecutable,
+  leafTaskIds,
+  taskDueStatus,
+  taskScheduleTypeOf,
+} from '../lib/taskSchedule'
 
 function labelDate(dateISO: string, options: Intl.DateTimeFormatOptions) {
   return new Date(`${dateISO}T00:00:00`).toLocaleDateString('zh-CN', options)
@@ -49,7 +55,7 @@ function compactMoney(value: number) {
 
 export default function Overview() {
   const navigate = useNavigate()
-  const today = todayLocalISO()
+  const today = useCivilDate()
   const [feedback, setFeedback] = useState('')
   const snapshot = useLiveQuery(async () => {
     const [tasks, records, events, shopping, workEntries, accounts, transactions, rates, prefs] = await Promise.all([
@@ -83,6 +89,26 @@ export default function Overview() {
     )
     const nextSeven = Array.from({ length: 7 }, (_, index) => start.add({ days: index }).toString())
     const todayItems = byDay.get(today) ?? []
+    const leaves = leafTaskIds(snapshot.tasks)
+    const completionByTask = new Map(
+      snapshot.records
+        .filter((record) => record.resolution === 'completed')
+        .map((record) => [record.taskId, record]),
+    )
+    const incompleteTasks = snapshot.tasks.filter((task) => !completionByTask.has(task.id))
+    const taskBuckets = {
+      overdue: incompleteTasks
+        .filter((task) => taskDueStatus(task, today, snapshot.tasks).tone === 'overdue')
+        .sort((a, b) => (taskDueStatus(a, today, snapshot.tasks).days ?? 0) - (taskDueStatus(b, today, snapshot.tasks).days ?? 0)),
+      dueSoon: incompleteTasks
+        .filter((task) => {
+          const due = taskDueStatus(task, today, snapshot.tasks)
+          return due.days !== null && due.days > 0 && due.days <= 7
+        })
+        .sort((a, b) => (taskDueStatus(a, today, snapshot.tasks).days ?? 99) - (taskDueStatus(b, today, snapshot.tasks).days ?? 99)),
+      longTerm: incompleteTasks
+        .filter((task) => taskScheduleTypeOf(task) === 'longTerm' && isTaskExecutable(task, today, snapshot.tasks)),
+    }
     const upcoming = nextSeven
       .flatMap((date) => (byDay.get(date) ?? []).map((item) => ({ date, item })))
       .filter(({ item }) => !itemCompleted(item) && (item.kind === 'event' || !item.skipped))
@@ -98,8 +124,14 @@ export default function Overview() {
     return {
       byDay,
       nextSeven,
-      todayItems,
+      todayItems: todayItems.filter((item) =>
+        item.kind === 'event' || (
+          leaves.has(item.task.id) &&
+          (Boolean(item.task.recurrence) || taskScheduleTypeOf(item.task) === 'today')
+        ),
+      ),
       upcoming,
+      taskBuckets,
       fixed: snapshot.tasks.filter((task) => Boolean(task.recurrence)),
       monthExpense: fromMinor(finances.consumptionMinor, 'JPY'),
       monthWorkMinutes: snapshot.workEntries
@@ -347,8 +379,37 @@ export default function Overview() {
           </div>
           <Link to="/today" onClick={(event) => openSpatialLink(event, '/today')}>全部任务</Link>
         </header>
-        {(view?.upcoming.length ?? 0) > 0 ? (
-          <ul>
+        {(view?.upcoming.length ?? 0) +
+          (view?.taskBuckets.overdue.length ?? 0) +
+          (view?.taskBuckets.longTerm.length ?? 0) > 0 ? (
+          <div className="overview-task-buckets">
+          {(view?.taskBuckets.overdue.length ?? 0) > 0 && (
+            <section data-bucket="overdue">
+              <h3>已逾期 <span>{view!.taskBuckets.overdue.length}</span></h3>
+              <ul>{view!.taskBuckets.overdue.slice(0, 3).map((task) => (
+                <li key={`overdue:${task.id}`} data-due-tone="overdue">
+                  <button className="overview-item-check" aria-label="完成" onClick={() => void completeTask(task)} />
+                  <div><strong>{task.title}</strong><small>{taskDueStatus(task, today, snapshot?.tasks ?? []).label}</small></div>
+                  <AppIcon name="chevronRight" size={16} />
+                </li>
+              ))}</ul>
+            </section>
+          )}
+          {(view?.taskBuckets.longTerm.length ?? 0) > 0 && (
+            <section data-bucket="long-term">
+              <h3>近期可执行的长期任务 <span>{view!.taskBuckets.longTerm.length}</span></h3>
+              <ul>{view!.taskBuckets.longTerm.slice(0, 3).map((task) => (
+                <li key={`long:${task.id}`}>
+                  <button className="overview-item-check" aria-label="完成" onClick={() => void completeTask(task)} />
+                  <div><strong>{task.title}</strong><small>{taskDueStatus(task, today, snapshot?.tasks ?? []).label ?? '长期任务'}</small></div>
+                  <AppIcon name="chevronRight" size={16} />
+                </li>
+              ))}</ul>
+            </section>
+          )}
+          <section data-bucket="next">
+            <h3>临近 DDL 与近期下一步</h3>
+            <ul>
             {view!.upcoming.map(({ date, item }, index) => (
               <li key={`${date}:${item.kind}:${index}`} data-color-token={itemColor(item)}>
                 <button className="overview-item-check" aria-label="完成" onClick={() => void toggleItem(item)} />
@@ -359,7 +420,9 @@ export default function Overview() {
                 <AppIcon name="chevronRight" size={16} />
               </li>
             ))}
-          </ul>
+            </ul>
+          </section>
+          </div>
         ) : (
           <div className="overview-empty">未来七天没有待办安排</div>
         )}

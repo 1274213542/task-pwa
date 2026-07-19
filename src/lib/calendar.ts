@@ -1,6 +1,8 @@
 import { Temporal } from 'temporal-polyfill'
 import type { CalendarEvent, CompletionRecord, Task } from './db'
 import { describeRecurrence, fixedOccurrencesInRange } from './recurrence'
+import { civilDateOf, effectiveTaskSchedule, taskDueStatus } from './taskSchedule'
+import { todayLocalISO } from './dates'
 
 /**
  * 月历网格与统一投影（v4.2 §8 CalendarItemView）。
@@ -44,8 +46,10 @@ export function buildCalendarItems(
   events: CalendarEvent[],
   rangeStart: string,
   rangeEnd: string,
+  todayISO = todayLocalISO(),
 ): Map<string, CalItem[]> {
   const recMap = new Map(records.map((r) => [r.id, r]))
+  const taskMap = new Map(tasks.map((task) => [task.id, task]))
   const byDay = new Map<string, CalItem[]>()
   const push = (date: string, item: CalItem) => {
     if (date < rangeStart || date > rangeEnd) return
@@ -63,14 +67,23 @@ export function buildCalendarItems(
   for (const task of tasks) {
     const r = task.recurrence
     if (!r) {
-      const date = task.startDate
-      if (!date) continue
-      push(date, {
+      const schedule = effectiveTaskSchedule(task, taskMap)
+      const startDate = civilDateOf(schedule.startAt)
+      const dueDate = civilDateOf(schedule.dueAt)
+      const dates = schedule.type === 'longTerm'
+        ? Array.from(new Set([startDate, dueDate].filter((date): date is string => Boolean(date))))
+        : [dueDate ?? startDate].filter((date): date is string => Boolean(date))
+      for (const date of dates) push(date, {
         kind: 'task',
         task,
         occurrenceKey: 'single',
         date,
         ...status(task.id, 'single'),
+        subtitle: schedule.type === 'longTerm'
+          ? date === dueDate
+            ? taskDueStatus(task, todayISO, taskMap).label ?? '长期任务截止'
+            : '长期任务开始'
+          : undefined,
       })
     } else if (r.mode === 'fixed_schedule') {
       const start = task.startDate ?? rangeStart
