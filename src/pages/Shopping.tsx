@@ -17,6 +17,7 @@ import {
   motion,
   useMotionValue,
   useReducedMotion,
+  useMotionValueEvent,
   useTransform,
   type AnimationPlaybackControls,
 } from 'motion/react'
@@ -64,6 +65,7 @@ import { FOCUS_QUICK_ADD_EVENT } from '../lib/appEvents'
 import { MOTION } from '../lib/motion'
 import { compareRanks } from '../lib/rank'
 import SegmentedIndicator from '../components/SegmentedIndicator'
+import { APPLE_SWIPE_ACTION_GAP, APPLE_SWIPE_ACTION_WIDTH, applySwipePresentation } from '../lib/swipePresentation'
 
 const SHOPPING_TONES: ColorToken[] = ['green', 'blue', 'purple', 'orange', 'pink']
 
@@ -75,7 +77,7 @@ type ShoppingRowDragProps = Pick<
 type ShoppingDragHandleProps = ButtonHTMLAttributes<HTMLButtonElement>
 
 const MOVE_UNDO_TIMEOUT_MS = 7_000
-const SWIPE_REVEAL_PX = 216
+const SWIPE_REVEAL_PX = APPLE_SWIPE_ACTION_WIDTH * 3 + APPLE_SWIPE_ACTION_GAP * 2
 const SWIPE_COMMIT_PX = 58
 const SWIPE_DIRECTION_LOCK_PX = 10
 const SHOPPING_SWIPE_OPEN_EVENT = 'task-pwa:shopping-swipe-open'
@@ -122,12 +124,12 @@ function ItemRow({
   const reduceMotion = useReducedMotion()
   const [confirming, setConfirming] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
+  const swipeRootRef = useRef<HTMLLIElement | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const [menuPosition, setMenuPosition] = useState<CSSProperties | null>(null)
   const purchased = item.purchaseStatus === 'purchased'
   const swipeX = useMotionValue(swipeOpen ? -SWIPE_REVEAL_PX : 0)
   const swipeActionOpacity = useTransform(swipeX, [-24, -8, 0], [1, 0.45, 0])
-  const swipeActionScale = useTransform(swipeX, [-SWIPE_REVEAL_PX, -18, 0], [1, 0.96, 0.9])
   const swipeAnimation = useRef<AnimationPlaybackControls | null>(null)
   const gesture = useRef<{
     pointerId: number
@@ -137,6 +139,10 @@ function ItemRow({
     axis: 'pending' | 'horizontal' | 'vertical'
     history: Array<{ x: number; time: number }>
   } | null>(null)
+
+  useMotionValueEvent(swipeX, 'change', (value) => {
+    applySwipePresentation(swipeRootRef.current, value, SWIPE_REVEAL_PX)
+  })
 
   function settleSwipe(target: number, velocity = 0) {
     swipeAnimation.current?.stop()
@@ -290,7 +296,11 @@ function ItemRow({
 
   return (
     <motion.li
-      ref={liRef}
+      ref={(node) => {
+        swipeRootRef.current = node
+        liRef?.(node)
+        applySwipePresentation(node, swipeX.get(), SWIPE_REVEAL_PX)
+      }}
       style={liStyle}
       layout="position"
       initial={false}
@@ -312,7 +322,7 @@ function ItemRow({
         <motion.div
           className="shopping-swipe-actions"
           aria-label={`${item.name} 的滑动操作`}
-          style={{ opacity: swipeActionOpacity, scale: swipeActionScale }}
+          style={{ opacity: swipeActionOpacity }}
         >
           <button
             type="button"

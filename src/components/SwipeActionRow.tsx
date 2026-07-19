@@ -7,9 +7,12 @@ import {
   type ReactNode,
 } from 'react'
 import AppIcon, { type AppIconName } from './AppIcon'
+import {
+  APPLE_SWIPE_ACTION_GAP,
+  APPLE_SWIPE_ACTION_WIDTH,
+  applySwipePresentation,
+} from '../lib/swipePresentation'
 
-const ACTION_WIDTH = 68
-const ACTION_GAP = 4
 const COMMIT_DISTANCE = 58
 const DIRECTION_LOCK = 10
 const OPEN_EVENT = 'task-pwa:apple-swipe-open'
@@ -41,12 +44,14 @@ export default function SwipeActionRow({
   const rootRef = useRef<HTMLLIElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const railRef = useRef<HTMLDivElement>(null)
-  const reveal = actions.length * ACTION_WIDTH + Math.max(0, actions.length - 1) * ACTION_GAP
+  const reveal = actions.length * APPLE_SWIPE_ACTION_WIDTH +
+    Math.max(0, actions.length - 1) * APPLE_SWIPE_ACTION_GAP
   const [reduceMotion, setReduceMotion] = useState(
     () => window.matchMedia('(prefers-reduced-motion: reduce)').matches,
   )
   const contentAnimation = useRef<Animation | null>(null)
   const railAnimation = useRef<Animation | null>(null)
+  const presentationFrame = useRef<number | null>(null)
   const presentation = useRef(0)
   const suppressNextClick = useRef(false)
   const [open, setOpen] = useState(false)
@@ -60,15 +65,15 @@ export default function SwipeActionRow({
   } | null>(null)
 
   function railPresentation(value: number) {
-    const progress = Math.min(1, Math.max(0, Math.abs(value) / Math.max(1, reveal)))
     return {
       opacity: value > -8 ? 0 : Math.min(1, Math.max(0, (Math.abs(value) - 8) / 20)),
-      scale: 0.9 + progress * 0.1,
+      scale: 1,
     }
   }
 
   function applyPresentation(value: number) {
     presentation.current = value
+    applySwipePresentation(rootRef.current, value, reveal)
     if (contentRef.current) {
       contentRef.current.style.transform = `translate3d(${value}px, 0, 0)`
     }
@@ -77,6 +82,25 @@ export default function SwipeActionRow({
       railRef.current.style.opacity = `${rail.opacity}`
       railRef.current.style.transform = `scale(${rail.scale})`
     }
+  }
+
+  function stopPresentationFrame() {
+    if (presentationFrame.current === null) return
+    cancelAnimationFrame(presentationFrame.current)
+    presentationFrame.current = null
+  }
+
+  function followAnimatedPresentation() {
+    stopPresentationFrame()
+    const update = () => {
+      if (!contentAnimation.current) {
+        presentationFrame.current = null
+        return
+      }
+      applySwipePresentation(rootRef.current, liveOffset(), reveal)
+      presentationFrame.current = requestAnimationFrame(update)
+    }
+    presentationFrame.current = requestAnimationFrame(update)
   }
 
   function liveOffset() {
@@ -100,6 +124,7 @@ export default function SwipeActionRow({
     railAnimation.current?.cancel()
     contentAnimation.current = null
     railAnimation.current = null
+    stopPresentationFrame()
     applyPresentation(current)
     return current
   }
@@ -125,6 +150,7 @@ export default function SwipeActionRow({
       { duration, easing: SETTLE_EASING, fill: 'forwards' },
     )
     contentAnimation.current = animation
+    followAnimatedPresentation()
 
     if (railElement) {
       railAnimation.current = railElement.animate(
@@ -139,6 +165,7 @@ export default function SwipeActionRow({
     animation.onfinish = () => {
       if (contentAnimation.current !== animation) return
       contentAnimation.current = null
+      stopPresentationFrame()
       railAnimation.current?.cancel()
       railAnimation.current = null
       applyPresentation(target)
@@ -166,6 +193,7 @@ export default function SwipeActionRow({
   useEffect(() => () => {
     contentAnimation.current?.cancel()
     railAnimation.current?.cancel()
+    stopPresentationFrame()
   }, [])
 
   useEffect(() => {
@@ -282,13 +310,20 @@ export default function SwipeActionRow({
       data-apple-swipe-id={id}
       data-swipe-open={open || undefined}
       className={`apple-swipe-row ${className}`.trim()}
-      style={{ '--apple-swipe-width': `${reveal}px` } as CSSProperties}
+      style={{
+        '--apple-swipe-width': `${reveal}px`,
+        '--swipe-progress': 0,
+        '--swipe-delete-progress': 0,
+        '--swipe-secondary-progress': 0,
+        '--swipe-leading-progress': 0,
+        '--swipe-overshoot': 0,
+      } as CSSProperties}
     >
       <div
         ref={railRef}
         className="apple-swipe-actions"
         aria-label={`${label} 的滑动操作`}
-        style={{ opacity: 0, transform: 'scale(0.9)' }}
+        style={{ opacity: 0, transform: 'scale(1)' }}
       >
         {actions.map((action) => (
           <button

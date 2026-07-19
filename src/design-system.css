@@ -45,14 +45,15 @@
   --space-8: 32px;
   --space-9: 36px;
 
-  --radius-control: 12px;
-  --radius-input: 14px;
-  --radius-card-small: 16px;
-  --radius-card-medium: 20px;
-  --radius-card-large: 24px;
-  --radius-panel: 28px;
+  --radius-control: var(--radius-pill);
+  --radius-input: var(--radius-pill);
+  --radius-card-small: 20px;
+  --radius-card-medium: 24px;
+  --radius-card-large: 28px;
+  --radius-panel: 32px;
   --radius-sheet: 32px;
   --radius-pill: 999px;
+  --radius-circle: 50%;
 
   --shadow-card: 0 1px 1px rgb(24 27 23 / 0.02),
     0 4px 14px rgb(24 27 23 / 0.035);
@@ -84,8 +85,8 @@
   --icon-button-size-compact: var(--icon-button-compact);
   --control-height: 44px;
   --segmented-control-height: 48px;
-  --grouped-row-height: 56px;
-  --grouped-row-height-two-line: 68px;
+  --grouped-row-height: 60px;
+  --grouped-row-height-two-line: 72px;
   --bottom-tabbar-height: 68px;
   --bottom-content-inset: calc(
     var(--bottom-tabbar-height) + env(safe-area-inset-bottom, 0px) + var(--space-6)
@@ -4723,7 +4724,7 @@ select:focus {
   gap: var(--ds-task-toolbar-gap);
   padding: 6px;
   border: 1px solid var(--ds-border);
-  border-radius: calc(var(--ds-radius-control) + 5px);
+  border-radius: var(--radius-pill);
   background: var(--ui-surface);
   box-shadow: none;
   transition: background-color var(--ds-duration-control) var(--ds-ease-out),
@@ -4748,7 +4749,7 @@ select:focus {
   min-height: 44px;
   place-items: center;
   border: 0;
-  border-radius: var(--ds-radius-control);
+  border-radius: var(--radius-circle);
   background: var(--ds-control-bg);
   color: var(--ui-ink);
   -webkit-tap-highlight-color: transparent;
@@ -4811,7 +4812,7 @@ select:focus {
   height: var(--ds-task-toolbar-action);
   grid-template-columns: repeat(2, minmax(0, 1fr));
   overflow: hidden;
-  border-radius: var(--ds-radius-control);
+  border-radius: var(--radius-pill);
   background: var(--ds-control-bg);
   padding: 3px;
 }
@@ -4823,7 +4824,7 @@ select:focus {
   left: 3px;
   width: calc((100% - 6px) / 2);
   border: 1px solid var(--ds-border);
-  border-radius: calc(var(--ds-radius-control) - 3px);
+  border-radius: var(--radius-pill);
   background: var(--ui-surface);
   box-shadow: 0 1px 3px rgb(20 21 20 / 0.045);
   will-change: transform;
@@ -4871,11 +4872,11 @@ select:focus {
 }
 
 .task-content-surface.task-density-standard {
-  --ds-row-height: 62px;
+  --ds-row-height: 72px;
 }
 
 .task-content-surface.task-density-compact {
-  --ds-row-height: 52px;
+  --ds-row-height: 60px;
 }
 
 .page-tasks .task-empty-state {
@@ -7278,6 +7279,38 @@ select:focus {
     display: none;
   }
 
+  /* Move/delete feedback is transient UI, not page content. Keeping it in the
+     document flow made the active row jump vertically while a swipe was still
+     settling. The callback and undo state remain unchanged. */
+  .page-shopping .shopping-feedback:not(:empty):has(span:not(:empty)) {
+    position: fixed;
+    z-index: 45;
+    right: var(--page-inline-padding);
+    bottom: calc(var(--bottom-content-inset) + var(--space-2));
+    left: var(--page-inline-padding);
+    display: flex;
+    width: min(342px, calc(100vw - (var(--page-inline-padding) * 2)));
+    min-height: 44px;
+    margin-inline: auto;
+    border: 1px solid var(--material-nav-border);
+    border-radius: var(--radius-pill);
+    background: var(--material-nav-fallback);
+    padding: 5px 7px 5px var(--space-4) !important;
+    box-shadow: var(--shadow-floating);
+    color: var(--color-text-secondary) !important;
+    font-size: 14px !important;
+    font-weight: 500;
+    line-height: 20px;
+    backdrop-filter: blur(var(--blur-floating)) saturate(110%);
+    -webkit-backdrop-filter: blur(var(--blur-floating)) saturate(110%);
+  }
+
+  .page-shopping .shopping-feedback button {
+    min-height: 34px;
+    border-radius: var(--radius-pill);
+    padding-inline: var(--space-3);
+  }
+
   .page-shopping .location-management {
     margin: 0;
   }
@@ -9110,9 +9143,10 @@ select:focus {
   --apple-description-leading: 20px;
   --apple-tab-label-size: 10px;
   --apple-tab-label-leading: 13px;
-  --apple-swipe-action-width: 68px;
-  --apple-swipe-pill-height: 44px;
-  --apple-swipe-action-height: 64px;
+  --apple-swipe-action-width: 72px;
+  --apple-swipe-pill-height: 46px;
+  --apple-swipe-action-height: 68px;
+  --apple-swipe-reveal: 224px;
 }
 
 html[lang='zh-CN'] body {
@@ -9179,7 +9213,9 @@ html[lang='zh-CN'] body {
 .task-mobile-brand p {
   color: var(--color-text-secondary) !important;
   font-size: var(--apple-secondary-size) !important;
-  font-weight: var(--font-weight-regular) !important;
+  /* The reference keeps secondary copy quiet through colour, not hairline
+     weight. Medium text remains legible on a real iPhone display. */
+  font-weight: var(--font-weight-medium) !important;
   line-height: var(--apple-secondary-leading) !important;
   letter-spacing: 0 !important;
 }
@@ -9275,7 +9311,9 @@ html[lang='zh-CN'] body {
   .task-round-action svg,
   .task-filter-action svg,
   .task-toolbar-action svg {
-    stroke-width: 1.8;
+    width: 22px;
+    height: 22px;
+    stroke-width: 2;
     stroke-linecap: round;
     stroke-linejoin: round;
   }
@@ -9386,5 +9424,283 @@ html[lang='zh-CN'] body {
     background: var(--color-surface-primary) !important;
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Apple Voice Memos calibration · live swipe progress and unified geometry
+
+   The supplied recording shows three distinct beats: danger first, the
+   adjacent action second, and the leading action last. One live gesture value
+   now drives those beats, the two row separators and the overscroll stretch.
+   No data callback or list ownership changes in this layer.
+   -------------------------------------------------------------------------- */
+
+@media (max-width: 1023px) {
+  .apple-swipe-row,
+  .task-card-shell,
+  .page-shopping .shopping-swipe-row {
+    --swipe-progress: 0;
+    --swipe-delete-progress: 0;
+    --swipe-secondary-progress: 0;
+    --swipe-leading-progress: 0;
+    --swipe-overshoot: 0;
+  }
+
+  .task-swipe-actions,
+  .page-shopping .shopping-swipe-actions {
+    width: var(--apple-swipe-reveal) !important;
+    gap: var(--space-1) !important;
+    padding-right: 0 !important;
+    transform: none !important;
+  }
+
+  .apple-swipe-action,
+  .task-swipe-action,
+  .page-shopping .shopping-swipe-action,
+  .page-shopping .shopping-swipe-delete {
+    --action-progress: var(--swipe-leading-progress);
+    width: var(--apple-swipe-action-width) !important;
+    height: var(--apple-swipe-action-height) !important;
+    min-height: var(--apple-swipe-action-height) !important;
+    flex-basis: var(--apple-swipe-action-width) !important;
+    grid-template-rows: var(--apple-swipe-pill-height) 18px !important;
+    gap: 4px !important;
+    font-size: 14px !important;
+    line-height: 18px !important;
+    font-weight: 500 !important;
+    transform: none;
+  }
+
+  .apple-swipe-actions > :nth-last-child(2),
+  .task-swipe-actions > :nth-last-child(2),
+  .page-shopping .shopping-swipe-actions > :nth-last-child(2) {
+    --action-progress: var(--swipe-secondary-progress);
+  }
+
+  .apple-swipe-actions > :last-child,
+  .task-swipe-actions > :last-child,
+  .page-shopping .shopping-swipe-actions > :last-child {
+    --action-progress: var(--swipe-delete-progress);
+  }
+
+  .apple-swipe-action__pill,
+  .apple-swipe-action__label {
+    opacity: var(--action-progress);
+    transform: translate3d(
+        0,
+        calc((1 - var(--action-progress)) * 8px),
+        0
+      )
+      scale(calc(0.82 + var(--action-progress) * 0.18));
+    transform-origin: center;
+    will-change: transform, opacity;
+  }
+
+  .apple-swipe-action__pill {
+    width: var(--apple-swipe-action-width) !important;
+    height: var(--apple-swipe-pill-height) !important;
+    border-radius: var(--radius-pill) !important;
+  }
+
+  .apple-swipe-action__label {
+    color: var(--color-icon-secondary) !important;
+    font-size: 14px !important;
+    line-height: 18px !important;
+    font-weight: 500 !important;
+  }
+
+  .apple-swipe-action.is-danger .apple-swipe-action__pill,
+  .task-swipe-delete .apple-swipe-action__pill,
+  .page-shopping .shopping-swipe-delete .apple-swipe-action__pill {
+    transform: translate3d(
+        0,
+        calc((1 - var(--action-progress)) * 8px),
+        0
+      )
+      scale(calc(0.82 + var(--action-progress) * 0.18))
+      scaleX(calc(1 + var(--swipe-overshoot) * 0.46));
+    transform-origin: right center;
+  }
+
+  .apple-swipe-action__pill svg {
+    width: 22px !important;
+    height: 22px !important;
+    stroke-width: 2 !important;
+  }
+
+  /* Each swiped row owns both boundary lines, so the line fade is continuous
+     even when the neighboring row never moves. */
+  .page-shopping .shopping-swipe-row::before,
+  .page-shopping .shopping-swipe-row::after,
+  .task-card-list .task-card-shell::before,
+  .task-card-list .task-card-shell::after,
+  .finance-shell .finance-transaction-list .finance-transaction-swipe-row::before,
+  .finance-shell .finance-transaction-list .finance-transaction-swipe-row::after,
+  .page-browse .category-swipe-row::before,
+  .page-browse .category-swipe-row::after {
+    position: absolute;
+    z-index: 3;
+    right: var(--space-4);
+    left: 60px;
+    height: 1px;
+    background: color-mix(in srgb, var(--color-icon-secondary) 22%, transparent);
+    content: '';
+    opacity: max(0, calc(1 - var(--swipe-progress) * 1.18));
+    pointer-events: none;
+    transform: scaleX(calc(1 - var(--swipe-progress) * 0.16));
+    transform-origin: right center;
+    will-change: transform, opacity;
+  }
+
+  .page-shopping .shopping-swipe-row::before,
+  .task-card-list .task-card-shell::before,
+  .finance-shell .finance-transaction-list .finance-transaction-swipe-row::before,
+  .page-browse .category-swipe-row::before {
+    top: 0;
+  }
+
+  .page-shopping .shopping-swipe-row::after,
+  .task-card-list .task-card-shell::after,
+  .finance-shell .finance-transaction-list .finance-transaction-swipe-row::after,
+  .page-browse .category-swipe-row::after {
+    bottom: 0;
+  }
+
+  .page-shopping .shopping-swipe-row + .shopping-swipe-row::before,
+  .page-browse .category-swipe-row + .category-swipe-row::before,
+  .finance-shell .finance-transaction-list .finance-transaction-swipe-row +
+    .finance-transaction-swipe-row::before {
+    opacity: max(0, calc(1 - var(--swipe-progress) * 1.18));
+  }
+
+  /* Legacy row borders would otherwise remain visible beneath the two live
+     gesture dividers and break the continuous Apple-style fade. */
+  .page-shopping .shopping-swipe-row + .shopping-swipe-row,
+  .task-card-list.task-compact-list .task-card-shell + .task-card-shell,
+  .task-card-list.completed-card-list .task-card-shell + .task-card-shell,
+  .finance-shell .finance-transaction-list .finance-transaction-swipe-row +
+    .finance-transaction-swipe-row,
+  .page-browse .category-swipe-row + .category-swipe-row {
+    border-top: 0 !important;
+  }
+
+  .page-shopping .shopping-swipe-row > .shopping-card {
+    min-height: var(--grouped-row-height-two-line) !important;
+  }
+
+  .task-card-list.task-compact-list .task-card-shell + .task-card-shell .task-card,
+  .task-card-list.completed-card-list .task-card-shell + .task-card-shell .task-card {
+    border-top: 0 !important;
+  }
+
+  /* Full pills for stateful horizontal controls; circles remain reserved for
+     icon-only controls. Cards keep a separate large-radius tier. */
+  .task-toolbar,
+  .task-scope-control,
+  .task-scope-indicator,
+  .segmented-control,
+  .plan-mobile-mode-switch,
+  .mobile-shopping-view-switch,
+  .finance-mode-switch,
+  .finance-ledger-tabs,
+  .finance-compact-filter,
+  .task-type-switch,
+  .task-intent-picker,
+  .task-schedule-toggle,
+  .task-view-toggle,
+  .selection-picker-search,
+  .finance-picker-row,
+  .finance-picker-field,
+  .finance-sheet-actions button,
+  .category-composer input,
+  .category-composer button,
+  .shopping-composer-row input,
+  .shopping-composer-row button {
+    border-radius: var(--radius-pill) !important;
+  }
+
+  .task-toolbar-action,
+  .mobile-page-primary,
+  .mobile-page-secondary,
+  .task-round-action,
+  .editor-sheet-header button,
+  .selection-picker-leading button {
+    border-radius: var(--radius-circle) !important;
+  }
+
+  .grouped-list,
+  .task-card-list.task-compact-list,
+  .task-card-list.completed-card-list,
+  .shopping-group-section,
+  .finance-section-card,
+  .overview-hero,
+  .calendar-card,
+  .task-empty-state {
+    border-radius: var(--radius-card-large) !important;
+  }
+
+  .grouped-list-row,
+  .finance-account-card,
+  .calendar-selection-summary,
+  .shopping-group-empty-action {
+    border-radius: var(--radius-card-medium) !important;
+  }
+
+  .task-scope-control button {
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .task-scope-control strong,
+  .task-toolbar-filter-count,
+  .shopping-group-count {
+    border-radius: var(--radius-pill) !important;
+  }
+
+  .page-plan[data-mode='month'] .calendar-day {
+    border-radius: var(--radius-circle) !important;
+  }
+
+  .shopping-secondary-action {
+    min-width: 44px;
+    border-radius: var(--radius-pill) !important;
+    padding-inline: var(--space-3) !important;
+  }
+
+  .task-card-title,
+  .calendar-item-title,
+  .shopping-item-title,
+  .overview-today-list li strong,
+  .overview-upcoming li strong,
+  .finance-transaction-row strong {
+    font-weight: 600 !important;
+  }
+
+  .task-card-meta,
+  .calendar-item-meta,
+  .shopping-item-meta,
+  .task-card-subtitle,
+  .overview-today-list li small,
+  .overview-upcoming li small,
+  .finance-transaction-row > div > span {
+    color: var(--color-icon-secondary) !important;
+    font-weight: 500 !important;
+  }
+
+  .finance-transaction-row > b,
+  .calendar-item-time,
+  .record-row time {
+    color: var(--color-icon-secondary) !important;
+    font-size: var(--apple-row-title-size) !important;
+    font-weight: 500 !important;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) and (max-width: 1023px) {
+  .apple-swipe-action__pill,
+  .apple-swipe-action__label {
+    transition: none !important;
   }
 }

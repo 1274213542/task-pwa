@@ -5,12 +5,14 @@ import {
   motion,
   useMotionValue,
   useReducedMotion,
+  useMotionValueEvent,
   useTransform,
   type AnimationPlaybackControls,
 } from 'motion/react'
 import type { ColorToken, MarkerSymbol } from '../lib/db'
 import AppIcon from './AppIcon'
 import { MOTION } from '../lib/motion'
+import { APPLE_SWIPE_ACTION_GAP, APPLE_SWIPE_ACTION_WIDTH, applySwipePresentation } from '../lib/swipePresentation'
 
 export interface RowActions {
   onToggle: () => void
@@ -23,7 +25,7 @@ export interface RowActions {
 
 type FeatureTone = 'charcoal' | 'lime' | 'purple' | 'custom'
 
-const TASK_SWIPE_REVEAL_PX = 216
+const TASK_SWIPE_REVEAL_PX = APPLE_SWIPE_ACTION_WIDTH * 3 + APPLE_SWIPE_ACTION_GAP * 2
 const TASK_SWIPE_COMMIT_PX = 58
 const TASK_SWIPE_DIRECTION_LOCK_PX = 10
 const TASK_SWIPE_OPEN_EVENT = 'task-pwa:task-swipe-open'
@@ -86,7 +88,6 @@ export default function TaskRow({
   const [swipeOpen, setSwipeOpen] = useState(false)
   const swipeX = useMotionValue(0)
   const swipeActionOpacity = useTransform(swipeX, [-24, -8, 0], [1, 0.45, 0])
-  const swipeActionScale = useTransform(swipeX, [-TASK_SWIPE_REVEAL_PX, -18, 0], [1, 0.96, 0.9])
   const swipeAnimation = useRef<AnimationPlaybackControls | null>(null)
   const swipeGesture = useRef<{
     pointerId: number
@@ -101,6 +102,10 @@ export default function TaskRow({
     left: number
     transformOrigin: string
   } | null>(null)
+
+  useMotionValueEvent(swipeX, 'change', (value) => {
+    applySwipePresentation(swipeRootRef.current, value, TASK_SWIPE_REVEAL_PX)
+  })
 
   useEffect(() => () => {
     clearTimeout(timer.current)
@@ -364,7 +369,7 @@ export default function TaskRow({
       <motion.div
         className="task-swipe-actions"
         aria-label={`${title} 的滑动操作`}
-        style={{ opacity: swipeActionOpacity, scale: swipeActionScale }}
+        style={{ opacity: swipeActionOpacity }}
       >
         <button
           type="button"
