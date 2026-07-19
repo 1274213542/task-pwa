@@ -6349,3 +6349,131 @@ select:focus {
   .finance-planning-section-indicator,
   .finance-planning-sections button { transition-duration: 1ms; }
 }
+
+/* --------------------------------------------------------------------------
+   Controlled refresh · shared static primitives
+
+   This layer fixes geometry only. Materials and motion remain in their own
+   phases so page structure can be reviewed without blur or animation masking
+   spacing problems.
+   -------------------------------------------------------------------------- */
+
+.mobile-page-header,
+.task-mobile-toolbar,
+.plan-mobile-header {
+  min-width: 0;
+  min-height: var(--page-header-height) !important;
+  align-items: center;
+  gap: var(--space-3) !important;
+  padding-block: var(--space-2) var(--space-3) !important;
+}
+
+.mobile-page-heading,
+.task-mobile-brand,
+.plan-mobile-heading {
+  min-width: 0;
+  align-content: center;
+}
+
+.mobile-page-heading h1,
+.task-mobile-brand h1,
+.plan-mobile-heading h1 {
+  overflow: hidden;
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--ds-type-page-mobile);
+  line-height: var(--ds-leading-tight);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobile-page-heading p,
+.task-mobile-brand p,
+.plan-mobile-heading p {
+  overflow: hidden;
+  margin: 0 0 2px;
+  color: var(--color-text-secondary) !important;
+  font-size: var(--ds-type-meta);
+  line-height: var(--ds-leading-meta);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobile-page-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--space-2) !important;
+}
+
+.mobile-page-avatar,
+.mobile-page-primary,
+.mobile-page-secondary,
+.task-round-action,
+.plan-mobile-action {
+  width: var(--icon-button-size) !important;
+  min-width: var(--icon-button-size) !important;
+  height: var(--icon-button-size) !important;
+  min-height: var(--icon-button-size) !important;
+  padding: 0 !important;
+  place-items: center;
+}
+
+.segmented-control,
+.mobile-shopping-view-switch,
+.finance-mode-switch,
+.finance-inline-switch {
+  height: var(--segmented-control-height) !important;
+  min-height: var(--segmented-control-height) !important;
+  align-items: stretch;
+  padding: var(--space-1) !important;
+}
+
+.segmented-control > button,
+.mobile-shopping-view-switch > button,
+.finance-mode-switch > button,
+.finance-inline-switch > button {
+  min-width: 0;
+  min-height: calc(var(--segmented-control-height) - (var(--space-1) * 2)) !important;
+  padding-block: 0 !important;
+  line-height: 1.2;
+}
+
+.overview-today-list,
+.overview-upcoming,
+.record-list,
+.list-card,
+.finance-records {
+  overflow: clip;
+}
+
+.task-card,
+.calendar-item-card,
+.shopping-card,
+.finance-record-item,
+.expense-record-item,
+.record-item {
+  min-width: 0;
+}
+
+@media (max-width: 1023px) {
+  .app-content {
+    width: 100%;
+  }
+
+  .app-page,
+  .finance-ledger-page {
+    width: 100%;
+    min-width: 0;
+    gap: var(--space-4) !important;
+  }
+
+  .app-shell main {
+    scroll-padding-bottom: var(--bottom-content-inset);
+    padding-bottom: var(--bottom-content-inset) !important;
+  }
+
+  .mobile-page-header.has-leading {
+    grid-template-columns: var(--icon-button-size) minmax(0, 1fr) auto;
+  }
+}
