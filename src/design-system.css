@@ -6477,3 +6477,99 @@ select:focus {
     grid-template-columns: var(--icon-button-size) minmax(0, 1fr) auto;
   }
 }
+
+/* Phase 1 · Plan / month. The visible date marker is smaller than its 44px
+   button, so selection stays legible without shrinking the touch target. */
+@media (max-width: 1023px) {
+  .page-plan[data-mode='month'] .plan-workspace {
+    margin-top: var(--space-2);
+  }
+
+  .page-plan[data-mode='month'] .calendar-toolbar {
+    min-height: var(--icon-button-size);
+    align-items: center;
+    padding: 0;
+  }
+
+  .page-plan[data-mode='month'] .calendar-toolbar > div:first-child {
+    min-height: var(--icon-button-size);
+    padding-inline: var(--space-1);
+  }
+
+  .page-plan[data-mode='month'] .calendar-panel-action,
+  .page-plan[data-mode='month'] .calendar-panel-action button {
+    min-height: var(--icon-button-size) !important;
+  }
+
+  .page-plan[data-mode='month'] .calendar-panel-action button {
+    min-width: var(--icon-button-size);
+  }
+
+  .page-plan[data-mode='month'] .calendar-panel-action button:nth-child(2) {
+    min-width: 52px;
+  }
+
+  .page-plan[data-mode='month'] .calendar-card {
+    padding: var(--space-2) var(--space-2) 10px !important;
+  }
+
+  .page-plan[data-mode='month'] .calendar-week-labels {
+    min-height: 24px;
+    padding-bottom: 2px;
+  }
+
+  .page-plan[data-mode='month'] .calendar-month-grid {
+    gap: 2px;
+  }
+
+  .page-plan[data-mode='month'] .calendar-day {
+    min-height: var(--icon-button-size) !important;
+    border-radius: var(--radius-control) !important;
+  }
+
+  .page-plan[data-mode='month'] .calendar-date-row {
+    min-height: 38px;
+  }
+
+  .page-plan[data-mode='month'] .calendar-date-number {
+    width: 34px;
+    height: 34px;
+    background: transparent !important;
+    font-size: 0.78rem;
+  }
+
+  .page-plan[data-mode='month'] .calendar-date-number[data-today='true'] {
+    box-shadow: inset 0 0 0 1px var(--color-text-primary) !important;
+  }
+
+  .page-plan[data-mode='month'] .calendar-day[data-selected='true'] .calendar-date-number,
+  .page-plan[data-mode='month'] .calendar-day[data-selected='true'] .calendar-date-number[data-today='true'] {
+    background: color-mix(in srgb, var(--color-text-primary) 88%, var(--color-page-bg)) !important;
+  }
+
+  .page-plan[data-mode='month'] .calendar-day[data-has-items='true']::after {
+    bottom: 1px;
+  }
+
+  .page-plan[data-mode='month'] .calendar-selection-summary {
+    margin-top: var(--space-2);
+    border-radius: var(--radius-card-small);
+    padding: var(--space-2) var(--space-3);
+  }
+
+  .page-plan[data-mode='month'] .calendar-selection-summary header {
+    min-height: var(--icon-button-size);
+  }
+
+  .page-plan[data-mode='month'] .calendar-selection-summary header button {
+    min-height: var(--icon-button-size);
+  }
+
+  .page-plan[data-mode='month'] .calendar-selection-summary ul {
+    margin-top: var(--space-1);
+  }
+
+  .page-plan[data-mode='month'] .calendar-selection-summary li button {
+    min-height: 46px;
+  }
+}
