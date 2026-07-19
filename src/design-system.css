@@ -119,6 +119,7 @@
   --ds-type-status: 1.0625rem;
   --ds-type-body: 0.9375rem;
   --ds-type-description: 0.875rem;
+  --ds-type-desc: var(--ds-type-description);
   --ds-type-meta: 0.9375rem;
   --ds-type-pill: 0.9375rem;
   --ds-type-money: 2.125rem;
@@ -127,8 +128,15 @@
   --ds-leading-nav: 1.294;
   --ds-leading-section: 1.4118;
   --ds-leading-row: 1.294;
+  --ds-leading-card: 1.294;
+  --ds-leading-status: 1.294;
+  --ds-leading-body: 1.4;
   --ds-leading-meta: 1.4;
   --ds-leading-description: 1.4286;
+  --ds-leading-desc: var(--ds-leading-description);
+  --ds-leading-pill: 1.3333;
+  --ds-leading-money: 1.1765;
+  --ds-leading-money-large: 1.1364;
   --ds-leading-tight: 1.12;
   --ds-leading-copy: 1.46;
 
@@ -8344,5 +8352,212 @@ select:focus {
   .page-shopping .location-manager li + li {
     border-top: 0 !important;
     box-shadow: inset 60px 1px 0 var(--color-divider);
+  }
+}
+
+/* Apple mobile normalization · Finance. Persistent navigation is pill-shaped;
+   balances use the shared amount scale; repeated entities are grouped rows
+   with inset separators instead of independent floating cards. */
+@media (max-width: 1023px) {
+  .finance-shell > .finance-ledger-tabs,
+  .finance-shell > .finance-ledger-tabs .finance-ledger-tab-surface {
+    border-radius: var(--radius-pill) !important;
+  }
+
+  .finance-shell > .finance-ledger-tabs button {
+    font-size: var(--ds-type-desc);
+    line-height: var(--ds-leading-desc);
+    font-weight: 500;
+  }
+
+  .finance-shell > .finance-ledger-toolbar,
+  .finance-shell .finance-ledger-toolbar-actions > label,
+  .finance-shell .finance-ledger-toolbar-actions select {
+    border-radius: var(--radius-pill) !important;
+  }
+
+  .finance-shell .finance-net-worth-card {
+    min-height: 132px !important;
+    border-radius: var(--radius-panel) !important;
+    padding: var(--space-5) !important;
+  }
+
+  .finance-shell .finance-net-worth-card > span {
+    font-size: var(--ds-type-meta);
+    line-height: var(--ds-leading-meta);
+  }
+
+  .finance-shell .finance-net-worth-card > strong {
+    margin-top: var(--space-1);
+    font-size: var(--ds-type-money-large) !important;
+    line-height: var(--ds-leading-money-large) !important;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.035em;
+  }
+
+  .finance-shell .finance-net-worth-card > div {
+    font-size: var(--ds-type-description) !important;
+    line-height: var(--ds-leading-description);
+  }
+
+  .finance-shell .finance-overview-support button {
+    min-height: 60px;
+    padding: var(--space-2) var(--space-4);
+  }
+
+  .finance-shell .finance-overview-support span,
+  .finance-shell .finance-section-card > header span {
+    font-size: var(--ds-type-description) !important;
+    line-height: var(--ds-leading-description);
+  }
+
+  .finance-shell .finance-overview-support strong,
+  .finance-shell .finance-work-summary strong {
+    font-size: var(--ds-type-status) !important;
+    line-height: var(--ds-leading-status);
+    font-weight: 500;
+  }
+
+  .finance-shell .finance-section-card,
+  .finance-shell .finance-work-summary,
+  .finance-shell .finance-overview-support {
+    border-radius: var(--radius-card-large) !important;
+  }
+
+  .finance-shell .finance-section-card h2,
+  .finance-shell .finance-view-heading h2,
+  .finance-shell .finance-work-composer h2 {
+    font-size: var(--ds-type-section);
+    line-height: var(--ds-leading-section);
+    font-weight: 600;
+  }
+
+  .finance-shell .finance-section-card > header > button,
+  .finance-shell .finance-view-heading button,
+  .finance-shell .finance-work-composer > header select,
+  .finance-shell .finance-rate-card button {
+    min-height: 40px;
+    border-radius: var(--radius-pill) !important;
+    padding-inline: var(--space-4);
+    font-size: var(--ds-type-pill);
+    line-height: var(--ds-leading-pill);
+    font-weight: 600;
+  }
+
+  .finance-shell .finance-quick-actions > div button {
+    min-height: 56px !important;
+    font-size: var(--ds-type-description) !important;
+    line-height: var(--ds-leading-description);
+    font-weight: 500;
+  }
+
+  .finance-shell .finance-account-snapshot li,
+  .finance-shell .finance-transaction-list li,
+  .finance-shell .finance-work-records-v2 li,
+  .finance-shell .finance-fund-list li,
+  .finance-shell .finance-recurring-list li {
+    position: relative;
+    min-height: 68px !important;
+    border-top: 0 !important;
+  }
+
+  .finance-shell .finance-account-snapshot li + li::before,
+  .finance-shell .finance-transaction-list li + li::before,
+  .finance-shell .finance-work-records-v2 li + li::before,
+  .finance-shell .finance-fund-list li + li::before,
+  .finance-shell .finance-recurring-list li + li::before {
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 60px;
+    height: 1px;
+    background: var(--color-divider);
+    content: '';
+    pointer-events: none;
+  }
+
+  .finance-shell .finance-account-snapshot li strong,
+  .finance-shell .finance-transaction-list li strong,
+  .finance-shell .finance-work-records-v2 li strong,
+  .finance-shell .finance-fund-list li strong,
+  .finance-shell .finance-recurring-list li strong {
+    font-size: var(--ds-type-card) !important;
+    line-height: var(--ds-leading-card) !important;
+    font-weight: 500 !important;
+  }
+
+  .finance-shell .finance-account-snapshot li span,
+  .finance-shell .finance-transaction-list li > div > span,
+  .finance-shell .finance-work-records-v2 li span,
+  .finance-shell .finance-fund-list li span,
+  .finance-shell .finance-fund-list li small,
+  .finance-shell .finance-recurring-list li span {
+    font-size: var(--ds-type-meta) !important;
+    line-height: var(--ds-leading-meta) !important;
+  }
+
+  .finance-shell .finance-account-snapshot li > b,
+  .finance-shell .finance-transaction-list li > b,
+  .finance-shell .finance-work-records-v2 li > b,
+  .finance-shell .finance-fund-row-value > b {
+    font-size: var(--ds-type-status) !important;
+    line-height: var(--ds-leading-status);
+    font-weight: 400;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .finance-shell .finance-account-grid {
+    overflow: clip;
+    gap: 0 !important;
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-card-large);
+    background: var(--color-surface-primary);
+    padding-inline: var(--space-4);
+    box-shadow: var(--shadow-card);
+  }
+
+  .finance-shell .finance-account-card {
+    position: relative;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  .finance-shell .finance-account-card + .finance-account-card::before {
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 60px;
+    height: 1px;
+    background: var(--color-divider);
+    content: '';
+    pointer-events: none;
+  }
+
+  .finance-shell .finance-account-card h3 {
+    font-size: var(--ds-type-card) !important;
+    line-height: var(--ds-leading-card);
+    font-weight: 500;
+  }
+
+  .finance-shell .finance-account-card > header > strong {
+    font-size: var(--ds-type-status) !important;
+    line-height: var(--ds-leading-status);
+    font-weight: 400;
+  }
+
+  .finance-shell .finance-compact-filter,
+  .finance-shell .finance-compact-filter button,
+  .finance-shell .finance-planning-sections,
+  .finance-shell .finance-planning-section-indicator {
+    border-radius: var(--radius-pill) !important;
+  }
+
+  .finance-shell .finance-planning-sections button {
+    font-size: var(--ds-type-desc);
+    line-height: var(--ds-leading-desc);
+    font-weight: 500;
   }
 }
