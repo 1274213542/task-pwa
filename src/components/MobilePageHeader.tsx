@@ -24,7 +24,10 @@ export default function MobilePageHeader({
   secondaryIcon?: AppIconName
 }) {
   return (
-    <header className={`mobile-page-header ${backHref ? 'has-leading' : 'has-no-leading'}`}>
+    <header
+      className={`mobile-page-header ${backHref ? 'has-leading' : 'has-no-leading'}`}
+      data-page-level={backHref ? 'secondary' : 'primary'}
+    >
       {backHref ? (
         <a href={backHref} aria-label="返回" className="mobile-page-avatar">
           <AppIcon name="chevronLeft" size={23} />

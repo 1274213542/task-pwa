@@ -29,13 +29,15 @@
   --space-5: 20px;
   --space-6: 24px;
   --space-8: 32px;
+  --space-9: 36px;
 
   --radius-control: 12px;
   --radius-input: 14px;
   --radius-card-small: 16px;
   --radius-card-medium: 20px;
   --radius-card-large: 24px;
-  --radius-sheet: 28px;
+  --radius-panel: 28px;
+  --radius-sheet: 32px;
   --radius-pill: 999px;
 
   --shadow-card: 0 1px 1px rgb(24 27 23 / 0.02),
@@ -61,10 +63,12 @@
   --material-toolbar-blur: 14px;
 
   --page-inline-padding: 16px;
-  --page-header-height: 74px;
-  --icon-button-size: 44px;
+  --page-header-height: 82px;
+  --secondary-header-height: 64px;
+  --icon-button-size: 48px;
+  --icon-button-compact: 44px;
   --control-height: 44px;
-  --segmented-control-height: 46px;
+  --segmented-control-height: 48px;
   --bottom-tabbar-height: 68px;
   --bottom-content-inset: calc(
     var(--bottom-tabbar-height) + env(safe-area-inset-bottom, 0px) + var(--space-6)
@@ -95,8 +99,8 @@
   --ds-icon-large: 24px;
 
   /* Concentric radius scale: panel > card > control > compact control. */
-  --ds-radius-panel: var(--radius-card-large);
-  --ds-radius-card: var(--radius-card-medium);
+  --ds-radius-panel: var(--radius-panel);
+  --ds-radius-card: var(--radius-card-large);
   --ds-radius-control: var(--radius-input);
   --ds-radius-compact: var(--radius-control);
   --ds-radius-pill: var(--radius-pill);
@@ -107,15 +111,26 @@
   --ds-card-padding: 16px;
   --ds-row-height: 58px;
 
-  --ds-type-display: clamp(2rem, 4vw, 2.75rem);
-  --ds-type-page-mobile: 1.5rem;
-  --ds-type-section: 1.125rem;
-  --ds-type-card: 0.975rem;
+  --ds-type-display: clamp(2.125rem, 4vw, 2.75rem);
+  --ds-type-page-mobile: 2.125rem;
+  --ds-type-nav-title: 1.0625rem;
+  --ds-type-section: 1.0625rem;
+  --ds-type-card: 1.0625rem;
+  --ds-type-status: 1.0625rem;
   --ds-type-body: 0.9375rem;
-  --ds-type-meta: 0.75rem;
+  --ds-type-description: 0.875rem;
+  --ds-type-meta: 0.9375rem;
+  --ds-type-pill: 0.9375rem;
+  --ds-type-money: 2.125rem;
+  --ds-type-money-large: 2.75rem;
+  --ds-leading-page: 1.2059;
+  --ds-leading-nav: 1.294;
+  --ds-leading-section: 1.4118;
+  --ds-leading-row: 1.294;
+  --ds-leading-meta: 1.4;
+  --ds-leading-description: 1.4286;
   --ds-leading-tight: 1.12;
   --ds-leading-copy: 1.46;
-  --ds-leading-meta: 1.35;
 
   --ds-border: var(--color-border-subtle);
   --ds-border-strong: color-mix(in srgb, var(--ui-ink) 14%, transparent);
@@ -1200,6 +1215,230 @@ select:focus {
   .editor-sheet,
   .command-palette-surface {
     backdrop-filter: blur(var(--ds-glass-blur-small)) saturate(112%);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Apple mobile normalization · typography and reusable grouped primitives
+
+   These rules are intentionally semantic. They adjust the existing product
+   surfaces without changing routes, data or event callbacks.
+   -------------------------------------------------------------------------- */
+
+.grouped-list {
+  overflow: clip;
+  margin: 0;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-card-medium);
+  background: var(--color-surface-primary);
+  box-shadow: var(--shadow-card);
+}
+
+.grouped-list-row {
+  position: relative;
+  display: grid;
+  min-height: 56px;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+}
+
+.grouped-list-row.has-leading {
+  grid-template-columns: 32px minmax(0, 1fr) auto auto;
+}
+
+.grouped-list-row.has-subtitle {
+  min-height: 68px;
+}
+
+.grouped-list-row + .grouped-list-row::before {
+  position: absolute;
+  top: 0;
+  right: var(--space-4);
+  left: var(--space-4);
+  height: 1px;
+  background: var(--color-divider);
+  content: '';
+}
+
+.grouped-list-row.has-leading + .grouped-list-row.has-leading::before {
+  left: 60px;
+}
+
+.grouped-list-leading,
+.grouped-list-trailing {
+  display: grid;
+  place-items: center;
+}
+
+.grouped-list-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.grouped-list-title,
+.grouped-list-value {
+  overflow: hidden;
+  color: var(--color-text-primary);
+  font-size: var(--ds-type-card);
+  font-weight: 500;
+  line-height: var(--ds-leading-row);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.grouped-list-value {
+  color: var(--color-text-secondary);
+  font-weight: 400;
+}
+
+.grouped-list-subtitle {
+  overflow: hidden;
+  color: var(--color-text-secondary);
+  font-size: var(--ds-type-meta);
+  line-height: var(--ds-leading-meta);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.apple-pill-button {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-primary);
+  padding-inline: var(--space-4);
+  color: var(--color-text-primary);
+  font-size: var(--ds-type-pill);
+  font-weight: 600;
+  line-height: 1.333;
+}
+
+.apple-circle-button {
+  display: inline-grid;
+  width: var(--icon-button-size);
+  min-width: var(--icon-button-size);
+  height: var(--icon-button-size);
+  min-height: var(--icon-button-size);
+  place-items: center;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 50%;
+  background: var(--color-surface-primary);
+}
+
+@media (max-width: 1023px) {
+  .mobile-page-header {
+    min-height: var(--page-header-height) !important;
+    padding-block: var(--space-2) var(--space-4) !important;
+  }
+
+  .mobile-page-header.has-no-leading {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .mobile-page-header.has-no-leading .mobile-page-heading h1,
+  .task-mobile-brand h1,
+  .plan-mobile-heading h1 {
+    font-size: var(--ds-type-page-mobile) !important;
+    font-weight: 700 !important;
+    line-height: var(--ds-leading-page) !important;
+    letter-spacing: -0.025em !important;
+  }
+
+  .mobile-page-header.has-no-leading .mobile-page-heading p,
+  .task-mobile-brand p,
+  .plan-mobile-heading p {
+    margin-bottom: 2px !important;
+    font-size: var(--ds-type-meta) !important;
+    font-weight: 400 !important;
+    line-height: var(--ds-leading-meta) !important;
+    letter-spacing: 0 !important;
+  }
+
+  .mobile-page-header.has-leading {
+    min-height: var(--secondary-header-height) !important;
+    grid-template-columns: var(--icon-button-size) minmax(0, 1fr) var(--icon-button-size) !important;
+    padding-block: var(--space-2) !important;
+  }
+
+  .mobile-page-header.has-leading .mobile-page-heading {
+    text-align: center;
+  }
+
+  .mobile-page-header.has-leading .mobile-page-heading p {
+    display: none;
+  }
+
+  .mobile-page-header.has-leading .mobile-page-heading h1 {
+    font-size: var(--ds-type-nav-title) !important;
+    font-weight: 600 !important;
+    line-height: var(--ds-leading-nav) !important;
+    letter-spacing: 0 !important;
+    text-align: center;
+  }
+
+  .mobile-page-avatar,
+  .mobile-page-primary,
+  .mobile-page-secondary,
+  .task-round-action,
+  .plan-mobile-action {
+    width: var(--icon-button-size) !important;
+    min-width: var(--icon-button-size) !important;
+    height: var(--icon-button-size) !important;
+    min-height: var(--icon-button-size) !important;
+  }
+
+  .mobile-page-actions {
+    min-width: var(--icon-button-size);
+    justify-content: flex-end;
+  }
+
+  .mobile-page-header + :is(.segmented-control, .mobile-shopping-view-switch, .finance-ledger-tabs, .browse-layout, .settings-theme-section) {
+    margin-top: var(--space-2) !important;
+  }
+
+  .segmented-control,
+  .mobile-shopping-view-switch,
+  .finance-mode-switch,
+  .finance-inline-switch,
+  .plan-mobile-mode-switch {
+    height: var(--segmented-control-height) !important;
+    min-height: var(--segmented-control-height) !important;
+    border-radius: var(--radius-pill) !important;
+    padding: var(--space-1) !important;
+  }
+
+  .segmented-control > button,
+  .mobile-shopping-view-switch > button,
+  .finance-mode-switch > button,
+  .finance-inline-switch > button,
+  .plan-mobile-mode-switch > button,
+  .segmented-control > [data-shared-indicator],
+  .mobile-shopping-view-switch > [data-shared-indicator],
+  .finance-mode-switch > [data-shared-indicator],
+  .finance-inline-switch > [data-shared-indicator],
+  .plan-mobile-mode-switch > [data-shared-indicator] {
+    min-height: 40px !important;
+    border-radius: var(--radius-pill) !important;
+  }
+
+  .segmented-control > button,
+  .mobile-shopping-view-switch > button,
+  .finance-mode-switch > button,
+  .finance-inline-switch > button,
+  .plan-mobile-mode-switch > button {
+    font-size: var(--ds-type-pill) !important;
+    font-weight: 600 !important;
+    line-height: 1.333 !important;
+  }
+
+  .app-page > :last-child {
+    margin-bottom: var(--space-6);
   }
 }
 
