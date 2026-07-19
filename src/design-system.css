@@ -1234,6 +1234,7 @@ select:focus {
 }
 
 [data-shared-indicator] > button[aria-selected='true'],
+[data-shared-indicator] > button[aria-pressed='true'],
 [data-shared-indicator] > button.is-active,
 [data-shared-indicator] > a[aria-current='page'] {
   background: transparent !important;
@@ -7150,9 +7151,8 @@ select:focus {
   }
 
   .finance-shell .finance-ledger-view-surface {
-    opacity: 1 !important;
-    transform: none !important;
-    will-change: auto;
+    transform-origin: 50% 0;
+    will-change: transform;
   }
 }
 
@@ -7632,8 +7632,8 @@ select:focus {
 
   .finance-shell .finance-planning-section-content {
     min-height: 0;
-    opacity: 1 !important;
-    transform: none !important;
+    transform-origin: 50% 0;
+    will-change: transform;
   }
 
   .finance-shell .finance-recurring-list {

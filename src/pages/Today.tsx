@@ -883,8 +883,8 @@ export default function Today() {
       <motion.div
         key={scope}
         className={`task-content-surface task-density-${viewSettings.density}`}
-        initial={reduceMotion ? { opacity: 0.88 } : { x: contentDirection * 10, opacity: 0.97 }}
-        animate={{ x: 0, opacity: 1 }}
+        initial={reduceMotion ? { opacity: 0.88 } : { x: contentDirection * 10 }}
+        animate={reduceMotion ? { opacity: 1 } : { x: 0 }}
         transition={reduceMotion ? MOTION.reduced : MOTION.taskContent}
       >
       <div

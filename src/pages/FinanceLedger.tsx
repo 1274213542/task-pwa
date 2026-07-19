@@ -374,9 +374,9 @@ export default function FinanceLedger() {
           key={view}
           className="finance-ledger-view-surface"
           initial={reduceMotion
-            ? { x: 0, opacity: 0.84 }
-            : { x: viewDirection * 12, opacity: 0.96 }}
-          animate={{ x: 0, opacity: 1 }}
+            ? { opacity: 0.84 }
+            : { x: viewDirection * 12 }}
+          animate={reduceMotion ? { opacity: 1 } : { x: 0 }}
           transition={reduceMotion ? MOTION.reduced : MOTION.route}
         >
           {view === 'overview' && (
@@ -438,8 +438,8 @@ export default function FinanceLedger() {
               <motion.section
                 key={planningSection}
                 className="finance-planning-section-content"
-                initial={reduceMotion ? false : { x: 10, opacity: 0.97 }}
-                animate={{ x: 0, opacity: 1 }}
+                initial={reduceMotion ? false : { x: 10 }}
+                animate={{ x: 0 }}
                 transition={reduceMotion ? MOTION.reduced : MOTION.control}
               >
                 {planningSection === 'recurring' && (
@@ -1920,11 +1920,12 @@ function FinanceEntrySheet({
           </header>
           {!editing && (
             <div ref={kindBarRef} className="finance-entry-kind-scroll">
-              <div className="finance-entry-kind">
-                <span
+              <div className="finance-entry-kind" data-shared-indicator>
+                <SegmentedIndicator
                   className="finance-entry-kind-indicator"
-                  aria-hidden="true"
-                  style={{ transform: `translate3d(${ENTRY_KINDS.indexOf(kind) * 100}%, 0, 0)` }}
+                  count={ENTRY_KINDS.length}
+                  index={ENTRY_KINDS.indexOf(kind)}
+                  inset={0}
                 />
                 {ENTRY_KINDS.map((value) => (
                   <button type="button" data-kind={value} key={value} aria-pressed={kind === value} onClick={() => switchKind(value)}>{ENTRY_KIND_LABEL[value]}</button>
@@ -1936,8 +1937,8 @@ function FinanceEntrySheet({
             <motion.div
               key={kind}
               className="finance-sheet-form"
-              initial={reduceMotion ? false : { x: ENTRY_KINDS.indexOf(kind) >= ENTRY_KINDS.indexOf(previousKindRef.current) ? 10 : -10, opacity: 0.97 }}
-              animate={{ x: 0, opacity: 1 }}
+              initial={reduceMotion ? false : { x: ENTRY_KINDS.indexOf(kind) >= ENTRY_KINDS.indexOf(previousKindRef.current) ? 10 : -10 }}
+              animate={{ x: 0 }}
               transition={reduceMotion ? MOTION.reduced : MOTION.route}
             >
               <label className="finance-amount-field">

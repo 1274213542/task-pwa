@@ -167,7 +167,9 @@ export default function Plan() {
     window.requestAnimationFrame(() => {
       document.querySelector<HTMLElement>('.app-shell main')?.scrollTo({
         top: 0,
-        behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+        // The content surface already communicates direction. A second smooth
+        // scroll on the page shell made rapid view changes feel queued on iOS.
+        behavior: 'auto',
       })
     })
   }
