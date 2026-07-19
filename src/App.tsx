@@ -24,6 +24,8 @@ import { ensurePersistentStorage } from './lib/persistence'
 import { db } from './lib/db'
 import MarkerIcon from './components/MarkerIcon'
 import DesktopSidebarExtras from './components/DesktopSidebarExtras'
+import Browse from './pages/Browse'
+import Settings from './pages/Settings'
 import {
   MOTION,
   directionalEnterVariants,
@@ -39,8 +41,6 @@ const Overview = lazy(() => import('./pages/Overview'))
 const Today = lazy(() => import('./pages/Today'))
 const Plan = lazy(() => import('./pages/Plan'))
 const Shopping = lazy(() => import('./pages/Shopping'))
-const Browse = lazy(() => import('./pages/Browse'))
-const Settings = lazy(() => import('./pages/Settings'))
 const Finance = lazy(() => import('./pages/Finance'))
 const FinanceLedger = lazy(() => import('./pages/FinanceLedger'))
 
