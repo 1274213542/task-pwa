@@ -802,11 +802,23 @@ function AccountsView({
           const monthPurchases = transactions.filter((transaction) => transaction.lifecycleStatus === 'active' && transaction.localDate.startsWith(month) && transaction.accountId === account.id && transaction.type === 'credit_purchase').reduce((sum, transaction) => sum + transaction.amountMinor, 0)
           const monthPayments = transactions.filter((transaction) => transaction.lifecycleStatus === 'active' && transaction.localDate.startsWith(month) && transaction.counterpartyAccountId === account.id && transaction.type === 'credit_payment').reduce((sum, transaction) => sum + (transaction.counterpartyAmountMinor ?? transaction.amountMinor), 0)
           return <article key={account.id} className="finance-account-card" data-archived={account.isArchived || undefined}>
-            <header><span className={`finance-account-mark is-${account.kind}`} /><span className="finance-account-card-actions"><button aria-label="上移账户" onClick={() => void moveAccount(account.id, -1)}>↑</button><button aria-label="下移账户" onClick={() => void moveAccount(account.id, 1)}>↓</button><button onClick={() => setEditingId(account.id)}>编辑</button><button onClick={() => void setAccountArchived(account.id, !account.isArchived)}>{account.isArchived ? '启用' : '停用'}</button></span></header>
-            <span>{accountOwnership(account) === 'external' ? '外部账户' : '本人账户'} · {ACCOUNT_SUBTYPE_LABEL[account.subtype]}</span>
-            <h3>{account.name}</h3>
-            <strong><PrivateAmount>{formatMoney(balances.get(account.id) ?? 0, account.currency)}</PrivateAmount></strong>
+            <header>
+              <div className="finance-account-identity">
+                <span className={`finance-account-mark is-${account.kind}`} />
+                <div>
+                  <span>{accountOwnership(account) === 'external' ? '外部账户' : '本人账户'} · {ACCOUNT_SUBTYPE_LABEL[account.subtype]}</span>
+                  <h3>{account.name}</h3>
+                </div>
+              </div>
+              <strong><PrivateAmount>{formatMoney(balances.get(account.id) ?? 0, account.currency)}</PrivateAmount></strong>
+            </header>
             <small>{account.isArchived ? '已停用 · 历史仍保留' : accountOwnership(account) === 'external' ? '外部资金 · 不影响个人资产或负债' : account.kind === 'credit' ? <>本期 <PrivateAmount>{formatMoney(monthPurchases, account.currency)}</PrivateAmount> · 已还 <PrivateAmount>{formatMoney(monthPayments, account.currency)}</PrivateAmount>{account.paymentDueDay ? ` · ${account.paymentDueDay} 日扣款` : ''}</> : '当前余额'}</small>
+            <footer className="finance-account-card-actions">
+              <button aria-label="上移账户" onClick={() => void moveAccount(account.id, -1)}>上移</button>
+              <button aria-label="下移账户" onClick={() => void moveAccount(account.id, 1)}>下移</button>
+              <button onClick={() => setEditingId(account.id)}>编辑</button>
+              <button onClick={() => void setAccountArchived(account.id, !account.isArchived)}>{account.isArchived ? '启用' : '停用'}</button>
+            </footer>
           </article>
         })}
       </div>
