@@ -1,4 +1,13 @@
-import { useEffect, useRef, useState, type ButtonHTMLAttributes, type CSSProperties } from 'react'
+import { createPortal } from 'react-dom'
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ButtonHTMLAttributes,
+  type CSSProperties,
+  type HTMLAttributes,
+} from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from 'motion/react'
 import {
@@ -12,6 +21,7 @@ import {
   useSensor,
   useSensors,
   type DragEndEvent,
+  type DragOverEvent,
   type DragStartEvent,
 } from '@dnd-kit/core'
 import {
@@ -31,6 +41,7 @@ import {
   softDeleteItem,
   softDeleteLocation,
   suggestLocationId,
+  restoreShoppingItemPlacement,
   unmarkPurchased,
 } from '../lib/shopping'
 import PageHeader from '../components/PageHeader'
@@ -43,6 +54,19 @@ import { MOTION } from '../lib/motion'
 
 const SHOPPING_TONES: ColorToken[] = ['green', 'blue', 'purple', 'orange', 'pink']
 
+type ShoppingRowDragProps = Pick<
+  HTMLAttributes<HTMLLIElement>,
+  'onMouseDown' | 'onTouchStart'
+>
+
+type ShoppingDragHandleProps = ButtonHTMLAttributes<HTMLButtonElement>
+
+const MOVE_UNDO_TIMEOUT_MS = 7_000
+
+function stopDragActivation(event: { stopPropagation: () => void }) {
+  event.stopPropagation()
+}
+
 function ItemRow({
   item,
   locationLabel,
@@ -53,7 +77,8 @@ function ItemRow({
   onMove,
   liRef,
   liStyle,
-  dragProps,
+  rowDragProps,
+  dragHandleProps,
   dragging = false,
 }: {
   item: ShoppingItem
@@ -65,12 +90,66 @@ function ItemRow({
   onMove?: (locationId?: string) => void
   liRef?: (node: HTMLLIElement | null) => void
   liStyle?: CSSProperties
-  dragProps?: ButtonHTMLAttributes<HTMLButtonElement>
+  rowDragProps?: ShoppingRowDragProps
+  dragHandleProps?: ShoppingDragHandleProps
   dragging?: boolean
 }) {
   const reduceMotion = useReducedMotion()
   const [confirming, setConfirming] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const [menuPosition, setMenuPosition] = useState<CSSProperties | null>(null)
   const purchased = item.purchaseStatus === 'purchased'
+
+  useLayoutEffect(() => {
+    if (!menuOpen || !triggerRef.current) {
+      setMenuPosition(null)
+      return
+    }
+
+    const updatePosition = () => {
+      const trigger = triggerRef.current
+      if (!trigger) return
+      const rect = trigger.getBoundingClientRect()
+      const visualViewport = window.visualViewport
+      const viewportWidth = visualViewport?.width ?? window.innerWidth
+      const viewportHeight = visualViewport?.height ?? window.innerHeight
+      const viewportTop = visualViewport?.offsetTop ?? 0
+      const navRect = document.querySelector('.mobile-nav')?.getBoundingClientRect()
+      const safeBottom = navRect && navRect.top > viewportTop
+        ? navRect.top - 8
+        : viewportTop + viewportHeight - 12
+      const menuWidth = Math.min(210, viewportWidth - 24)
+      const estimatedHeight = Math.min(260, 48 + (locations.length + 2) * 42)
+      const shouldOpenUp = rect.bottom + 8 + estimatedHeight > safeBottom
+      const availableHeight = shouldOpenUp
+        ? Math.max(120, rect.top - viewportTop - 16)
+        : Math.max(120, safeBottom - rect.bottom - 16)
+      const top = shouldOpenUp
+        ? Math.max(viewportTop + 8, rect.top - Math.min(estimatedHeight, availableHeight) - 8)
+        : rect.bottom + 8
+      const left = Math.max(
+        8,
+        Math.min(rect.right - menuWidth, viewportWidth - menuWidth - 8),
+      )
+
+      setMenuPosition({
+        top,
+        left,
+        width: menuWidth,
+        maxHeight: Math.min(260, availableHeight),
+        transformOrigin: shouldOpenUp ? 'right bottom' : 'right top',
+      })
+    }
+
+    updatePosition()
+    window.addEventListener('resize', updatePosition)
+    window.visualViewport?.addEventListener('resize', updatePosition)
+    return () => {
+      window.removeEventListener('resize', updatePosition)
+      window.visualViewport?.removeEventListener('resize', updatePosition)
+    }
+  }, [confirming, locations.length, menuOpen])
 
   return (
     <motion.li
@@ -86,12 +165,17 @@ function ItemRow({
       data-menu-open={menuOpen || undefined}
       className="shopping-card row-in relative flex items-center gap-3"
       data-dragging={dragging || undefined}
+      data-drag-enabled={rowDragProps ? true : undefined}
+      {...rowDragProps}
     >
       <button
         aria-label={purchased ? '恢复待购' : '已购买'}
         onClick={() =>
           purchased ? void unmarkPurchased(item.id) : void markPurchased(item)
         }
+        onPointerDown={stopDragActivation}
+        onMouseDown={stopDragActivation}
+        onTouchStart={stopDragActivation}
         className="hit-target -ml-2.5 shrink-0 transition active:scale-95"
       >
         <span
@@ -135,18 +219,34 @@ function ItemRow({
       </div>
 
       {!purchased && (
-        <div className="shopping-item-actions">
+        <div
+          className="shopping-item-actions"
+          onPointerDown={stopDragActivation}
+          onMouseDown={stopDragActivation}
+          onTouchStart={stopDragActivation}
+        >
           <button
             type="button"
+            ref={triggerRef}
             aria-label={`移动或整理 ${item.name}`}
             aria-expanded={menuOpen}
             onClick={onMenuToggle}
+            data-shopping-menu-trigger
             className="shopping-item-more hit-target"
           >
             <AppIcon name="more" size={19} />
           </button>
-          {menuOpen && (
-            <div className="shopping-move-menu" role="menu">
+          {menuOpen && menuPosition && createPortal(
+            <motion.div
+              ref={menuRef}
+              className="shopping-move-menu"
+              role="menu"
+              aria-label={`${item.name} 的操作菜单`}
+              style={menuPosition}
+              initial={reduceMotion ? false : { opacity: 0, scale: 0.97, y: 3 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              transition={reduceMotion ? MOTION.reduced : MOTION.control}
+            >
               <p>移动到…</p>
               <button role="menuitem" onClick={() => onMove?.(undefined)}>未指定地点</button>
               {locations.map((location) => (
@@ -158,15 +258,17 @@ function ItemRow({
                   {location.name}
                 </button>
               ))}
-              <button
-                type="button"
-                role="menuitem"
-                className="shopping-menu-drag"
-                aria-label={`长按拖动 ${item.name}`}
-                {...dragProps}
-              >
-                <AppIcon name="drag" size={17} /> 长按拖动排序
-              </button>
+              {dragHandleProps && (
+                <button
+                  type="button"
+                  {...dragHandleProps}
+                  role="menuitem"
+                  className="shopping-menu-drag"
+                  aria-label={`拖动排序 ${item.name}`}
+                >
+                  <AppIcon name="drag" size={17} /> 长按或按空格拖动
+                </button>
+              )}
               {confirming ? (
                 <button
                   type="button"
@@ -189,7 +291,8 @@ function ItemRow({
                   <AppIcon name="trash" size={17} /> 删除商品
                 </button>
               )}
-            </div>
+            </motion.div>,
+            document.body,
           )}
         </div>
       )}
@@ -197,7 +300,7 @@ function ItemRow({
   )
 }
 
-function SortableShoppingRow(props: Omit<Parameters<typeof ItemRow>[0], 'liRef' | 'liStyle' | 'dragProps' | 'dragging'>) {
+function SortableShoppingRow(props: Omit<Parameters<typeof ItemRow>[0], 'liRef' | 'liStyle' | 'rowDragProps' | 'dragHandleProps' | 'dragging'>) {
   const sortable = useSortable({ id: props.item.id })
   return (
     <ItemRow
@@ -208,7 +311,14 @@ function SortableShoppingRow(props: Omit<Parameters<typeof ItemRow>[0], 'liRef' 
         transition: sortable.transition,
         opacity: sortable.isDragging ? 0.2 : 1,
       }}
-      dragProps={{ ...sortable.attributes, ...sortable.listeners }}
+      rowDragProps={{
+        onMouseDown: sortable.listeners?.onMouseDown,
+        onTouchStart: sortable.listeners?.onTouchStart,
+      } as ShoppingRowDragProps}
+      dragHandleProps={{
+        ...sortable.attributes,
+        ...sortable.listeners,
+      } as ShoppingDragHandleProps}
       dragging={sortable.isDragging}
     />
   )
@@ -217,13 +327,22 @@ function SortableShoppingRow(props: Omit<Parameters<typeof ItemRow>[0], 'liRef' 
 function ShoppingDropGroup({
   id,
   children,
+  dragging,
+  highlighted,
 }: {
   id: string
   children: React.ReactNode
+  dragging: boolean
+  highlighted: boolean
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `shopping-group:${id}` })
   return (
-    <div ref={setNodeRef} className="shopping-drop-group" data-over={isOver || undefined}>
+    <div
+      ref={setNodeRef}
+      className="shopping-drop-group"
+      data-over={isOver || highlighted || undefined}
+      data-drag-active={dragging || undefined}
+    >
       {children}
     </div>
   )
@@ -343,8 +462,16 @@ export default function Shopping() {
   const [composerOpen, setComposerOpen] = useState(false)
   const [activeItemId, setActiveItemId] = useState<string | null>(null)
   const [moveMenuId, setMoveMenuId] = useState<string | null>(null)
+  const [lastMove, setLastMove] = useState<{
+    itemId: string
+    locationId?: string
+    rank: string
+    expectedUpdatedAt: string
+  } | null>(null)
+  const [dragTargetGroupId, setDragTargetGroupId] = useState<string | null>(null)
   const nameRef = useRef<HTMLTextAreaElement>(null)
   const submittingRef = useRef(false)
+  const undoTimerRef = useRef<number | null>(null)
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 260, tolerance: 8 } }),
@@ -382,11 +509,19 @@ export default function Shopping() {
     return () => window.removeEventListener(FOCUS_QUICK_ADD_EVENT, openComposer)
   }, [])
 
+  useEffect(() => () => {
+    if (undoTimerRef.current !== null) window.clearTimeout(undoTimerRef.current)
+  }, [])
+
   useEffect(() => {
     if (!moveMenuId) return
     const closeOutside = (event: PointerEvent) => {
       const target = event.target as Element | null
-      if (!target?.closest('.shopping-item-actions')) setMoveMenuId(null)
+      if (
+        target?.closest('.shopping-move-menu') ||
+        target?.closest('[data-shopping-menu-trigger]')
+      ) return
+      setMoveMenuId(null)
     }
     const closeOnScroll = () => setMoveMenuId(null)
     const closeOnKey = (event: KeyboardEvent) => {
@@ -492,27 +627,92 @@ export default function Shopping() {
       })
   }
 
+  function offerMoveUndo(
+    item: ShoppingItem,
+    expectedUpdatedAt: string,
+    message: string,
+  ) {
+    if (undoTimerRef.current !== null) window.clearTimeout(undoTimerRef.current)
+    setLastMove({
+      itemId: item.id,
+      locationId: item.locationId,
+      rank: item.rank,
+      expectedUpdatedAt,
+    })
+    setFeedback(message)
+    undoTimerRef.current = window.setTimeout(() => {
+      setLastMove((current) =>
+        current?.expectedUpdatedAt === expectedUpdatedAt ? null : current,
+      )
+      setFeedback((current) => current === message ? '' : current)
+      undoTimerRef.current = null
+    }, MOVE_UNDO_TIMEOUT_MS)
+  }
+
   async function moveTo(item: ShoppingItem, nextLocationId?: string) {
-    const targetItems = pending
-      .filter((candidate) => candidate.id !== item.id && candidate.locationId === nextLocationId)
-      .sort((a, b) => a.rank.localeCompare(b.rank))
-    await moveShoppingItem(
-      item.id,
-      nextLocationId,
-      targetItems.at(-1)?.rank ?? null,
-      null,
-      [...targetItems.map((candidate) => candidate.id), item.id],
-    )
     setMoveMenuId(null)
+    try {
+      const targetItems = pending
+        .filter((candidate) => candidate.id !== item.id && candidate.locationId === nextLocationId)
+        .sort((a, b) => a.rank.localeCompare(b.rank))
+      const expectedUpdatedAt = await moveShoppingItem(
+        item.id,
+        nextLocationId,
+        targetItems.at(-1)?.rank ?? null,
+        null,
+        [...targetItems.map((candidate) => candidate.id), item.id],
+      )
+      const targetName = locations?.find((location) => location.id === nextLocationId)?.name ?? '未指定地点'
+      offerMoveUndo(item, expectedUpdatedAt, `已移动到 ${targetName}`)
+    } catch (reason) {
+      console.error('移动商品失败', reason)
+      setLastMove(null)
+      setFeedback(reason instanceof Error ? `移动失败：${reason.message}` : '移动失败，商品仍在原位置')
+    }
+  }
+
+  async function undoLastMove() {
+    if (!lastMove) return
+    if (undoTimerRef.current !== null) window.clearTimeout(undoTimerRef.current)
+    undoTimerRef.current = null
+    try {
+      const restored = await restoreShoppingItemPlacement(
+        lastMove.itemId,
+        lastMove.locationId,
+        lastMove.rank,
+        lastMove.expectedUpdatedAt,
+      )
+      setLastMove(null)
+      setFeedback(restored ? '已撤销移动' : '商品已发生新变化，无法撤销')
+    } catch (reason) {
+      console.error('撤销商品移动失败', reason)
+      setLastMove(null)
+      setFeedback(reason instanceof Error ? `撤销失败：${reason.message}` : '撤销失败，请重试')
+    }
   }
 
   function onDragStart(event: DragStartEvent) {
     setMoveMenuId(null)
     setActiveItemId(String(event.active.id))
+    setDragTargetGroupId(null)
   }
 
-  function onDragEnd(event: DragEndEvent) {
+  function onDragOver(event: DragOverEvent) {
+    if (!grouped || !event.over) {
+      setDragTargetGroupId(null)
+      return
+    }
+    const overId = String(event.over.id)
+    const overItem = pending.find((item) => item.id === overId)
+    const targetLocationId = overId.startsWith('shopping-group:')
+      ? overId.slice('shopping-group:'.length)
+      : overItem?.locationId
+    setDragTargetGroupId(targetLocationId || 'unassigned')
+  }
+
+  async function onDragEnd(event: DragEndEvent) {
     setActiveItemId(null)
+    setDragTargetGroupId(null)
     if (!event.over) return
     const active = pending.find((item) => item.id === String(event.active.id))
     if (!active) return
@@ -541,13 +741,21 @@ export default function Shopping() {
     const afterRank = targetItems[insertIndex]?.rank ?? null
     const orderedIds = targetItems.map((item) => item.id)
     orderedIds.splice(insertIndex, 0, active.id)
-    void moveShoppingItem(
-      active.id,
-      normalizedLocationId,
-      beforeRank,
-      afterRank,
-      orderedIds,
-    )
+    try {
+      const expectedUpdatedAt = await moveShoppingItem(
+        active.id,
+        normalizedLocationId,
+        beforeRank,
+        afterRank,
+        orderedIds,
+      )
+      const targetName = locations?.find((location) => location.id === normalizedLocationId)?.name ?? '未指定地点'
+      offerMoveUndo(active, expectedUpdatedAt, `已移动到 ${targetName}`)
+    } catch (reason) {
+      console.error('拖动商品失败', reason)
+      setLastMove(null)
+      setFeedback(reason instanceof Error ? `移动失败：${reason.message}` : '移动失败，商品仍在原位置')
+    }
   }
 
   const activeItem = pending.find((item) => item.id === activeItemId)
@@ -668,9 +876,10 @@ export default function Shopping() {
           </div>
         )}
       </div>}
-      <p role="status" className="min-h-5 px-2 pt-1 text-[12px] text-neutral-500">
-        {feedback}
-      </p>
+      <div role="status" className="shopping-feedback min-h-5 px-2 pt-1 text-[12px] text-neutral-500">
+        <span>{feedback}</span>
+        {lastMove && <button type="button" onClick={() => void undoLastMove()}>撤销</button>}
+      </div>
       <details className="location-management mt-1">
         <summary className="inline-flex min-h-11 cursor-pointer items-center gap-1 px-1
           text-[13px] font-medium text-neutral-500">
@@ -684,7 +893,11 @@ export default function Shopping() {
         sensors={sensors}
         collisionDetection={closestCenter}
         onDragStart={onDragStart}
-        onDragCancel={() => setActiveItemId(null)}
+        onDragOver={onDragOver}
+        onDragCancel={() => {
+          setActiveItemId(null)
+          setDragTargetGroupId(null)
+        }}
         onDragEnd={onDragEnd}
         autoScroll
       >
@@ -697,7 +910,12 @@ export default function Shopping() {
         ) : grouped ? (
           <div className="shopping-group-stack">
           {groups.map((g) => (
-            <ShoppingDropGroup key={g.id} id={g.id}>
+            <ShoppingDropGroup
+              key={g.id}
+              id={g.id}
+              dragging={Boolean(activeItemId)}
+              highlighted={dragTargetGroupId === g.id}
+            >
               <section className="shopping-group-section">
                 <header className="shopping-group-title">
                   <AppIcon
@@ -729,6 +947,13 @@ export default function Shopping() {
                     </AnimatePresence>
                   </ul>
                 </SortableContext>
+                {activeItem && dragTargetGroupId === g.id && (
+                  (activeItem.locationId ?? 'unassigned') !== g.id
+                ) && g.items.length > 0 && (
+                  <div className="shopping-drop-placeholder" role="status">
+                    松手移动到 {g.label}
+                  </div>
+                )}
                 {g.items.length === 0 && (activeItemId ? (
                   <div className="shopping-group-empty">拖动商品到这里</div>
                 ) : (

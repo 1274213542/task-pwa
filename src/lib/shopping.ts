@@ -161,18 +161,29 @@ export async function moveShoppingItem(
   beforeRank: string | null,
   afterRank: string | null,
   orderedScopeIds: string[] = [id],
-): Promise<void> {
+): Promise<string> {
+  const current = await db.shoppingItems.get(id)
+  if (!current || current.lifecycleStatus !== 'active') {
+    throw new Error('商品不存在或已删除')
+  }
+
+  let rank: string | undefined
   try {
-    const rank = betweenRanks(beforeRank, afterRank)
-    await db.shoppingItems.update(id, {
-      locationId,
-      rank,
-      updatedAt: now(),
-    })
-    return
+    rank = betweenRanks(beforeRank, afterRank)
   } catch {
     // v7 and older used timestamp-like ranks. Normalize only the visible
     // ordering scope on the first move, preserving every item and its group.
+  }
+
+  if (rank) {
+    const timestamp = now()
+    const updated = await db.shoppingItems.update(id, {
+      locationId,
+      rank,
+      updatedAt: timestamp,
+    })
+    if (updated !== 1) throw new Error('商品移动失败，请重试')
+    return timestamp
   }
 
   const ids = [...new Set(orderedScopeIds)]
@@ -180,6 +191,10 @@ export async function moveShoppingItem(
   const ranks = normalizedRanks(ids.length)
   const timestamp = now()
   await db.transaction('rw', db.shoppingItems, async () => {
+    const latest = await db.shoppingItems.get(id)
+    if (!latest || latest.lifecycleStatus !== 'active') {
+      throw new Error('商品不存在或已删除')
+    }
     await Promise.all(
       ids.map((itemId, index) =>
         db.shoppingItems.update(itemId, {
@@ -189,6 +204,33 @@ export async function moveShoppingItem(
         }),
       ),
     )
+  })
+  return timestamp
+}
+
+/**
+ * 撤销最近一次移动。
+ *
+ * expectedUpdatedAt 是移动成功时返回的版本令牌。若记录随后被购买、删除、
+ * 同步或再次编辑，则拒绝覆盖较新的数据。
+ */
+export async function restoreShoppingItemPlacement(
+  id: string,
+  locationId: string | undefined,
+  rank: string,
+  expectedUpdatedAt: string,
+): Promise<boolean> {
+  return db.transaction('rw', db.shoppingItems, async () => {
+    const current = await db.shoppingItems.get(id)
+    if (
+      !current ||
+      current.lifecycleStatus !== 'active' ||
+      current.updatedAt !== expectedUpdatedAt
+    ) {
+      return false
+    }
+    await db.shoppingItems.update(id, { locationId, rank, updatedAt: now() })
+    return true
   })
 }
 

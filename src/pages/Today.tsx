@@ -360,19 +360,44 @@ export default function Today() {
     const sentinel = toolbarSentinelRef.current
     const scrollRoot = document.querySelector('.app-shell main')
     if (!sentinel || !(scrollRoot instanceof HTMLElement)) return
-    const safeTop = Number.parseFloat(
-      getComputedStyle(document.documentElement).getPropertyValue('--ds-safe-top'),
-    ) || 0
-    const observer = new IntersectionObserver(
-      ([entry]) => setToolbarStuck(!entry.isIntersecting),
-      {
-        root: scrollRoot,
-        threshold: 1,
-        rootMargin: `${-(safeTop + 1)}px 0px 0px 0px`,
-      },
-    )
-    observer.observe(sentinel)
-    return () => observer.disconnect()
+    let observer: IntersectionObserver | undefined
+    let frame = 0
+
+    const observe = () => {
+      observer?.disconnect()
+      const safeTop = Number.parseFloat(
+        getComputedStyle(document.documentElement).getPropertyValue('--ds-safe-top'),
+      ) || 0
+      observer = new IntersectionObserver(
+        ([entry]) => setToolbarStuck(!entry.isIntersecting),
+        {
+          root: scrollRoot,
+          threshold: 1,
+          rootMargin: `${-(safeTop + 1)}px 0px 0px 0px`,
+        },
+      )
+      observer.observe(sentinel)
+    }
+
+    const scheduleObserve = () => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(observe)
+    }
+
+    observe()
+    // iOS can change the resolved safe-area after rotation or when a
+    // standalone PWA resumes. Rebuild the threshold without remounting the
+    // persistent toolbar so its material and geometry stay stable.
+    window.addEventListener('resize', scheduleObserve)
+    window.addEventListener('orientationchange', scheduleObserve)
+    window.addEventListener('pageshow', scheduleObserve)
+    return () => {
+      cancelAnimationFrame(frame)
+      observer?.disconnect()
+      window.removeEventListener('resize', scheduleObserve)
+      window.removeEventListener('orientationchange', scheduleObserve)
+      window.removeEventListener('pageshow', scheduleObserve)
+    }
   }, [])
 
   const tasks = useLiveQuery(

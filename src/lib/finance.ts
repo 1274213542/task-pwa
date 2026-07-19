@@ -168,8 +168,11 @@ export async function addExpenseCategory(
   const row: ExpenseCategory = {
     id: crypto.randomUUID(),
     name: clean,
+    icon: 'dot',
     colorToken,
     rank: Date.now().toString(36).padStart(10, '0'),
+    sortOrder: await db.expenseCategories.count(),
+    archived: false,
     lifecycleStatus: 'active',
     createdAt: timestamp,
     updatedAt: timestamp,

@@ -130,6 +130,36 @@ describe('账户余额与消费口径', () => {
     expect(summary.liabilitiesMinor).toBe(1_000)
     expect(summary.netWorthMinor).toBe(8_000)
   })
+
+  it('信用卡类型与账户归属分开，外部信用卡进入消费但不进入个人负债', () => {
+    const fatherCard = {
+      ...account('father-card', 'credit', 'credit_card', 0),
+      name: '爸爸信用卡',
+      ownership: 'external' as const,
+      includeInNetWorth: false,
+    }
+    const purchase = transaction('rakuten', 'credit_purchase', 8_492, fatherCard.id, {
+      merchantNameSnapshot: 'Rakuten Ichiba',
+      fundingParty: 'external',
+      affectsNetWorth: false,
+    })
+    const refund = transaction('rakuten-refund', 'refund', 1_000, fatherCard.id, {
+      linkedTransactionId: purchase.id,
+      fundingParty: 'external',
+      affectsNetWorth: false,
+    })
+    const summary = ledgerSummary({
+      accounts: [fatherCard],
+      transactions: [purchase, refund],
+      rates: [],
+      reportingCurrency: 'JPY',
+    })
+    expect(summary.actualPaidMinor).toBe(0)
+    expect(summary.externalPaidMinor).toBe(7_492)
+    expect(summary.consumptionMinor).toBe(7_492)
+    expect(summary.liabilitiesMinor).toBe(0)
+    expect(summary.netWorthMinor).toBe(0)
+  })
 })
 
 describe('多币种', () => {

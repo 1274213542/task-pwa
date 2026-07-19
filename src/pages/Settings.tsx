@@ -247,6 +247,18 @@ export default function Settings() {
         <p className="settings-inline-feedback" role="status">{wageFeedback}</p>
       </section>
 
+      <section className="settings-finance-links" aria-labelledby="finance-data-heading">
+        <div>
+          <p className="section-kicker">财务数据</p>
+          <h2 id="finance-data-heading">账户与支出分类</h2>
+          <small>账户变更影响当前余额；历史流水的资金来源快照保持不变</small>
+        </div>
+        <nav>
+          <Link to="/finance?mode=accounts">账户管理 <AppIcon name="chevronRight" size={17} /></Link>
+          <Link to="/finance?panel=categories">支出分类管理 <AppIcon name="chevronRight" size={17} /></Link>
+        </nav>
+      </section>
+
       <div className="list-card settings-data-card mt-6 overflow-hidden rounded-xl bg-white dark:bg-neutral-800">
         {cloudEnabled && (
           <div className="settings-data-row border-b border-black/5 dark:border-white/10">

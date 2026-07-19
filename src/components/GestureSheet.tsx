@@ -28,6 +28,7 @@ interface GestureSheetProps {
   dialogRef: RefObject<HTMLElement | null>
   labelledBy: string
   onClose: () => void
+  canClose?: () => boolean
 }
 
 function viewportHeight() {
@@ -43,7 +44,7 @@ function viewportHeight() {
  */
 const GestureSheet = forwardRef<GestureSheetHandle, GestureSheetProps>(
   function GestureSheet(
-    { children, className, dialogRef, labelledBy, onClose },
+    { children, className, dialogRef, labelledBy, onClose, canClose },
     forwardedRef,
   ) {
     const reduceMotion = useReducedMotion()
@@ -61,8 +62,9 @@ const GestureSheet = forwardRef<GestureSheetHandle, GestureSheetProps>(
       scrimRunning.current?.stop()
     }
 
-    function close(velocity = 0) {
-      if (closed.current) return
+    function close(velocity = 0): boolean {
+      if (closed.current) return true
+      if (!closing.current && canClose && !canClose()) return false
       closing.current = true
       stopRunning()
 
@@ -75,7 +77,7 @@ const GestureSheet = forwardRef<GestureSheetHandle, GestureSheetProps>(
             onClose()
           },
         })
-        return
+        return true
       }
 
       scrimRunning.current = animate(scrimOpacity, 0, MOTION.control)
@@ -88,6 +90,7 @@ const GestureSheet = forwardRef<GestureSheetHandle, GestureSheetProps>(
           onClose()
         },
       })
+      return true
     }
 
     useImperativeHandle(forwardedRef, () => ({ close }))
@@ -127,8 +130,10 @@ const GestureSheet = forwardRef<GestureSheetHandle, GestureSheetProps>(
       const projected = info.offset.y + projectVelocity(info.velocity.y, 0.99)
       const threshold = Math.min(190, viewportHeight() * 0.22)
       if (projected > threshold || info.velocity.y > 720) {
-        close(info.velocity.y)
-        return
+        // A dirty editor can reject dismissal. In that case the sheet must
+        // return from its live dragged position instead of staying half open
+        // with a faded scrim.
+        if (close(info.velocity.y)) return
       }
 
       closing.current = false

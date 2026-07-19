@@ -7,6 +7,7 @@ import type {
   FinanceTransaction,
   FinanceTransactionType,
   FinanceTransfer,
+  FundingParty,
   Merchant,
   Paycheck,
 } from './ledgerTypes'
@@ -47,6 +48,25 @@ function positiveMinor(value: number) {
   return value
 }
 
+export function accountOwnership(account?: Account): FundingParty {
+  if (!account) return 'self'
+  return account.ownership ?? (account.kind === 'external' ? 'external' : 'self')
+}
+
+export function transactionFundingParty(
+  transaction: FinanceTransaction,
+  accounts: Map<string, Account>,
+  linkedTransactions?: Map<string, FinanceTransaction>,
+): FundingParty {
+  if (transaction.fundingParty) return transaction.fundingParty
+  if (transaction.type === 'refund' && transaction.linkedTransactionId) {
+    const linked = linkedTransactions?.get(transaction.linkedTransactionId)
+    if (linked) return transactionFundingParty(linked, accounts, linkedTransactions)
+  }
+  if (transaction.type === 'external_payment') return 'external'
+  return accountOwnership(accounts.get(transaction.accountId))
+}
+
 export function transactionBalanceDeltas(
   transaction: FinanceTransaction,
   accounts: Map<string, Account>,
@@ -55,14 +75,15 @@ export function transactionBalanceDeltas(
   if (transaction.lifecycleStatus !== 'active') return deltas
   const account = accounts.get(transaction.accountId)
   if (!account) return deltas
+  const fundingParty = transactionFundingParty(transaction, accounts)
   const add = (id: string, value: number) => deltas.set(id, (deltas.get(id) ?? 0) + value)
 
   switch (transaction.type) {
     case 'expense':
-      if (account.kind === 'asset') add(account.id, -transaction.amountMinor)
+      if (fundingParty === 'self' && account.kind === 'asset') add(account.id, -transaction.amountMinor)
       break
     case 'credit_purchase':
-      if (account.kind === 'credit') add(account.id, transaction.amountMinor)
+      if (fundingParty === 'self' && account.kind === 'credit') add(account.id, transaction.amountMinor)
       break
     case 'external_payment':
       break
@@ -70,6 +91,7 @@ export function transactionBalanceDeltas(
       if (account.kind === 'asset') add(account.id, transaction.amountMinor)
       break
     case 'refund':
+      if (fundingParty === 'external') break
       if (account.kind === 'credit') add(account.id, -transaction.amountMinor)
       else if (account.kind === 'asset') add(account.id, transaction.amountMinor)
       break
@@ -78,7 +100,7 @@ export function transactionBalanceDeltas(
       if (account.kind === 'asset') add(account.id, -transaction.amountMinor)
       if (transaction.counterpartyAccountId) {
         const destination = accounts.get(transaction.counterpartyAccountId)
-        if (destination?.kind === 'asset') {
+        if (destination?.kind === 'asset' && accountOwnership(destination) === 'self') {
           add(destination.id, transaction.counterpartyAmountMinor ?? transaction.amountMinor)
         }
       }
@@ -153,6 +175,10 @@ export function ledgerSummary(opts: {
     (transaction) => transaction.lifecycleStatus === 'active',
   )
   const balances = calculateAccountBalances(activeAccounts, allBalanceTransactions)
+  const accountMap = new Map(activeAccounts.map((account) => [account.id, account]))
+  const transactionMap = new Map(
+    opts.transactions.map((transaction) => [transaction.id, transaction]),
+  )
   let assetsMinor = 0
   let liabilitiesMinor = 0
   const missingRates = new Set<string>()
@@ -166,7 +192,7 @@ export function ledgerSummary(opts: {
   }
 
   for (const account of activeAccounts) {
-    if (!account.includeInNetWorth || account.kind === 'external') continue
+    if (!account.includeInNetWorth || accountOwnership(account) === 'external') continue
     const converted = convert(balances.get(account.id) ?? 0, account.currency)
     if (account.kind === 'credit') liabilitiesMinor += converted
     else assetsMinor += converted
@@ -181,17 +207,18 @@ export function ledgerSummary(opts: {
       Number.isSafeInteger(transaction.reportingAmountMinor)
         ? transaction.reportingAmountMinor!
         : convert(transaction.amountMinor, transaction.currency)
-    if (transaction.type === 'external_payment' && transaction.includeInSpending) {
-      externalPaidMinor += reportAmount
-    } else if (
-      (transaction.type === 'expense' || transaction.type === 'credit_purchase') &&
+    const fundingParty = transactionFundingParty(transaction, accountMap, transactionMap)
+    if (
+      (transaction.type === 'external_payment' ||
+        transaction.type === 'expense' ||
+        transaction.type === 'credit_purchase') &&
       transaction.includeInSpending
     ) {
-      actualPaidMinor += reportAmount
+      if (fundingParty === 'external') externalPaidMinor += reportAmount
+      else actualPaidMinor += reportAmount
     } else if (transaction.type === 'refund' && transaction.includeInSpending) {
-      if (transaction.accountId && activeAccounts.find((a) => a.id === transaction.accountId)?.kind === 'external') {
-        externalPaidMinor -= reportAmount
-      } else actualPaidMinor -= reportAmount
+      if (fundingParty === 'external') externalPaidMinor -= reportAmount
+      else actualPaidMinor -= reportAmount
     } else if (transaction.type === 'income') {
       incomeMinor += reportAmount
     }
@@ -214,6 +241,7 @@ export async function saveAccount(input: {
   id?: string
   name: string
   kind: Account['kind']
+  ownership?: Account['ownership']
   subtype: Account['subtype']
   currency: CurrencyCode
   openingBalanceMinor?: number
@@ -237,17 +265,21 @@ export async function saveAccount(input: {
     }
   }
   const existing = input.id ? await db.accounts.get(input.id) : undefined
+  const ownership = input.ownership ?? existing?.ownership ?? (input.kind === 'external' ? 'external' : 'self')
   const timestamp = now()
   const id = input.id ?? crypto.randomUUID()
   await db.accounts.put({
     id,
     name,
     kind: input.kind,
+    ownership,
     subtype: input.subtype,
     currency: input.currency,
     openingBalanceMinor: Math.round(input.openingBalanceMinor ?? existing?.openingBalanceMinor ?? 0),
     includeInNetWorth:
-      input.includeInNetWorth ?? existing?.includeInNetWorth ?? input.kind !== 'external',
+      ownership === 'external'
+        ? false
+        : input.includeInNetWorth ?? existing?.includeInNetWorth ?? input.kind !== 'external',
     includeInSpending:
       input.includeInSpending ?? existing?.includeInSpending ?? true,
     ...(clean(input.institution) && { institution: clean(input.institution) }),
@@ -322,12 +354,19 @@ export async function saveSpending(input: {
       merchant.name.localeCompare(merchantName!, undefined, { sensitivity: 'base' }) === 0,
   )
   const timestamp = now()
+  // The payment account is the source of truth for new transactions. When an
+  // existing transaction is edited without changing accounts, preserve its
+  // historical funding snapshot even if the account is reclassified later.
+  const fundingParty =
+    existing?.accountId === account.id && existing.fundingParty
+      ? existing.fundingParty
+      : accountOwnership(account)
   const type: FinanceTransactionType =
-    account.kind === 'credit'
+    fundingParty === 'external'
+      ? 'external_payment'
+      : account.kind === 'credit'
       ? 'credit_purchase'
-      : account.kind === 'external'
-        ? 'external_payment'
-        : 'expense'
+      : 'expense'
   const id = input.id ?? crypto.randomUUID()
   const merchant: Merchant | undefined = merchantName
     ? {
@@ -348,15 +387,19 @@ export async function saveSpending(input: {
     type,
     amountMinor: input.amountMinor,
     currency: input.currency,
-    occurredAt: existing?.occurredAt ?? `${input.localDate}T12:00:00.000Z`,
+    // Keep the sortable timestamp aligned with the edited civil date. The
+    // record identity/createdAt stay stable, but moving an expense to another
+    // day must also move it in the transaction timeline.
+    occurredAt: `${input.localDate}T12:00:00.000Z`,
     localDate: input.localDate,
     accountId: account.id,
+    fundingParty,
     ...(input.categoryId && { categoryId: input.categoryId }),
     ...(category && { categoryNameSnapshot: category.name }),
     ...(merchant && { merchantId: merchant.id, merchantNameSnapshot: merchant.name }),
     ...(clean(input.note) && { note: clean(input.note) }),
     includeInSpending: input.includeInSpending ?? account.includeInSpending,
-    affectsNetWorth: account.kind !== 'external',
+    affectsNetWorth: fundingParty === 'self' && accountOwnership(account) === 'self',
     ...(input.reportingCurrency && { reportingCurrency: input.reportingCurrency }),
     ...(Number.isSafeInteger(input.reportingAmountMinor) && {
       reportingAmountMinor: input.reportingAmountMinor,
@@ -385,7 +428,7 @@ export async function saveIncome(input: {
 }): Promise<string> {
   positiveMinor(input.amountMinor)
   const account = await db.accounts.get(input.accountId)
-  if (!account || account.isArchived || account.kind !== 'asset' || account.currency !== input.currency) {
+  if (!account || account.isArchived || account.kind !== 'asset' || accountOwnership(account) !== 'self' || account.currency !== input.currency) {
     throw new Error('收入必须进入同币种的个人资产账户')
   }
   const timestamp = now()
@@ -398,6 +441,7 @@ export async function saveIncome(input: {
     occurredAt: `${input.localDate}T12:00:00.000Z`,
     localDate: input.localDate,
     accountId: account.id,
+    fundingParty: 'self',
     ...(clean(input.note) && { note: clean(input.note) }),
     ...(input.paycheckId && { paycheckId: input.paycheckId }),
     includeInSpending: false,
@@ -431,13 +475,16 @@ export async function saveTransfer(input: {
     db.accounts.get(input.destinationAccountId),
   ])
   if (!source || !destination || source.isArchived || destination.isArchived) throw new Error('转出或转入账户不存在或已停用')
-  if (source.kind !== 'asset') throw new Error('转出账户必须是个人资产账户')
+  if (source.kind !== 'asset' || accountOwnership(source) !== 'self') throw new Error('转出账户必须是个人资产账户')
   const kind = input.kind ?? (destination.kind === 'credit' ? 'credit_payment' : 'transfer')
-  if (kind === 'credit_payment' && destination.kind !== 'credit') {
+  if (kind === 'credit_payment' && (destination.kind !== 'credit' || accountOwnership(destination) !== 'self')) {
     throw new Error('信用卡还款的目标必须是本人信用卡')
   }
-  if (kind !== 'credit_payment' && destination.kind !== 'asset') {
-    throw new Error('普通转账或充值的目标必须是个人资产账户')
+  if (kind === 'topup' && (destination.kind !== 'asset' || accountOwnership(destination) !== 'self')) {
+    throw new Error('充值目标必须是本人储值或资产账户')
+  }
+  if (kind === 'transfer' && (destination.kind !== 'asset' || accountOwnership(destination) !== 'self')) {
+    throw new Error('普通转账的目标必须是本人资产账户')
   }
   const destinationAmountMinor = positiveMinor(
     input.destinationAmountMinor ?? input.sourceAmountMinor,
@@ -453,6 +500,7 @@ export async function saveTransfer(input: {
     occurredAt: `${input.localDate}T12:00:00.000Z`,
     localDate: input.localDate,
     accountId: source.id,
+    fundingParty: 'self',
     counterpartyAccountId: destination.id,
     counterpartyAmountMinor: destinationAmountMinor,
     counterpartyCurrency: destination.currency,
@@ -514,35 +562,78 @@ export async function saveTransfer(input: {
 
 export async function saveRefund(input: {
   amountMinor: number
-  currency: CurrencyCode
   localDate: string
-  accountId: string
-  linkedTransactionId?: string
+  linkedTransactionId: string
   note?: string
-  includeInSpending?: boolean
 }): Promise<string> {
   positiveMinor(input.amountMinor)
-  const account = await db.accounts.get(input.accountId)
-  if (!account || account.kind === 'external' || account.currency !== input.currency) {
-    throw new Error('退款账户无效或币种不一致')
-  }
-  const timestamp = now()
   const id = crypto.randomUUID()
-  await db.financeTransactions.add({
-    id,
-    type: 'refund',
-    amountMinor: input.amountMinor,
-    currency: input.currency,
-    occurredAt: `${input.localDate}T12:00:00.000Z`,
-    localDate: input.localDate,
-    accountId: input.accountId,
-    ...(input.linkedTransactionId && { linkedTransactionId: input.linkedTransactionId }),
-    ...(clean(input.note) && { note: clean(input.note) }),
-    includeInSpending: input.includeInSpending ?? true,
-    affectsNetWorth: true,
-    lifecycleStatus: 'active',
-    createdAt: timestamp,
-    updatedAt: timestamp,
+  await db.transaction('rw', db.accounts, db.financeTransactions, async () => {
+    // Validate and add in one write transaction so concurrent taps cannot both
+    // observe the same remaining amount and over-refund the original purchase.
+    const linked = await db.financeTransactions.get(input.linkedTransactionId)
+    if (
+      !linked ||
+      linked.lifecycleStatus !== 'active' ||
+      !['expense', 'credit_purchase', 'external_payment'].includes(linked.type)
+    ) {
+      throw new Error('请选择有效的原消费记录')
+    }
+    const account = await db.accounts.get(linked.accountId)
+    if (!account || account.currency !== linked.currency) {
+      throw new Error('原消费的账户或币种信息异常')
+    }
+    const refunds = await db.financeTransactions.toArray()
+    const refundedMinor = refunds
+      .filter(
+        (transaction) =>
+          transaction.lifecycleStatus === 'active' &&
+          transaction.type === 'refund' &&
+          transaction.linkedTransactionId === linked.id,
+      )
+      .reduce((sum, transaction) => sum + transaction.amountMinor, 0)
+    if (refundedMinor + input.amountMinor > linked.amountMinor) {
+      const remaining = Math.max(0, linked.amountMinor - refundedMinor)
+      throw new Error(`退款超过可退金额，剩余 ${fromMinor(remaining, linked.currency)}`)
+    }
+    const fundingParty = transactionFundingParty(
+      linked,
+      new Map([[account.id, account]]),
+    )
+    const reportingAmountMinor = Number.isSafeInteger(linked.reportingAmountMinor)
+      ? Math.round((linked.reportingAmountMinor! * input.amountMinor) / linked.amountMinor)
+      : undefined
+    const timestamp = now()
+    await db.financeTransactions.add({
+      id,
+      type: 'refund',
+      amountMinor: input.amountMinor,
+      currency: linked.currency,
+      occurredAt: `${input.localDate}T12:00:00.000Z`,
+      localDate: input.localDate,
+      accountId: linked.accountId,
+      fundingParty,
+      linkedTransactionId: linked.id,
+      ...(linked.categoryId && { categoryId: linked.categoryId }),
+      ...(linked.categoryNameSnapshot && {
+        categoryNameSnapshot: linked.categoryNameSnapshot,
+      }),
+      ...(linked.merchantId && { merchantId: linked.merchantId }),
+      ...(linked.merchantNameSnapshot && {
+        merchantNameSnapshot: linked.merchantNameSnapshot,
+      }),
+      ...(clean(input.note) && { note: clean(input.note) }),
+      includeInSpending: linked.includeInSpending,
+      affectsNetWorth: fundingParty === 'self' && accountOwnership(account) === 'self',
+      ...(linked.reportingCurrency && { reportingCurrency: linked.reportingCurrency }),
+      ...(reportingAmountMinor !== undefined && { reportingAmountMinor }),
+      ...(linked.exchangeRate && { exchangeRate: linked.exchangeRate }),
+      ...(linked.exchangeRateDate && { exchangeRateDate: linked.exchangeRateDate }),
+      ...(linked.exchangeRateSource && { exchangeRateSource: linked.exchangeRateSource }),
+      lifecycleStatus: 'active',
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })
   })
   return id
 }
@@ -647,63 +738,71 @@ export async function settlePaycheck(input: {
   note?: string
 }): Promise<string> {
   positiveMinor(input.actualAmountMinor)
-  const entries = await db.workEntries.bulkGet(input.workEntryIds)
-  if (entries.some((entry) => !entry || entry.lifecycleStatus !== 'active')) {
-    throw new Error('包含不存在的工作记录')
-  }
-  if (entries.some((entry) => entry?.settlementStatus === 'settled')) {
-    throw new Error('同一工作记录不能重复入账')
-  }
-  const account = await db.accounts.get(input.payoutAccountId)
-  if (!account || account.kind !== 'asset' || account.currency !== input.currency) {
-    throw new Error('工资入账账户无效或币种不一致')
-  }
+  const workEntryIds = [...new Set(input.workEntryIds)]
+  if (!workEntryIds.length) throw new Error('请选择工作记录')
   const timestamp = now()
   const paycheckId = crypto.randomUUID()
   const transactionId = crypto.randomUUID()
-  const paycheck: Paycheck = {
-    id: paycheckId,
-    workEntryIds: [...input.workEntryIds],
-    payoutAccountId: input.payoutAccountId,
-    currency: input.currency,
-    estimatedAmountMinor: entries.reduce(
-      (sum, entry) => sum + (entry?.estimatedGrossMinor ?? 0),
-      0,
-    ),
-    actualAmountMinor: input.actualAmountMinor,
-    paidAt: timestamp,
-    incomeTransactionId: transactionId,
-    status: 'paid',
-    ...(clean(input.note) && { note: clean(input.note) }),
-    createdAt: timestamp,
-    updatedAt: timestamp,
-  }
-  const transaction: FinanceTransaction = {
-    id: transactionId,
-    type: 'income',
-    amountMinor: input.actualAmountMinor,
-    currency: input.currency,
-    occurredAt: `${input.paidDate}T12:00:00.000Z`,
-    localDate: input.paidDate,
-    accountId: account.id,
-    note: clean(input.note) ?? '工资实际入账',
-    includeInSpending: false,
-    affectsNetWorth: true,
-    paycheckId,
-    reportingCurrency: input.currency,
-    reportingAmountMinor: input.actualAmountMinor,
-    exchangeRate: 1,
-    exchangeRateDate: input.paidDate,
-    exchangeRateSource: 'same-currency',
-    lifecycleStatus: 'active',
-    createdAt: timestamp,
-    updatedAt: timestamp,
-  }
-  await db.transaction('rw', db.paychecks, db.financeTransactions, db.workEntries, async () => {
+  await db.transaction('rw', db.accounts, db.paychecks, db.financeTransactions, db.workEntries, async () => {
+    // Read and validate inside the write transaction. Concurrent taps then
+    // serialize, and the second attempt observes the settled snapshot.
+    const entries = await db.workEntries.bulkGet(workEntryIds)
+    if (entries.some((entry) => !entry || entry.lifecycleStatus !== 'active')) {
+      throw new Error('包含不存在的工作记录')
+    }
+    if (entries.some((entry) => entry?.settlementStatus === 'settled')) {
+      throw new Error('同一工作记录不能重复入账')
+    }
+    if (entries.some((entry) => entry?.currency !== input.currency)) {
+      throw new Error('不同币种的工作记录需要分开入账')
+    }
+    const account = await db.accounts.get(input.payoutAccountId)
+    if (!account || account.kind !== 'asset' || accountOwnership(account) !== 'self' || account.currency !== input.currency) {
+      throw new Error('工资入账账户无效或币种不一致')
+    }
+    const paycheck: Paycheck = {
+      id: paycheckId,
+      workEntryIds,
+      payoutAccountId: input.payoutAccountId,
+      currency: input.currency,
+      estimatedAmountMinor: entries.reduce(
+        (sum, entry) => sum + (entry?.estimatedGrossMinor ?? 0),
+        0,
+      ),
+      actualAmountMinor: input.actualAmountMinor,
+      paidAt: timestamp,
+      incomeTransactionId: transactionId,
+      status: 'paid',
+      ...(clean(input.note) && { note: clean(input.note) }),
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    }
+    const transaction: FinanceTransaction = {
+      id: transactionId,
+      type: 'income',
+      amountMinor: input.actualAmountMinor,
+      currency: input.currency,
+      occurredAt: `${input.paidDate}T12:00:00.000Z`,
+      localDate: input.paidDate,
+      accountId: account.id,
+      fundingParty: 'self',
+      note: clean(input.note) ?? '工资实际入账',
+      includeInSpending: false,
+      affectsNetWorth: true,
+      paycheckId,
+      reportingCurrency: input.currency,
+      reportingAmountMinor: input.actualAmountMinor,
+      exchangeRate: 1,
+      exchangeRateDate: input.paidDate,
+      exchangeRateSource: 'same-currency',
+      lifecycleStatus: 'active',
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    }
     await db.paychecks.add(paycheck)
     await db.financeTransactions.add(transaction)
     await db.workEntries.bulkUpdate(
-      input.workEntryIds.map((id) => ({
+      workEntryIds.map((id) => ({
         key: id,
         changes: { settlementStatus: 'settled', paycheckId, updatedAt: timestamp },
       })),
@@ -717,6 +816,17 @@ export async function softDeleteFinanceTransaction(id: string): Promise<void> {
   const transaction = await db.financeTransactions.get(id)
   if (!transaction) return
   if (transaction.paycheckId) throw new Error('工资入账请从工资结算中撤销')
+  if (['expense', 'credit_purchase', 'external_payment'].includes(transaction.type)) {
+    const linkedRefund = await db.financeTransactions
+      .filter(
+        (candidate) =>
+          candidate.lifecycleStatus === 'active' &&
+          candidate.type === 'refund' &&
+          candidate.linkedTransactionId === transaction.id,
+      )
+      .first()
+    if (linkedRefund) throw new Error('请先删除该消费的关联退款')
+  }
   await db.transaction(
     'rw',
     db.financeTransactions,

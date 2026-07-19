@@ -6,6 +6,7 @@ import {
   migrateLegacyFinanceData,
   rollbackLegacyFinanceMigration,
 } from './financeMigration'
+import { ensureFinanceOwnershipMigration } from './financeOwnershipMigration'
 
 const dbName = 'task-pwa-finance-v2-migration-test'
 const safetyName = `${dbName}-safety`
@@ -101,5 +102,117 @@ describe('财务 v2 安全迁移', () => {
       status: 'rolled_back',
     })
     db.close()
+  })
+})
+
+describe('账户归属与资金来源迁移', () => {
+  it('仅用高置信账户线索补归属，外部账户不计净资产且历史资金快照不被改写', async () => {
+    const name = `${dbName}-ownership`
+    const db = new Dexie(name)
+    db.version(1).stores({
+      accounts: 'id, lifecycleStatus, kind, ownership, rank',
+      financeTransactions: 'id, lifecycleStatus, type, fundingParty, accountId',
+      expenseCategories: 'id, lifecycleStatus, archived, rank, sortOrder',
+      expenseRecords: 'id, categoryId',
+    })
+    await db.open()
+    await db.table('accounts').add({
+      id: 'father-card',
+      name: '爸爸信用卡',
+      kind: 'credit',
+      subtype: 'credit_card',
+      currency: 'JPY',
+      openingBalanceMinor: 0,
+      includeInNetWorth: true,
+      includeInSpending: true,
+      rank: '1',
+      lifecycleStatus: 'active',
+      createdAt: '2026-07-19T00:00:00Z',
+      updatedAt: '2026-07-19T00:00:00Z',
+    })
+    await db.table('accounts').bulkAdd([
+      {
+        id: 'father-card-ja',
+        name: '父親のクレジットカード',
+        kind: 'credit',
+        subtype: 'credit_card',
+        currency: 'JPY',
+        openingBalanceMinor: 0,
+        includeInNetWorth: true,
+        includeInSpending: true,
+        rank: '2',
+        lifecycleStatus: 'active',
+        createdAt: '2026-07-19T00:00:00Z',
+        updatedAt: '2026-07-19T00:00:00Z',
+      },
+      {
+        id: 'explicit-external',
+        name: '家族代付',
+        kind: 'credit',
+        ownership: 'external',
+        subtype: 'credit_card',
+        currency: 'JPY',
+        openingBalanceMinor: 0,
+        includeInNetWorth: true,
+        includeInSpending: true,
+        rank: '3',
+        lifecycleStatus: 'active',
+        createdAt: '2026-07-19T00:00:00Z',
+        updatedAt: '2026-07-19T00:00:00Z',
+      },
+    ])
+    await db.table('financeTransactions').add({
+      id: 'rakuten',
+      type: 'credit_purchase',
+      amountMinor: 8492,
+      currency: 'JPY',
+      occurredAt: '2026-07-19T12:00:00Z',
+      localDate: '2026-07-19',
+      accountId: 'father-card',
+      includeInSpending: true,
+      affectsNetWorth: true,
+      lifecycleStatus: 'active',
+      createdAt: '2026-07-19T12:00:00Z',
+      updatedAt: '2026-07-19T12:00:00Z',
+    })
+    await db.table('financeTransactions').add({
+      id: 'historical-snapshot',
+      type: 'credit_purchase',
+      amountMinor: 1200,
+      currency: 'JPY',
+      occurredAt: '2026-07-19T12:00:00Z',
+      localDate: '2026-07-19',
+      accountId: 'explicit-external',
+      fundingParty: 'self',
+      includeInSpending: true,
+      affectsNetWorth: true,
+      lifecycleStatus: 'active',
+      createdAt: '2026-07-19T12:00:00Z',
+      updatedAt: '2026-07-19T12:00:00Z',
+    })
+    await ensureFinanceOwnershipMigration(db)
+    await ensureFinanceOwnershipMigration(db)
+    expect(await db.table('accounts').get('father-card')).toMatchObject({
+      ownership: 'external',
+      includeInNetWorth: false,
+    })
+    expect(await db.table('financeTransactions').get('rakuten')).toMatchObject({
+      amountMinor: 8492,
+      fundingParty: 'external',
+    })
+    expect(await db.table('accounts').get('father-card-ja')).toMatchObject({
+      ownership: 'external',
+      includeInNetWorth: false,
+    })
+    expect(await db.table('accounts').get('explicit-external')).toMatchObject({
+      ownership: 'external',
+      includeInNetWorth: false,
+    })
+    expect(await db.table('financeTransactions').get('historical-snapshot')).toMatchObject({
+      amountMinor: 1200,
+      fundingParty: 'self',
+    })
+    db.close()
+    await Dexie.delete(name)
   })
 })

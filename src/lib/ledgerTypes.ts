@@ -1,6 +1,8 @@
 export type CurrencyCode = 'JPY' | 'CNY' | (string & {})
 
 export type AccountKind = 'asset' | 'credit' | 'external'
+export type AccountOwnership = 'self' | 'external'
+export type FundingParty = 'self' | 'external'
 export type AccountSubtype =
   | 'bank'
   | 'cash'
@@ -14,6 +16,8 @@ export interface Account {
   id: string
   name: string
   kind: AccountKind
+  /** 账户类型与归属分离：本人信用卡和外部信用卡都可以是 credit。 */
+  ownership?: AccountOwnership
   subtype: AccountSubtype
   currency: CurrencyCode
   /** 资产账户为正余额；信用账户为正的待还金额。 */
@@ -54,6 +58,8 @@ export interface FinanceTransaction {
   occurredAt: string
   localDate: string
   accountId: string
+  /** 消费由本人还是外部资金承担；旧记录由账户归属幂等补齐。 */
+  fundingParty?: FundingParty
   counterpartyAccountId?: string
   counterpartyAmountMinor?: number
   counterpartyCurrency?: CurrencyCode

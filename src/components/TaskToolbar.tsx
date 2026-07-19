@@ -1,6 +1,7 @@
 import { motion, useReducedMotion } from 'motion/react'
 import type { TaskScope } from '../lib/db'
 import { MOTION } from '../lib/motion'
+import { shouldSpinTaskSync } from '../lib/taskToolbarMotion'
 import AppIcon from './AppIcon'
 
 export default function TaskToolbar({
@@ -82,7 +83,10 @@ export default function TaskToolbar({
           disabled={syncing}
           onClick={onSync}
         >
-          <span className="task-toolbar-icon-frame" data-spinning={syncing || undefined}>
+          <span
+            className="task-toolbar-icon-frame"
+            data-spinning={shouldSpinTaskSync(syncing, reduceMotion) || undefined}
+          >
             <AppIcon name="sync" size={21} />
           </span>
         </button>

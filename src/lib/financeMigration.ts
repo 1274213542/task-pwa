@@ -97,6 +97,7 @@ export async function migrateLegacyFinanceData(
       id: LEGACY_ACCOUNT_ID,
       name: '未指定支付账户',
       kind: 'external',
+      ownership: 'external',
       subtype: 'unspecified',
       currency: 'JPY',
       openingBalanceMinor: 0,
@@ -120,6 +121,7 @@ export async function migrateLegacyFinanceData(
         localDate: safeDate(record.date),
         occurredAt: `${safeDate(record.date)}T12:00:00.000Z`,
         accountId: LEGACY_ACCOUNT_ID,
+        fundingParty: 'external',
         ...(record.categoryId && { categoryId: record.categoryId }),
         ...(record.categoryNameSnapshot && {
           categoryNameSnapshot: record.categoryNameSnapshot,

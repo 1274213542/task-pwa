@@ -11,6 +11,7 @@ import { cachedRate, convertWithCachedRate, refreshExchangeRate } from '../lib/e
 import { MOTION } from '../lib/motion'
 import {
   calculateAccountBalances,
+  accountOwnership,
   fromMinor,
   ledgerSummary,
   moveAccount,
@@ -26,6 +27,11 @@ import {
   softDeleteFinanceTransaction,
   toMinor,
 } from '../lib/ledger'
+import {
+  archiveExpenseCategory,
+  moveExpenseCategory,
+  saveExpenseCategory,
+} from '../lib/expenseCategories'
 import type {
   Account,
   CurrencyCode,
@@ -46,12 +52,6 @@ const VIEW_ITEMS: { id: FinanceView; label: string }[] = [
   { id: 'work', label: '工资与工时' },
   { id: 'stats', label: '统计' },
 ]
-
-const ACCOUNT_KIND_LABEL: Record<Account['kind'], string> = {
-  asset: '个人资产',
-  credit: '本人信用卡',
-  external: '外部代付',
-}
 
 const ACCOUNT_SUBTYPE_LABEL: Record<Account['subtype'], string> = {
   bank: '银行账户',
@@ -108,11 +108,17 @@ function accountDefaultSubtype(kind: Account['kind']): Account['subtype'] {
 export default function FinanceLedger() {
   const location = useLocation()
   const query = useMemo(() => new URLSearchParams(location.search), [location.search])
-  const [view, setView] = useState<FinanceView>(query.get('mode') === 'work' ? 'work' : 'overview')
+  const requestedView = VIEW_ITEMS.some((item) => item.id === query.get('mode'))
+    ? query.get('mode') as FinanceView
+    : 'overview'
+  const [view, setView] = useState<FinanceView>(requestedView)
   const [tabSurfaceX, setTabSurfaceX] = useState<number | null>(null)
   const [reportingCurrency, setReportingCurrency] = useState<CurrencyCode>('JPY')
   const [entryOpen, setEntryOpen] = useState(query.get('new') === '1')
   const [entryKind, setEntryKind] = useState<EntryKind>('expense')
+  const [categoryManagerOpen, setCategoryManagerOpen] = useState(
+    query.get('panel') === 'categories',
+  )
   const [editingTransaction, setEditingTransaction] = useState<FinanceTransaction | undefined>()
   const [feedback, setFeedback] = useState('')
   const financeTabsRef = useRef<HTMLElement>(null)
@@ -163,13 +169,17 @@ export default function FinanceLedger() {
     () => calculateAccountBalances(accounts, transactions),
     [accounts, transactions],
   )
-  const recentTransactions = useMemo(
-    () => [...transactions].sort((a, b) => b.occurredAt.localeCompare(a.occurredAt)).slice(0, 30),
+  const sortedTransactions = useMemo(
+    () => [...transactions].sort((a, b) => b.occurredAt.localeCompare(a.occurredAt)),
     [transactions],
   )
+  const recentTransactions = useMemo(() => sortedTransactions.slice(0, 30), [sortedTransactions])
 
   useEffect(() => {
-    if (query.get('mode') === 'work') setView('work')
+    if (VIEW_ITEMS.some((item) => item.id === query.get('mode'))) {
+      setView(query.get('mode') as FinanceView)
+    }
+    if (query.get('panel') === 'categories') setCategoryManagerOpen(true)
   }, [query])
 
   useEffect(() => {
@@ -307,7 +317,7 @@ export default function FinanceLedger() {
           )}
           {view === 'transactions' && (
             <TransactionsView
-              transactions={recentTransactions}
+              transactions={sortedTransactions}
               accounts={accounts}
               onNew={openEntry}
               onEdit={(transaction) => openEntry('expense', transaction)}
@@ -340,6 +350,7 @@ export default function FinanceLedger() {
           initialKind={entryKind}
           editing={editingTransaction}
           accounts={accounts}
+          transactions={transactions}
           categories={categories}
           reportingCurrency={reportingCurrency}
           onSaved={(message) => {
@@ -351,6 +362,13 @@ export default function FinanceLedger() {
             setEntryOpen(false)
             setEditingTransaction(undefined)
           }}
+        />
+      )}
+      {categoryManagerOpen && (
+        <ExpenseCategoryManagerSheet
+          categories={categories}
+          onClose={() => setCategoryManagerOpen(false)}
+          onFeedback={setFeedback}
         />
       )}
     </section>
@@ -400,7 +418,14 @@ function FinanceOverview({
       <div className="finance-work-summary">
         <article><span>本月至今工时</span><strong>{formatMinutes(workMinutes)}</strong><small>{monthWork.length} 个工作日</small></article>
         <article><span>预计税前工资</span><strong>{formatMoney(estimatedPay, currency)}</strong><small>未结算工作记录</small></article>
-        <article><span>本月至今支出</span><strong>{formatMoney(summary.consumptionMinor, currency)}</strong><small>含外部代付</small></article>
+        <article className="finance-consumption-summary">
+          <span>本月至今消费</span>
+          <strong>{formatMoney(summary.consumptionMinor, currency)}</strong>
+          <small>
+            <span>本人自付 {formatMoney(summary.actualPaidMinor, currency)}</span>
+            <span>外部代付 {formatMoney(summary.externalPaidMinor, currency)}</span>
+          </small>
+        </article>
       </div>
 
       <section className="finance-section-card finance-quick-actions">
@@ -459,6 +484,7 @@ function AccountsView({
   const [open, setOpen] = useState(accounts.length === 0)
   const [name, setName] = useState('')
   const [kind, setKind] = useState<Account['kind']>('asset')
+  const [ownership, setOwnership] = useState<NonNullable<Account['ownership']>>('self')
   const [subtype, setSubtype] = useState<Account['subtype']>('bank')
   const [currency, setCurrency] = useState<CurrencyCode>('JPY')
   const [opening, setOpening] = useState('0')
@@ -472,7 +498,8 @@ function AccountsView({
   useEffect(() => {
     if (!editing) return
     setName(editing.name)
-    setKind(editing.kind)
+    setKind(editing.kind === 'external' ? 'asset' : editing.kind)
+    setOwnership(accountOwnership(editing))
     setSubtype(editing.subtype)
     setCurrency(editing.currency)
     setOpening(String(fromMinor(editing.openingBalanceMinor, editing.currency)))
@@ -488,6 +515,7 @@ function AccountsView({
     setEditingId(undefined)
     setName('')
     setKind('asset')
+    setOwnership('self')
     setSubtype('bank')
     setCurrency('JPY')
     setOpening('0')
@@ -507,10 +535,11 @@ function AccountsView({
         id: editingId,
         name,
         kind,
+        ownership,
         subtype,
         currency,
         openingBalanceMinor: toMinor(Number(opening) || 0, currency),
-        includeInNetWorth: kind === 'external' ? false : includeNetWorth,
+        includeInNetWorth: ownership === 'external' ? false : includeNetWorth,
         includeInSpending: includeSpending,
         billingCycleDay: Number(billingCycleDay) || undefined,
         paymentDueDay: Number(paymentDueDay) || undefined,
@@ -535,13 +564,14 @@ function AccountsView({
       {open && (
         <form className="finance-section-card finance-account-editor" onSubmit={submit}>
           <label>账户名称<input value={name} onChange={(event) => setName(event.target.value)} placeholder="例如 日本银行、Suica、父亲信用卡" /></label>
-          <label>账户归属<select value={kind} onChange={(event) => { const next = event.target.value as Account['kind']; setKind(next); setSubtype(accountDefaultSubtype(next)); setIncludeNetWorth(next !== 'external') }}><option value="asset">个人资产</option><option value="credit">本人信用卡</option><option value="external">外部代付</option></select></label>
-          <label>账户类型<select value={subtype} onChange={(event) => setSubtype(event.target.value as Account['subtype'])}>{kind === 'asset' && <><option value="bank">银行账户</option><option value="cash">现金</option><option value="wallet">电子钱包</option><option value="stored_value">储值卡 / 交通卡</option></>}{kind === 'credit' && <option value="credit_card">本人信用卡</option>}{kind === 'external' && <option value="external_payer">他人代付</option>}</select></label>
+          <label>账户归属<select value={ownership} onChange={(event) => { const next = event.target.value as NonNullable<Account['ownership']>; setOwnership(next); if (next === 'external') setIncludeNetWorth(false) }}><option value="self">本人账户</option><option value="external">外部账户</option></select></label>
+          <label>账户大类<select value={kind === 'external' ? 'asset' : kind} onChange={(event) => { const next = event.target.value as Account['kind']; setKind(next); setSubtype(accountDefaultSubtype(next)) }}><option value="asset">资产 / 储值账户</option><option value="credit">信用卡账户</option></select></label>
+          <label>账户类型<select value={subtype === 'external_payer' || subtype === 'unspecified' ? (kind === 'credit' ? 'credit_card' : 'wallet') : subtype} onChange={(event) => setSubtype(event.target.value as Account['subtype'])}>{kind === 'asset' && <><option value="bank">银行账户</option><option value="cash">现金</option><option value="wallet">电子钱包 / 代付账户</option><option value="stored_value">储值卡 / 交通卡</option></>}{kind === 'credit' && <option value="credit_card">信用卡</option>}</select></label>
           <label>原始币种<select value={currency} onChange={(event) => setCurrency(event.target.value as CurrencyCode)}><option value="JPY">JPY 日元</option><option value="CNY">CNY 人民币</option></select></label>
           <label>初始{kind === 'credit' ? '待还金额' : '余额'}<input inputMode="decimal" value={opening} onChange={(event) => setOpening(event.target.value)} /></label>
-          {kind === 'credit' && <><label>账单日<input inputMode="numeric" value={billingCycleDay} onChange={(event) => setBillingCycleDay(event.target.value)} placeholder="例如 15" /></label><label>预计扣款日<input inputMode="numeric" value={paymentDueDay} onChange={(event) => setPaymentDueDay(event.target.value)} placeholder="例如 27" /></label><label>默认还款账户<select value={defaultPaymentAccountId} onChange={(event) => setDefaultPaymentAccountId(event.target.value)}><option value="">稍后选择</option>{accounts.filter((account) => account.kind === 'asset' && !account.isArchived && account.currency === currency).map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label></>}
+          {kind === 'credit' && <><label>账单日<input inputMode="numeric" value={billingCycleDay} onChange={(event) => setBillingCycleDay(event.target.value)} placeholder="例如 15" /></label><label>预计扣款日<input inputMode="numeric" value={paymentDueDay} onChange={(event) => setPaymentDueDay(event.target.value)} placeholder="例如 27" /></label>{ownership === 'self' && <label>默认还款账户<select value={defaultPaymentAccountId} onChange={(event) => setDefaultPaymentAccountId(event.target.value)}><option value="">稍后选择</option>{accounts.filter((account) => account.kind === 'asset' && accountOwnership(account) === 'self' && !account.isArchived && account.currency === currency).map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>}</>}
           <div className="finance-account-checks">
-            <label><input type="checkbox" checked={includeNetWorth} disabled={kind === 'external'} onChange={(event) => setIncludeNetWorth(event.target.checked)} />计入个人净资产</label>
+            <label><input type="checkbox" checked={includeNetWorth} disabled={ownership === 'external'} onChange={(event) => setIncludeNetWorth(event.target.checked)} />计入个人净资产</label>
             <label><input type="checkbox" checked={includeSpending} onChange={(event) => setIncludeSpending(event.target.checked)} />计入消费统计</label>
           </div>
           <div className="finance-form-actions"><button type="button" onClick={() => { reset(); setOpen(false) }}>取消</button><button className="primary" disabled={saving}>{saving ? '保存中…' : '保存账户'}</button></div>
@@ -554,10 +584,10 @@ function AccountsView({
           const monthPayments = transactions.filter((transaction) => transaction.lifecycleStatus === 'active' && transaction.localDate.startsWith(month) && transaction.counterpartyAccountId === account.id && transaction.type === 'credit_payment').reduce((sum, transaction) => sum + (transaction.counterpartyAmountMinor ?? transaction.amountMinor), 0)
           return <article key={account.id} className="finance-account-card" data-archived={account.isArchived || undefined}>
             <header><span className={`finance-account-mark is-${account.kind}`} /><span className="finance-account-card-actions"><button aria-label="上移账户" onClick={() => void moveAccount(account.id, -1)}>↑</button><button aria-label="下移账户" onClick={() => void moveAccount(account.id, 1)}>↓</button><button onClick={() => setEditingId(account.id)}>编辑</button><button onClick={() => void setAccountArchived(account.id, !account.isArchived)}>{account.isArchived ? '启用' : '停用'}</button></span></header>
-            <span>{ACCOUNT_KIND_LABEL[account.kind]} · {ACCOUNT_SUBTYPE_LABEL[account.subtype]}</span>
+            <span>{accountOwnership(account) === 'external' ? '外部账户' : '本人账户'} · {ACCOUNT_SUBTYPE_LABEL[account.subtype]}</span>
             <h3>{account.name}</h3>
             <strong>{formatMoney(balances.get(account.id) ?? 0, account.currency)}</strong>
-            <small>{account.isArchived ? '已停用 · 历史仍保留' : account.kind === 'credit' ? `本期 ${formatMoney(monthPurchases, account.currency)} · 已还 ${formatMoney(monthPayments, account.currency)}${account.paymentDueDay ? ` · ${account.paymentDueDay} 日扣款` : ''}` : account.kind === 'external' ? '不影响个人资产' : '当前余额'}</small>
+            <small>{account.isArchived ? '已停用 · 历史仍保留' : accountOwnership(account) === 'external' ? '外部资金 · 不影响个人资产或负债' : account.kind === 'credit' ? `本期 ${formatMoney(monthPurchases, account.currency)} · 已还 ${formatMoney(monthPayments, account.currency)}${account.paymentDueDay ? ` · ${account.paymentDueDay} 日扣款` : ''}` : '当前余额'}</small>
           </article>
         })}
       </div>
@@ -660,7 +690,12 @@ function WorkView({
   initialDate: string
   onFeedback: (value: string) => void
 }) {
-  const payoutAccounts = accounts.filter((account) => account.kind === 'asset' && !account.isArchived)
+  const payoutAccounts = accounts.filter(
+    (account) =>
+      account.kind === 'asset' &&
+      accountOwnership(account) === 'self' &&
+      !account.isArchived,
+  )
   const wageSettings = useLiveQuery(() => db.wageSettings.get('#wage'), [])
   const lastDefaultsApplied = useRef(false)
   const [date, setDate] = useState(initialDate)
@@ -675,11 +710,21 @@ function WorkView({
   const [templateId, setTemplateId] = useState('')
   const [templateName, setTemplateName] = useState('')
   const [saving, setSaving] = useState(false)
+  const [settlementEntryId, setSettlementEntryId] = useState('')
+  const [actualPaidAmount, setActualPaidAmount] = useState('')
+  const [settling, setSettling] = useState(false)
 
   const activeEntries = [...entries].sort((a, b) => b.date.localeCompare(a.date))
   const pending = activeEntries.filter((entry) => entry.settlementStatus === 'unsettled' && entry.worked)
-  const pendingEstimated = pending.reduce((sum, entry) => sum + entry.estimatedGrossMinor, 0)
-  const pendingCurrency = pending[0]?.currency ?? currency
+  const pendingByCurrency = pending.reduce((totals, entry) => {
+    totals.set(entry.currency, (totals.get(entry.currency) ?? 0) + entry.estimatedGrossMinor)
+    return totals
+  }, new Map<CurrencyCode, number>())
+  const pendingEstimateLabel = pendingByCurrency.size > 0
+    ? [...pendingByCurrency].map(([entryCurrency, amount]) =>
+        formatMoney(amount, entryCurrency),
+      ).join(' + ')
+    : formatMoney(0, currency)
 
   useEffect(() => {
     if (lastDefaultsApplied.current) return
@@ -762,31 +807,41 @@ function WorkView({
     }
   }
 
-  async function settleOne(entryId: string) {
-    const entry = entries.find((item) => item.id === entryId)
-    if (!entry) return
-    const target = entry.payoutAccountId || payoutAccountId
+  function beginSettlement(entry: WorkEntry) {
+    setSettlementEntryId(entry.id)
+    setActualPaidAmount(String(fromMinor(entry.estimatedGrossMinor, entry.currency)))
+  }
+
+  async function settleOne(entry: WorkEntry) {
+    if (settling) return
+    const savedTarget = payoutAccounts.find((account) => account.id === entry.payoutAccountId)
+    const target = savedTarget?.id || payoutAccountId
     if (!target) {
       onFeedback('请先选择工资入账账户')
       return
     }
+    setSettling(true)
     try {
       await settlePaycheck({
         workEntryIds: [entry.id],
         payoutAccountId: target,
-        actualAmountMinor: entry.estimatedGrossMinor,
+        actualAmountMinor: toMinor(Number(actualPaidAmount), entry.currency),
         currency: entry.currency,
         paidDate: todayISO(),
       })
+      setSettlementEntryId('')
+      setActualPaidAmount('')
       onFeedback('工资已实际入账，并锁定该工作记录防止重复结算')
     } catch (error) {
       onFeedback(error instanceof Error ? error.message : '工资入账失败')
+    } finally {
+      setSettling(false)
     }
   }
 
   return (
     <div className="finance-work-v2">
-      <div className="finance-view-heading"><div><span>待结算 {pending.length} 条</span><h2>工资与工时</h2></div><strong>{formatMoney(pendingEstimated, pendingCurrency)} 预计税前</strong></div>
+      <div className="finance-view-heading"><div><span>待结算 {pending.length} 条</span><h2>工资与工时</h2></div><strong>{pendingEstimateLabel} 预计税前</strong></div>
       <form className="finance-section-card finance-work-composer" onSubmit={submit}>
         <header><div><span>预计工资不计入余额</span><h2>记录工作</h2></div>{templates.length > 0 && <select value={templateId} onChange={(event) => applyTemplate(event.target.value)}><option value="">选择模板</option>{templates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select>}</header>
         <div className="finance-form-grid-v2">
@@ -804,7 +859,7 @@ function WorkView({
       </form>
       <section className="finance-section-card finance-work-records-v2">
         <header><div><span>按日期查看</span><h2>工作记录</h2></div><strong>{activeEntries.length} 条</strong></header>
-        {activeEntries.length ? <ul>{activeEntries.map((entry) => <li key={entry.id}><div><strong>{entry.workContent || entry.employer || '工作'}</strong><span>{entry.date} · {formatMinutes(entry.durationMinutes)}{entry.workLocation ? ` · ${entry.workLocation}` : ''}</span></div><b>{formatMoney(entry.estimatedGrossMinor, entry.currency)}</b>{entry.settlementStatus === 'settled' ? <em>已入账</em> : <button onClick={() => void settleOne(entry.id)}>实际入账</button>}</li>)}</ul> : <div className="finance-empty-state">还没有工作记录</div>}
+        {activeEntries.length ? <ul>{activeEntries.map((entry) => <li key={entry.id}><div><strong>{entry.workContent || entry.employer || '工作'}</strong><span>{entry.date} · {formatMinutes(entry.durationMinutes)}{entry.workLocation ? ` · ${entry.workLocation}` : ''}</span></div><b>{formatMoney(entry.estimatedGrossMinor, entry.currency)}</b>{entry.settlementStatus === 'settled' ? <em>已入账</em> : settlementEntryId === entry.id ? <div className="finance-settlement-inline"><label>实际到账<input autoFocus inputMode="decimal" value={actualPaidAmount} onChange={(event) => setActualPaidAmount(event.target.value)} /></label><button type="button" disabled={settling || !actualPaidAmount} onClick={() => void settleOne(entry)}>{settling ? '入账中…' : '确认入账'}</button><button type="button" disabled={settling} onClick={() => setSettlementEntryId('')}>取消</button></div> : <button type="button" onClick={() => beginSettlement(entry)}>实际入账</button>}</li>)}</ul> : <div className="finance-empty-state">还没有工作记录</div>}
       </section>
     </div>
   )
@@ -839,18 +894,28 @@ function StatsView({
   )
   const categories = new Map<string, number>()
   const merchants = new Map<string, number>()
+  const transactionById = new Map(
+    transactions.map((transaction) => [transaction.id, transaction]),
+  )
   for (const transaction of transactions) {
     if (transaction.localDate < startDate || transaction.localDate > endDate) continue
-    if (!transaction.includeInSpending || !['expense', 'credit_purchase', 'external_payment'].includes(transaction.type)) continue
+    if (
+      !transaction.includeInSpending ||
+      !['expense', 'credit_purchase', 'external_payment', 'refund'].includes(transaction.type)
+    ) continue
     const value = transaction.reportingCurrency === reportingCurrency
       ? transaction.reportingAmountMinor ?? 0
       : transaction.currency === reportingCurrency
         ? transaction.amountMinor
         : 0
-    const category = transaction.categoryNameSnapshot ?? '未分类'
-    const merchant = transaction.merchantNameSnapshot ?? '未填写商家'
-    categories.set(category, (categories.get(category) ?? 0) + value)
-    merchants.set(merchant, (merchants.get(merchant) ?? 0) + value)
+    const linked = transaction.linkedTransactionId
+      ? transactionById.get(transaction.linkedTransactionId)
+      : undefined
+    const category = transaction.categoryNameSnapshot ?? linked?.categoryNameSnapshot ?? '未分类'
+    const merchant = transaction.merchantNameSnapshot ?? linked?.merchantNameSnapshot ?? '未填写商家'
+    const signedValue = transaction.type === 'refund' ? -value : value
+    categories.set(category, (categories.get(category) ?? 0) + signedValue)
+    merchants.set(merchant, (merchants.get(merchant) ?? 0) + signedValue)
   }
   const latest = [...rates].sort((a, b) => b.fetchedAt.localeCompare(a.fetchedAt))[0]
 
@@ -912,10 +977,180 @@ function Breakdown({ title, data, currency }: { title: string; data: [string, nu
   return <section className="finance-section-card finance-breakdown-v2"><header><div><span>本月消费</span><h2>{title}</h2></div></header>{data.length ? <ul>{data.slice(0, 10).map(([label, value]) => <li key={label}><span>{label}</span><strong>{formatMoney(value, currency)}</strong></li>)}</ul> : <div className="finance-empty-state">暂无可统计数据</div>}</section>
 }
 
+function ExpenseCategoryManager({
+  categories,
+  onFeedback,
+}: {
+  categories: ExpenseCategory[]
+  onFeedback: (value: string) => void
+}) {
+  const [newName, setNewName] = useState('')
+  const [editingId, setEditingId] = useState<string>()
+  const [editingName, setEditingName] = useState('')
+  const [archivingId, setArchivingId] = useState<string>()
+
+  async function create() {
+    try {
+      await saveExpenseCategory({ name: newName })
+      setNewName('')
+      onFeedback('分类已添加')
+    } catch (error) {
+      onFeedback(error instanceof Error ? error.message : '分类添加失败')
+    }
+  }
+
+  async function move(id: string, direction: -1 | 1) {
+    try {
+      await moveExpenseCategory(id, direction)
+    } catch (error) {
+      onFeedback(error instanceof Error ? error.message : '分类排序失败')
+    }
+  }
+
+  async function archive(id: string, replacementId?: string) {
+    try {
+      await archiveExpenseCategory(id, replacementId)
+      setArchivingId(undefined)
+      onFeedback(replacementId
+        ? `已合并到「${categories.find((item) => item.id === replacementId)?.name ?? '目标分类'}」`
+        : '分类已归档，历史记录转为未分类')
+    } catch (error) {
+      onFeedback(error instanceof Error ? error.message : '分类归档失败')
+    }
+  }
+
+  return (
+    <div className="expense-category-manager">
+      <div className="expense-category-create">
+        <input
+          value={newName}
+          onChange={(event) => setNewName(event.target.value)}
+          onKeyDown={(event) => event.key === 'Enter' && void create()}
+          placeholder="新建分类，例如 美容"
+        />
+        <button type="button" disabled={!newName.trim()} onClick={() => void create()}>添加</button>
+      </div>
+      <ul>
+        {categories.map((category, index) => (
+          <li key={category.id}>
+            <span className="expense-category-dot" aria-hidden />
+            {editingId === category.id ? (
+              <input
+                autoFocus
+                value={editingName}
+                onChange={(event) => setEditingName(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Escape') setEditingId(undefined)
+                  if (event.key === 'Enter') {
+                    void saveExpenseCategory({ id: category.id, name: editingName, icon: category.icon })
+                      .then(() => { setEditingId(undefined); onFeedback('分类已重命名') })
+                      .catch((error: unknown) => onFeedback(error instanceof Error ? error.message : '重命名失败'))
+                  }
+                }}
+              />
+            ) : <strong>{category.name}</strong>}
+            <div className="expense-category-row-actions">
+              <button type="button" aria-label={`上移 ${category.name}`} disabled={index === 0} onClick={() => void move(category.id, -1)}>↑</button>
+              <button type="button" aria-label={`下移 ${category.name}`} disabled={index === categories.length - 1} onClick={() => void move(category.id, 1)}>↓</button>
+              <button type="button" onClick={() => { setEditingId(category.id); setEditingName(category.name) }}>重命名</button>
+              <button type="button" onClick={() => setArchivingId((value) => value === category.id ? undefined : category.id)}>归档</button>
+            </div>
+            {archivingId === category.id && (
+              <div className="expense-category-merge-options">
+                <span>历史流水处理：</span>
+                <button type="button" onClick={() => void archive(category.id)}>转为未分类</button>
+                {categories.filter((item) => item.id !== category.id).map((item) => (
+                  <button key={item.id} type="button" onClick={() => void archive(category.id, item.id)}>合并到 {item.name}</button>
+                ))}
+              </div>
+            )}
+          </li>
+        ))}
+      </ul>
+      <p>“未分类”是系统保底项，不会被删除。</p>
+    </div>
+  )
+}
+
+function ExpenseCategoryManagerSheet({
+  categories,
+  onClose,
+  onFeedback,
+}: {
+  categories: ExpenseCategory[]
+  onClose: () => void
+  onFeedback: (value: string) => void
+}) {
+  const dialogRef = useRef<HTMLElement>(null)
+  const sheetRef = useRef<GestureSheetHandle>(null)
+  return (
+    <GestureSheet ref={sheetRef} dialogRef={dialogRef} labelledBy="expense-category-manager-title" className="editor-sheet expense-category-sheet" onClose={onClose}>
+      <div className="category-sheet-layout">
+        <header><div><span>支出分类</span><h2 id="expense-category-manager-title">分类管理</h2></div><button type="button" aria-label="关闭" onClick={() => sheetRef.current?.close()}><AppIcon name="close" size={20} /></button></header>
+        <div className="category-sheet-scroll"><ExpenseCategoryManager categories={categories} onFeedback={onFeedback} /></div>
+      </div>
+    </GestureSheet>
+  )
+}
+
+function ExpenseCategoryPickerSheet({
+  categories,
+  selectedId,
+  onSelect,
+  onClose,
+}: {
+  categories: ExpenseCategory[]
+  selectedId: string
+  onSelect: (id: string) => void
+  onClose: () => void
+}) {
+  const dialogRef = useRef<HTMLElement>(null)
+  const sheetRef = useRef<GestureSheetHandle>(null)
+  const [search, setSearch] = useState('')
+  const [newName, setNewName] = useState('')
+  const [managing, setManaging] = useState(false)
+  const [feedback, setFeedback] = useState('')
+  const filtered = categories.filter((category) => category.name.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()))
+
+  async function createAndSelect() {
+    try {
+      const id = await saveExpenseCategory({ name: newName })
+      onSelect(id)
+      sheetRef.current?.close()
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : '分类添加失败')
+    }
+  }
+
+  return (
+    <GestureSheet ref={sheetRef} dialogRef={dialogRef} labelledBy="expense-category-picker-title" className="editor-sheet expense-category-sheet" onClose={onClose}>
+      <div className="category-sheet-layout">
+        <header><div><span>快速记账</span><h2 id="expense-category-picker-title">{managing ? '管理分类' : '选择分类'}</h2></div><button type="button" aria-label="关闭" onClick={() => sheetRef.current?.close()}><AppIcon name="close" size={20} /></button></header>
+        {managing ? (
+          <div className="category-sheet-scroll"><ExpenseCategoryManager categories={categories} onFeedback={setFeedback} /></div>
+        ) : (
+          <>
+            <div className="category-picker-search"><AppIcon name="search" size={18} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索分类" /></div>
+            <div className="category-sheet-scroll category-picker-list" role="listbox" aria-label="支出分类">
+              <button type="button" role="option" aria-selected={!selectedId} onClick={() => { onSelect(''); sheetRef.current?.close() }}><span>未分类</span>{!selectedId && <AppIcon name="check" size={18} />}</button>
+              {filtered.map((category) => (
+                <button key={category.id} type="button" role="option" aria-selected={selectedId === category.id} onClick={() => { onSelect(category.id); sheetRef.current?.close() }}><span>{category.name}</span>{selectedId === category.id && <AppIcon name="check" size={18} />}</button>
+              ))}
+            </div>
+            <div className="category-picker-create"><input value={newName} onChange={(event) => setNewName(event.target.value)} placeholder="＋ 新建分类" /><button type="button" disabled={!newName.trim()} onClick={() => void createAndSelect()}>添加并选中</button></div>
+          </>
+        )}
+        <footer><span role="status">{feedback}</span><button type="button" onClick={() => setManaging((value) => !value)}>{managing ? '返回选择' : '管理分类'}</button></footer>
+      </div>
+    </GestureSheet>
+  )
+}
+
 function FinanceEntrySheet({
   initialKind,
   editing,
   accounts,
+  transactions,
   categories,
   reportingCurrency,
   onSaved,
@@ -924,6 +1159,7 @@ function FinanceEntrySheet({
   initialKind: EntryKind
   editing?: FinanceTransaction
   accounts: Account[]
+  transactions: FinanceTransaction[]
   categories: ExpenseCategory[]
   reportingCurrency: CurrencyCode
   onSaved: (message: string) => void
@@ -931,6 +1167,16 @@ function FinanceEntrySheet({
 }) {
   const dialogRef = useRef<HTMLElement>(null)
   const sheetRef = useRef<GestureSheetHandle>(null)
+  const kindBarRef = useRef<HTMLDivElement>(null)
+  const savedMessageRef = useRef('')
+  const draftsRef = useRef<Partial<Record<EntryKind, {
+    destinationId: string
+    destinationAmount: string
+    categoryId: string
+    merchant: string
+    linkedTransactionId: string
+  }>>>({})
+  const reduceMotion = useReducedMotion()
   const [kind, setKind] = useState<EntryKind>(initialKind)
   const [amount, setAmount] = useState(editing ? String(fromMinor(editing.amountMinor, editing.currency)) : '')
   const [date, setDate] = useState(editing?.localDate ?? todayISO())
@@ -941,28 +1187,104 @@ function FinanceEntrySheet({
   const [merchant, setMerchant] = useState(editing?.merchantNameSnapshot ?? '')
   const [note, setNote] = useState(editing?.note ?? '')
   const [includeInSpending, setIncludeInSpending] = useState(editing?.includeInSpending ?? true)
+  const [linkedTransactionId, setLinkedTransactionId] = useState('')
+  const [categoryPickerOpen, setCategoryPickerOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const source = accounts.find((account) => account.id === accountId)
-  const currency = source?.currency ?? 'JPY'
   const transferKinds = ['transfer', 'credit_payment', 'topup'].includes(kind)
+  const sourceOptions = useMemo(
+    () => accounts.filter((account) => {
+      if (account.isArchived) return false
+      if (transferKinds || kind === 'income') {
+        return account.kind === 'asset' && accountOwnership(account) === 'self'
+      }
+      return true
+    }),
+    [accounts, kind, transferKinds],
+  )
+  const refundedByOriginal = new Map<string, number>()
+  for (const transaction of transactions) {
+    if (
+      transaction.lifecycleStatus === 'active' &&
+      transaction.type === 'refund' &&
+      transaction.linkedTransactionId
+    ) {
+      refundedByOriginal.set(
+        transaction.linkedTransactionId,
+        (refundedByOriginal.get(transaction.linkedTransactionId) ?? 0) + transaction.amountMinor,
+      )
+    }
+  }
+  const refundableTransactions = transactions
+    .filter(
+      (transaction) =>
+        transaction.lifecycleStatus === 'active' &&
+        ['expense', 'credit_purchase', 'external_payment'].includes(transaction.type) &&
+        (refundedByOriginal.get(transaction.id) ?? 0) < transaction.amountMinor,
+    )
+    .sort((a, b) => b.localDate.localeCompare(a.localDate))
+  const selectedRefundOrigin = refundableTransactions.find(
+    (transaction) => transaction.id === linkedTransactionId,
+  )
+  const effectiveAccountId = kind === 'refund'
+    ? selectedRefundOrigin?.accountId ?? ''
+    : accountId
+  const source = accounts.find((account) => account.id === effectiveAccountId)
+  const currency = source?.currency ?? selectedRefundOrigin?.currency ?? 'JPY'
   const destinationOptions = accounts.filter((account) => {
     if (account.isArchived) return false
     if (account.id === accountId) return false
-    if (kind === 'credit_payment') return account.kind === 'credit'
-    return account.kind === 'asset'
+    if (kind === 'credit_payment') return account.kind === 'credit' && accountOwnership(account) === 'self'
+    if (kind === 'topup') return account.kind === 'asset' && accountOwnership(account) === 'self'
+    return account.kind === 'asset' && accountOwnership(account) === 'self'
   })
+  const dirty = Boolean(
+    amount || destinationAmount || categoryId || merchant.trim() || note.trim() || linkedTransactionId ||
+    date !== (editing?.localDate ?? todayISO()) || accountId !== (editing?.accountId ?? accounts[0]?.id ?? ''),
+  )
+  const selectedCategory = categories.find((category) => category.id === categoryId)
 
   useEffect(() => {
     dialogRef.current?.focus({ preventScroll: true })
   }, [])
 
+  useEffect(() => {
+    const bar = kindBarRef.current
+    const active = bar?.querySelector<HTMLButtonElement>(`button[data-kind="${kind}"]`)
+    if (!bar || !active) return
+    const left = active.offsetLeft - (bar.clientWidth - active.offsetWidth) / 2
+    bar.scrollTo({ left: Math.max(0, left), behavior: reduceMotion ? 'auto' : 'smooth' })
+  }, [kind, reduceMotion])
+
+  useEffect(() => {
+    if (kind === 'refund' || sourceOptions.some((account) => account.id === accountId)) return
+    setAccountId(sourceOptions[0]?.id ?? '')
+  }, [accountId, kind, sourceOptions])
+
+  function switchKind(next: EntryKind) {
+    draftsRef.current[kind] = {
+      destinationId,
+      destinationAmount,
+      categoryId,
+      merchant,
+      linkedTransactionId,
+    }
+    const nextDraft = draftsRef.current[next]
+    setKind(next)
+    setDestinationId(nextDraft?.destinationId ?? '')
+    setDestinationAmount(nextDraft?.destinationAmount ?? '')
+    setCategoryId(nextDraft?.categoryId ?? '')
+    setMerchant(nextDraft?.merchant ?? '')
+    setLinkedTransactionId(nextDraft?.linkedTransactionId ?? '')
+  }
+
   async function submit(event: FormEvent) {
     event.preventDefault()
-    if (saving || !source) return
+    if (saving) return
     setSaving(true)
     setError('')
     try {
+      if (!source) throw new Error(kind === 'refund' ? '请选择原消费记录' : '请选择有效账户')
       const amountMinor = toMinor(Number(amount), currency)
       if (kind === 'expense') {
         const converted = await convertWithCachedRate({
@@ -992,7 +1314,8 @@ function FinanceEntrySheet({
       } else if (kind === 'income') {
         await saveIncome({ amountMinor, currency, localDate: date, accountId, note })
       } else if (kind === 'refund') {
-        await saveRefund({ amountMinor, currency, localDate: date, accountId, note, includeInSpending })
+        if (!linkedTransactionId) throw new Error('请选择原消费记录')
+        await saveRefund({ amountMinor, localDate: date, linkedTransactionId, note })
       } else {
         if (!destinationId) throw new Error('请选择转入账户')
         const destination = accounts.find((account) => account.id === destinationId)
@@ -1007,7 +1330,8 @@ function FinanceEntrySheet({
           note,
         })
       }
-      onSaved(editing ? '流水已更新，所有汇总已重算' : `${kind === 'expense' ? '支出' : kind === 'income' ? '收入' : kind === 'refund' ? '退款' : '转账'}已保存`)
+      savedMessageRef.current = editing ? '流水已更新，所有汇总已重算' : `${kind === 'expense' ? '支出' : kind === 'income' ? '收入' : kind === 'refund' ? '退款' : '转账'}已保存`
+      sheetRef.current?.close()
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : '保存失败')
     } finally {
@@ -1016,24 +1340,44 @@ function FinanceEntrySheet({
   }
 
   return (
-    <GestureSheet ref={sheetRef} dialogRef={dialogRef} labelledBy="finance-entry-title" className="editor-sheet finance-ledger-sheet" onClose={onClose}>
-      <form onSubmit={submit}>
-        <header><div><span>原币种金额会永久保留</span><h2 id="finance-entry-title">{editing ? '编辑流水' : '快速记账'}</h2></div><button type="button" aria-label="关闭" onClick={() => sheetRef.current?.close()}><AppIcon name="close" size={20} /></button></header>
-        {!editing && <div className="finance-entry-kind">{(['expense', 'income', 'transfer', 'credit_payment', 'topup', 'refund'] as EntryKind[]).map((value) => <button type="button" key={value} aria-pressed={kind === value} onClick={() => { setKind(value); setDestinationId('') }}>{value === 'expense' ? '支出' : value === 'income' ? '收入' : value === 'transfer' ? '转账' : value === 'credit_payment' ? '还信用卡' : value === 'topup' ? '充值' : '退款'}</button>)}</div>}
-        <label className="finance-amount-field"><span>金额 · {currency}</span><input autoFocus inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="0" /></label>
+    <>
+    <GestureSheet
+      ref={sheetRef}
+      dialogRef={dialogRef}
+      labelledBy="finance-entry-title"
+      className="editor-sheet finance-ledger-sheet"
+      canClose={() => Boolean(savedMessageRef.current) || !dirty || window.confirm('还有未保存的内容，确定关闭吗？')}
+      onClose={() => savedMessageRef.current ? onSaved(savedMessageRef.current) : onClose()}
+    >
+      <form className="finance-sheet-layout" onSubmit={submit}>
+        <header className="finance-sheet-header"><div><span>原币种金额会永久保留</span><h2 id="finance-entry-title">{editing ? '编辑流水' : '快速记账'}</h2></div><button type="button" aria-label="关闭" onClick={() => sheetRef.current?.close()}><AppIcon name="close" size={20} /></button></header>
+        {!editing && <div ref={kindBarRef} className="finance-entry-kind">{(['expense', 'income', 'transfer', 'credit_payment', 'topup', 'refund'] as EntryKind[]).map((value) => <button type="button" data-kind={value} key={value} aria-pressed={kind === value} onClick={() => switchKind(value)}>{value === 'expense' ? '支出' : value === 'income' ? '收入' : value === 'transfer' ? '转账' : value === 'credit_payment' ? '还信用卡' : value === 'topup' ? '充值' : '退款'}</button>)}</div>}
+        <div className="finance-sheet-body">
+        <label className="finance-amount-field"><span>金额 · {currency}</span><input inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="0" /></label>
         <div className="finance-sheet-grid">
           <label>日期<input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label>
-          <label>{transferKinds ? '转出账户' : kind === 'income' ? '入账账户' : '支付账户'}<select value={accountId} onChange={(event) => setAccountId(event.target.value)}>{accounts.filter((account) => !account.isArchived && ((transferKinds || kind === 'income') ? account.kind === 'asset' : true)).map((account) => <option key={account.id} value={account.id}>{account.name} · {account.currency}</option>)}</select></label>
+          {kind === 'refund' ? (
+            <label className="wide">原消费记录<select required value={linkedTransactionId} onChange={(event) => setLinkedTransactionId(event.target.value)}><option value="">请选择可退款消费</option>{refundableTransactions.map((transaction) => {
+              const remaining = transaction.amountMinor - (refundedByOriginal.get(transaction.id) ?? 0)
+              return <option key={transaction.id} value={transaction.id}>{transaction.localDate} · {transaction.merchantNameSnapshot || transaction.note || '未命名消费'} · 可退 {fromMinor(remaining, transaction.currency)} {transaction.currency}</option>
+            })}</select></label>
+          ) : (
+            <label>{transferKinds ? '转出账户' : kind === 'income' ? '入账账户' : '支付账户'}<select value={accountId} onChange={(event) => setAccountId(event.target.value)}>{sourceOptions.map((account) => <option key={account.id} value={account.id}>{account.name} · {account.currency}</option>)}</select></label>
+          )}
           {transferKinds && <><label>转入账户<select value={destinationId} onChange={(event) => setDestinationId(event.target.value)}><option value="">请选择</option>{destinationOptions.map((account) => <option key={account.id} value={account.id}>{account.name} · {account.currency}</option>)}</select></label><label>到账金额<input inputMode="decimal" value={destinationAmount} onChange={(event) => setDestinationAmount(event.target.value)} placeholder={amount || '0'} /></label></>}
-          {kind === 'expense' && <><label>分类<select value={categoryId} onChange={(event) => setCategoryId(event.target.value)}><option value="">未分类</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label><label>商家 / 地点<input value={merchant} onChange={(event) => setMerchant(event.target.value)} placeholder="例如 Amazon、药局" /></label></>}
+          {kind === 'expense' && <><label>分类<button type="button" className="finance-category-trigger" onClick={() => setCategoryPickerOpen(true)}><span>{selectedCategory?.name ?? '未分类'}</span><AppIcon name="chevronRight" size={17} /></button></label><label>商家 / 地点<input value={merchant} onChange={(event) => setMerchant(event.target.value)} placeholder="例如 Amazon、药局" /></label></>}
           <label className="wide">备注<input value={note} onChange={(event) => setNote(event.target.value)} /></label>
-          {(kind === 'expense' || kind === 'refund') && <label className="wide finance-sheet-check"><input type="checkbox" checked={includeInSpending} onChange={(event) => setIncludeInSpending(event.target.checked)} />计入本月消费行为统计</label>}
+          {kind === 'expense' && <button type="button" role="switch" aria-checked={includeInSpending} className="wide finance-sheet-setting finance-stat-switch" onClick={() => setIncludeInSpending((value) => !value)}><span>计入消费统计<small>资金来源由支付账户归属决定</small></span><i aria-hidden /></button>}
         </div>
-        {source?.kind === 'external' && <p className="finance-entry-notice">外部代付只记录消费行为，不会减少个人资产或增加个人负债。</p>}
-        {source?.kind === 'credit' && <p className="finance-entry-notice">本人信用卡消费会增加待还金额；之后还款不会再次计为支出。</p>}
+        {kind === 'refund' && selectedRefundOrigin && <p className="finance-entry-notice">退款会沿用原消费的账户、币种、分类和资金来源，并冲减原统计。</p>}
+        {kind === 'expense' && accountOwnership(source) === 'external' && <p className="finance-entry-notice">外部代付会进入消费行为统计，但不会减少个人资产或增加个人负债。</p>}
+        {kind === 'expense' && source?.kind === 'credit' && accountOwnership(source) === 'self' && <p className="finance-entry-notice">本人信用卡消费会增加待还金额；之后还款不会再次计为支出。</p>}
         {error && <p className="finance-sheet-error" role="alert">{error}</p>}
+        </div>
         <div className="finance-sheet-actions"><button type="button" onClick={() => sheetRef.current?.close()}>取消</button><button className="primary" disabled={saving || !amount}>{saving ? '保存中…' : editing ? '保存修改' : '保存'}</button></div>
       </form>
     </GestureSheet>
+    {categoryPickerOpen && <ExpenseCategoryPickerSheet categories={categories} selectedId={categoryId} onSelect={setCategoryId} onClose={() => setCategoryPickerOpen(false)} />}
+    </>
   )
 }

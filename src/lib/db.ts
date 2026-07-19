@@ -16,6 +16,7 @@ import type {
   WorkTemplate,
 } from './ledgerTypes'
 import { migrateLegacyFinanceData } from './financeMigration'
+import { ensureFinanceOwnershipMigration } from './financeOwnershipMigration'
 
 /**
  * 数据模型见技术方案 v4.2 §8。
@@ -170,8 +171,11 @@ export interface WageSettings {
 export interface ExpenseCategory {
   id: string
   name: string
+  icon?: MarkerSymbol
   colorToken: ColorToken
   rank: string
+  sortOrder?: number
+  archived?: boolean
   lifecycleStatus: LifecycleStatus
   deletedAt?: string
   createdAt: string
@@ -318,6 +322,17 @@ db.version(9).stores({
       })
   })
 
+// v10：账户类型与账户归属解耦，并为可管理的支出分类补充稳定字段。
+// 实际字段回填在 ready 后幂等执行，避免在 Dexie Cloud 同步表的
+// Version.upgrade 中批量改写旧数据。
+db.version(10).stores({
+  accounts:
+    'id, lifecycleStatus, kind, ownership, subtype, currency, rank, [lifecycleStatus+rank]',
+  financeTransactions:
+    'id, lifecycleStatus, type, fundingParty, localDate, accountId, counterpartyAccountId, categoryId, merchantId, transferId, paycheckId, [lifecycleStatus+localDate], [accountId+localDate]',
+  expenseCategories: 'id, lifecycleStatus, archived, rank, sortOrder',
+})
+
 if (cloudEnabled) {
   db.cloud.configure({
     databaseUrl: DEXIE_CLOUD_URL,
@@ -360,15 +375,16 @@ db.on('ready', async () => {
   if ((await db.expenseCategories.count()) === 0) {
     const createdAt = new Date().toISOString()
     await db.expenseCategories.bulkPut([
-      { id: 'expense-food', name: '餐饮', colorToken: 'orange', rank: '0001', lifecycleStatus: 'active', createdAt, updatedAt: createdAt },
-      { id: 'expense-shopping', name: '购物', colorToken: 'pink', rank: '0002', lifecycleStatus: 'active', createdAt, updatedAt: createdAt },
-      { id: 'expense-transit', name: '交通', colorToken: 'blue', rank: '0003', lifecycleStatus: 'active', createdAt, updatedAt: createdAt },
-      { id: 'expense-life', name: '生活', colorToken: 'green', rank: '0004', lifecycleStatus: 'active', createdAt, updatedAt: createdAt },
-      { id: 'expense-study', name: '学习', colorToken: 'purple', rank: '0005', lifecycleStatus: 'active', createdAt, updatedAt: createdAt },
+      { id: 'expense-food', name: '餐饮', icon: 'dot', colorToken: 'orange', rank: '0001', sortOrder: 0, archived: false, lifecycleStatus: 'active', createdAt, updatedAt: createdAt },
+      { id: 'expense-shopping', name: '购物', icon: 'dot', colorToken: 'pink', rank: '0002', sortOrder: 1, archived: false, lifecycleStatus: 'active', createdAt, updatedAt: createdAt },
+      { id: 'expense-transit', name: '交通', icon: 'dot', colorToken: 'blue', rank: '0003', sortOrder: 2, archived: false, lifecycleStatus: 'active', createdAt, updatedAt: createdAt },
+      { id: 'expense-life', name: '生活', icon: 'dot', colorToken: 'green', rank: '0004', sortOrder: 3, archived: false, lifecycleStatus: 'active', createdAt, updatedAt: createdAt },
+      { id: 'expense-study', name: '学习', icon: 'dot', colorToken: 'purple', rank: '0005', sortOrder: 4, archived: false, lifecycleStatus: 'active', createdAt, updatedAt: createdAt },
     ])
   }
 
   if (financeLedgerV2Enabled) {
     await migrateLegacyFinanceData(db)
+    await ensureFinanceOwnershipMigration(db)
   }
 })
