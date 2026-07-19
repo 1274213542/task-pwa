@@ -2709,6 +2709,7 @@ select:focus {
 }
 
 .finance-ledger-tabs {
+  position: relative;
   display: grid;
   min-height: 48px;
   grid-template-columns: repeat(5, minmax(max-content, 1fr));
@@ -2726,6 +2727,8 @@ select:focus {
 }
 
 .finance-ledger-tabs button {
+  position: relative;
+  z-index: 1;
   min-width: 72px;
   min-height: 40px;
   border-radius: calc(var(--ds-radius-control) - 4px);
@@ -2733,13 +2736,40 @@ select:focus {
   font-size: 0.76rem;
   font-weight: 620;
   white-space: nowrap;
-  transition: color var(--ds-duration-control) var(--ds-ease-out),
-    background-color var(--ds-duration-control) var(--ds-ease-out);
+  transition: color var(--ds-duration-control) var(--ds-ease-out);
 }
 
 .finance-ledger-tabs button[aria-selected='true'] {
-  background: var(--neutral-selected);
+  background: transparent;
   color: var(--ui-ink);
+}
+
+.finance-ledger-tab-surface {
+  position: absolute;
+  top: 3px;
+  left: 0;
+  z-index: 0;
+  height: 40px;
+  border-radius: calc(var(--ds-radius-control) - 4px);
+  background: var(--neutral-selected);
+  opacity: 0;
+  pointer-events: none;
+  will-change: transform, width;
+}
+
+.finance-ledger-tab-surface[data-ready='true'] {
+  opacity: 1;
+}
+
+.finance-ledger-view-viewport {
+  min-width: 0;
+  overflow-x: clip;
+}
+
+.finance-ledger-view-surface {
+  min-width: 0;
+  transform-origin: center top;
+  will-change: transform, opacity;
 }
 
 .finance-ledger-toolbar {

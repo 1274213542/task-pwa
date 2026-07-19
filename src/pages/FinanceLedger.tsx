@@ -1,5 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { motion, useReducedMotion } from 'motion/react'
 import { Link, useLocation } from 'react-router-dom'
 import AppIcon from '../components/AppIcon'
 import GestureSheet, { type GestureSheetHandle } from '../components/GestureSheet'
@@ -7,6 +8,7 @@ import MobilePageHeader from '../components/MobilePageHeader'
 import PageHeader from '../components/PageHeader'
 import { db, type ExpenseCategory } from '../lib/db'
 import { cachedRate, convertWithCachedRate, refreshExchangeRate } from '../lib/exchangeRates'
+import { MOTION } from '../lib/motion'
 import {
   calculateAccountBalances,
   fromMinor,
@@ -107,11 +109,19 @@ export default function FinanceLedger() {
   const location = useLocation()
   const query = useMemo(() => new URLSearchParams(location.search), [location.search])
   const [view, setView] = useState<FinanceView>(query.get('mode') === 'work' ? 'work' : 'overview')
+  const [tabSurface, setTabSurface] = useState({ x: 0, width: 0 })
   const [reportingCurrency, setReportingCurrency] = useState<CurrencyCode>('JPY')
   const [entryOpen, setEntryOpen] = useState(query.get('new') === '1')
   const [entryKind, setEntryKind] = useState<EntryKind>('expense')
   const [editingTransaction, setEditingTransaction] = useState<FinanceTransaction | undefined>()
   const [feedback, setFeedback] = useState('')
+  const financeTabsRef = useRef<HTMLElement>(null)
+  const financeTabRefs = useRef(new Map<FinanceView, HTMLButtonElement>())
+  const previousViewRef = useRef(view)
+  const reduceMotion = useReducedMotion()
+  const previousViewIndex = VIEW_ITEMS.findIndex((item) => item.id === previousViewRef.current)
+  const currentViewIndex = VIEW_ITEMS.findIndex((item) => item.id === view)
+  const viewDirection = currentViewIndex >= previousViewIndex ? 1 : -1
 
   const accountsLive = useLiveQuery(
     () => db.accounts.where('lifecycleStatus').equals('active').sortBy('rank'),
@@ -162,6 +172,29 @@ export default function FinanceLedger() {
     if (query.get('mode') === 'work') setView('work')
   }, [query])
 
+  useEffect(() => {
+    previousViewRef.current = view
+  }, [view])
+
+  useLayoutEffect(() => {
+    const tabs = financeTabsRef.current
+    const activeButton = financeTabRefs.current.get(view)
+    if (!tabs || !activeButton) return
+
+    const updateSurface = () => {
+      setTabSurface({
+        x: activeButton.offsetLeft,
+        width: activeButton.offsetWidth,
+      })
+      activeButton.scrollIntoView({ behavior: 'auto', block: 'nearest', inline: 'nearest' })
+    }
+
+    updateSurface()
+    const observer = new ResizeObserver(updateSurface)
+    observer.observe(tabs)
+    return () => observer.disconnect()
+  }, [view])
+
   function openEntry(kind: EntryKind = 'expense', transaction?: FinanceTransaction) {
     setEntryKind(kind)
     setEditingTransaction(transaction)
@@ -197,10 +230,21 @@ export default function FinanceLedger() {
         }
       />
 
-      <nav className="finance-ledger-tabs" aria-label="财务页面">
+      <nav ref={financeTabsRef} className="finance-ledger-tabs" aria-label="财务页面">
+        <motion.span
+          aria-hidden="true"
+          className="finance-ledger-tab-surface"
+          data-ready={tabSurface.width > 0 || undefined}
+          animate={{ x: tabSurface.x, width: tabSurface.width }}
+          transition={reduceMotion ? MOTION.reduced : MOTION.control}
+        />
         {VIEW_ITEMS.map((item) => (
           <button
             key={item.id}
+            ref={(node) => {
+              if (node) financeTabRefs.current.set(item.id, node)
+              else financeTabRefs.current.delete(item.id)
+            }}
             type="button"
             aria-selected={view === item.id}
             onClick={() => setView(item.id)}
@@ -224,55 +268,67 @@ export default function FinanceLedger() {
         </label>
       </div>
 
-      {view === 'overview' && (
-        <FinanceOverview
-          accounts={accounts}
-          balances={balances}
-          transactions={recentTransactions}
-          currency={reportingCurrency}
-          summary={currentSummary}
-          workEntries={workEntries}
-          onOpenAccounts={() => setView('accounts')}
-          onOpenTransactions={() => setView('transactions')}
-          onNew={openEntry}
-        />
-      )}
-      {view === 'accounts' && (
-        <AccountsView
-          accounts={accounts}
-          balances={balances}
-          transactions={transactions}
-          onFeedback={setFeedback}
-          onTransfer={() => openEntry('transfer')}
-        />
-      )}
-      {view === 'transactions' && (
-        <TransactionsView
-          transactions={recentTransactions}
-          accounts={accounts}
-          onNew={openEntry}
-          onEdit={(transaction) => openEntry('expense', transaction)}
-          onFeedback={setFeedback}
-        />
-      )}
-      {view === 'work' && (
-        <WorkView
-          entries={workEntries}
-          templates={workTemplates}
-          accounts={accounts}
-          initialDate={query.get('date') ?? todayISO()}
-          onFeedback={setFeedback}
-        />
-      )}
-      {view === 'stats' && (
-        <StatsView
-          accounts={accounts}
-          transactions={transactions}
-          rates={rates}
-          reportingCurrency={reportingCurrency}
-          onFeedback={setFeedback}
-        />
-      )}
+      <div className="finance-ledger-view-viewport">
+        <motion.div
+          key={view}
+          className="finance-ledger-view-surface"
+          initial={reduceMotion
+            ? { x: 0, opacity: 0.84 }
+            : { x: viewDirection * 16, opacity: 0.94 }}
+          animate={{ x: 0, opacity: 1 }}
+          transition={reduceMotion ? MOTION.reduced : MOTION.route}
+        >
+          {view === 'overview' && (
+            <FinanceOverview
+              accounts={accounts}
+              balances={balances}
+              transactions={recentTransactions}
+              currency={reportingCurrency}
+              summary={currentSummary}
+              workEntries={workEntries}
+              onOpenAccounts={() => setView('accounts')}
+              onOpenTransactions={() => setView('transactions')}
+              onNew={openEntry}
+            />
+          )}
+          {view === 'accounts' && (
+            <AccountsView
+              accounts={accounts}
+              balances={balances}
+              transactions={transactions}
+              onFeedback={setFeedback}
+              onTransfer={() => openEntry('transfer')}
+            />
+          )}
+          {view === 'transactions' && (
+            <TransactionsView
+              transactions={recentTransactions}
+              accounts={accounts}
+              onNew={openEntry}
+              onEdit={(transaction) => openEntry('expense', transaction)}
+              onFeedback={setFeedback}
+            />
+          )}
+          {view === 'work' && (
+            <WorkView
+              entries={workEntries}
+              templates={workTemplates}
+              accounts={accounts}
+              initialDate={query.get('date') ?? todayISO()}
+              onFeedback={setFeedback}
+            />
+          )}
+          {view === 'stats' && (
+            <StatsView
+              accounts={accounts}
+              transactions={transactions}
+              rates={rates}
+              reportingCurrency={reportingCurrency}
+              onFeedback={setFeedback}
+            />
+          )}
+        </motion.div>
+      </div>
 
       {entryOpen && (
         <FinanceEntrySheet
