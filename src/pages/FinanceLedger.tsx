@@ -109,7 +109,7 @@ export default function FinanceLedger() {
   const location = useLocation()
   const query = useMemo(() => new URLSearchParams(location.search), [location.search])
   const [view, setView] = useState<FinanceView>(query.get('mode') === 'work' ? 'work' : 'overview')
-  const [tabSurface, setTabSurface] = useState({ x: 0, width: 0 })
+  const [tabSurfaceX, setTabSurfaceX] = useState<number | null>(null)
   const [reportingCurrency, setReportingCurrency] = useState<CurrencyCode>('JPY')
   const [entryOpen, setEntryOpen] = useState(query.get('new') === '1')
   const [entryKind, setEntryKind] = useState<EntryKind>('expense')
@@ -182,11 +182,10 @@ export default function FinanceLedger() {
     if (!tabs || !activeButton) return
 
     const updateSurface = () => {
-      setTabSurface({
-        x: activeButton.offsetLeft,
-        width: activeButton.offsetWidth,
-      })
-      activeButton.scrollIntoView({ behavior: 'auto', block: 'nearest', inline: 'nearest' })
+      // The five columns are fixed and never need scrollIntoView. Calling it
+      // here made iOS adjust both the horizontal strip and its vertical scroll
+      // ancestors, which moved the entire finance chrome between views.
+      setTabSurfaceX(activeButton.offsetLeft)
     }
 
     updateSurface()
@@ -202,7 +201,7 @@ export default function FinanceLedger() {
   }
 
   return (
-    <section className="app-page page-finance finance-ledger-page">
+    <section className="app-page page-finance finance-ledger-page finance-shell">
       <MobilePageHeader
         eyebrow="工时、收入与支出"
         title="财务"
@@ -234,8 +233,8 @@ export default function FinanceLedger() {
         <motion.span
           aria-hidden="true"
           className="finance-ledger-tab-surface"
-          data-ready={tabSurface.width > 0 || undefined}
-          animate={{ x: tabSurface.x, width: tabSurface.width }}
+          data-ready={tabSurfaceX !== null || undefined}
+          animate={{ x: tabSurfaceX ?? 0 }}
           transition={reduceMotion ? MOTION.reduced : MOTION.control}
         />
         {VIEW_ITEMS.map((item) => (
@@ -247,6 +246,7 @@ export default function FinanceLedger() {
             }}
             type="button"
             aria-selected={view === item.id}
+            aria-controls="finance-content-panel"
             onClick={() => setView(item.id)}
           >
             {item.label}
@@ -268,13 +268,18 @@ export default function FinanceLedger() {
         </label>
       </div>
 
-      <div className="finance-ledger-view-viewport">
+      <div
+        id="finance-content-panel"
+        className="finance-ledger-view-viewport"
+        role="tabpanel"
+        aria-label={VIEW_ITEMS.find((item) => item.id === view)?.label}
+      >
         <motion.div
           key={view}
           className="finance-ledger-view-surface"
           initial={reduceMotion
             ? { x: 0, opacity: 0.84 }
-            : { x: viewDirection * 16, opacity: 0.94 }}
+            : { x: viewDirection * 12, opacity: 0.96 }}
           animate={{ x: 0, opacity: 1 }}
           transition={reduceMotion ? MOTION.reduced : MOTION.route}
         >
