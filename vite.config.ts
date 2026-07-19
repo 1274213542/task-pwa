@@ -15,6 +15,28 @@ export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(version),
   },
+  build: {
+    // Keep the initial shell and route chunks small enough for iPhone PWA
+    // startup without separating tightly-coupled library internals.
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          // Keep the statically loaded app shell in execution-order-safe groups,
+          // then split only oversized initial chunks. Recursively retaining each
+          // group's dependencies avoids the Temporal/Dexie initialization cycles
+          // produced by package-by-package vendor splitting.
+          groups: [
+            {
+              name: 'app-shell',
+              tags: ['$initial'],
+              maxSize: 300_000,
+              includeDependenciesRecursively: true,
+            },
+          ],
+        },
+      },
+    },
+  },
   plugins: [
     react(),
     tailwindcss(),

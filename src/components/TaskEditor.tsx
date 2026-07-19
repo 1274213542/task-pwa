@@ -8,6 +8,7 @@ import VisualPicker from './VisualPicker'
 import GestureSheet, { type GestureSheetHandle } from './GestureSheet'
 import { civilDateOf, effectiveTaskSchedule, taskDueStatus, taskScheduleTypeOf } from '../lib/taskSchedule'
 import { useCivilDate } from '../lib/useCivilDate'
+import TaskIntentSelector from './TaskIntentSelector'
 
 export type EditableTaskStatus = 'pending' | 'completed' | 'skipped'
 
@@ -282,23 +283,19 @@ export default function TaskEditor({
                 <span>继承父任务的开始日期与 DDL</span>
               </label>
             )}
+            <TaskIntentSelector
+              value={inheritsParentSchedule ? effective.type : scheduleType}
+              disabled={inheritsParentSchedule}
+              onChange={(next) => {
+                setScheduleType(next)
+                if (next !== 'unscheduled' && !scheduleStart) setScheduleStart(todayISO)
+                if (next === 'unscheduled') setScheduleDue('')
+              }}
+            />
             <div className="task-editor-schedule-grid" aria-disabled={inheritsParentSchedule || undefined}>
-              <label>
-                时间类型
-                <select
-                  className="field mt-1"
-                  value={inheritsParentSchedule ? effective.type : scheduleType}
-                  disabled={inheritsParentSchedule}
-                  onChange={(event) => setScheduleType(event.target.value as TaskScheduleType)}
-                >
-                  <option value="today">今日必须完成</option>
-                  <option value="longTerm">长期任务</option>
-                  <option value="unscheduled">未排期</option>
-                </select>
-              </label>
               {(inheritsParentSchedule ? effective.type : scheduleType) !== 'unscheduled' && (
                 <label>
-                  开始日期
+                  {(inheritsParentSchedule ? effective.type : scheduleType) === 'today' ? '执行日期' : '开始日期'}
                   <input
                     type="date"
                     className="field mt-1"
@@ -327,7 +324,8 @@ export default function TaskEditor({
               )}
             </div>
             {scheduleType === 'longTerm' && !inheritsParentSchedule && (
-              <div className="task-editor-schedule-options">
+              <details className="task-schedule-advanced task-editor-schedule-options">
+                <summary>高级显示规则</summary>
                 <label className="task-editor-switch-row">
                   <input type="checkbox" checked={showBeforeStart} onChange={(event) => setShowBeforeStart(event.target.checked)} />
                   <span>开始日期前仍显示</span>
@@ -335,7 +333,7 @@ export default function TaskEditor({
                 <label>
                   提前 <input type="number" min={0} max={90} value={surfaceDaysBeforeDue} onChange={(event) => setSurfaceDaysBeforeDue(Number(event.target.value) || 0)} /> 天进入近期
                 </label>
-              </div>
+              </details>
             )}
             {parentTaskId && !inheritsParentSchedule && (
               <label className="task-editor-switch-row">

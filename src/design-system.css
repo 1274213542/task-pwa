@@ -5975,3 +5975,322 @@ select:focus {
 @media (prefers-reduced-motion: reduce) {
   .amount-privacy-toggle { transition-duration: 1ms; }
 }
+
+/* --------------------------------------------------------------------------
+   Key-flow hierarchy: task intent, finance concepts and progressive planning
+
+   Intent: one person capturing tasks and money between real-world moments.
+   The interface stays neutral and quiet; hierarchy comes from language,
+   compact rows and one clear action at a time rather than more card colors.
+   -------------------------------------------------------------------------- */
+
+:root {
+  --ds-intent-row-height: 52px;
+  --ds-planning-nav-height: 48px;
+  --ds-concept-surface: color-mix(in srgb, var(--ui-soft) 72%, var(--ui-surface));
+}
+
+.overview-inline-create {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  gap: 4px;
+  border-radius: var(--ds-radius-pill);
+  background: var(--ds-control-bg);
+  padding-inline: 10px;
+  color: var(--ui-ink);
+  font-size: 0.72rem;
+  font-weight: 670;
+}
+
+.task-schedule-intent-heading {
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-space-2);
+  color: var(--ui-muted);
+  font-size: var(--ds-type-meta);
+}
+
+.task-schedule-intent-heading strong {
+  border-radius: var(--ds-radius-pill);
+  background: var(--ds-control-bg);
+  padding: 3px 8px;
+  color: var(--ui-ink);
+  font-size: 0.68rem;
+}
+
+.task-intent-picker {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--ds-space-2);
+}
+
+.task-schedule-composer > .task-intent-picker {
+  grid-column: 1 / -1;
+}
+
+.task-intent-picker > button {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  min-height: 66px;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--ds-space-2);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-control);
+  background: var(--ui-surface);
+  padding: 10px;
+  color: var(--ui-muted);
+  text-align: left;
+  transition:
+    border-color var(--ds-duration-control) var(--ds-ease-out),
+    background-color var(--ds-duration-control) var(--ds-ease-out),
+    transform var(--ds-duration-press) var(--ds-ease-out);
+}
+
+.task-intent-picker > button:active { transform: scale(0.975); }
+.task-intent-picker > button[aria-checked='true'] {
+  border-color: var(--ds-border-strong);
+  background: var(--neutral-selected);
+  color: var(--ui-ink);
+}
+
+.task-intent-picker > button > span {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+
+.task-intent-picker strong {
+  overflow: hidden;
+  color: inherit;
+  font-size: 0.78rem;
+  font-weight: 690;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-intent-picker small {
+  overflow: hidden;
+  color: var(--ui-muted);
+  font-size: 0.62rem;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-intent-picker i {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 7px;
+  height: 7px;
+  border: 1px solid var(--ds-border-strong);
+  border-radius: 50%;
+}
+
+.task-intent-picker button[aria-checked='true'] i {
+  border-color: var(--ui-ink);
+  background: var(--ui-ink);
+  box-shadow: 0 0 0 2px var(--ui-surface);
+}
+
+.task-intent-picker button:disabled { opacity: 0.62; }
+
+.task-schedule-advanced {
+  display: grid !important;
+  grid-column: 1 / -1;
+  gap: var(--ds-space-2);
+  border-top: 1px solid var(--ds-border);
+  padding-top: var(--ds-space-2);
+}
+
+.task-schedule-advanced > summary {
+  min-height: 36px;
+  cursor: pointer;
+  list-style: none;
+  color: var(--ui-muted);
+  font-size: 0.72rem;
+  font-weight: 650;
+  line-height: 36px;
+}
+
+.task-schedule-advanced > summary::-webkit-details-marker { display: none; }
+.task-schedule-advanced > summary::after { float: right; content: '展开'; font-size: 0.65rem; font-weight: 540; }
+.task-schedule-advanced[open] > summary::after { content: '收起'; }
+
+.finance-planning-sections {
+  position: relative;
+  display: grid;
+  width: 100%;
+  height: var(--ds-planning-nav-height);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-control);
+  background: var(--ui-surface);
+  padding: 4px;
+}
+
+.finance-planning-section-indicator {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: calc((100% - 8px) / 4);
+  border-radius: calc(var(--ds-radius-control) - 4px);
+  background: var(--neutral-selected);
+  will-change: transform;
+  transition: transform var(--ds-duration-panel) var(--ds-ease-out);
+}
+
+.finance-planning-sections button {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  color: var(--ui-muted);
+  font-size: 0.7rem;
+  font-weight: 600;
+  transition: color var(--ds-duration-control) var(--ds-ease-out);
+}
+
+.finance-planning-sections button[aria-selected='true'] {
+  color: var(--ui-ink);
+  font-weight: 700;
+}
+
+.finance-planning-section-content { min-width: 0; }
+
+.finance-recurring-composer-details {
+  margin-top: var(--ds-space-3);
+  border-top: 1px solid var(--ds-border);
+  padding-top: var(--ds-space-2);
+}
+
+.finance-fund-onboarding {
+  display: grid;
+  gap: var(--ds-space-3);
+  margin-top: var(--ds-space-3);
+  border-radius: var(--ds-radius-control);
+  background: var(--ds-concept-surface);
+  padding: var(--ds-space-4);
+}
+
+.finance-fund-onboarding > div,
+.finance-fund-onboarding li > span {
+  display: grid;
+  gap: 2px;
+}
+
+.finance-fund-onboarding > div > span,
+.finance-fund-onboarding small {
+  color: var(--ui-muted);
+  font-size: 0.69rem;
+  line-height: var(--ds-leading-meta);
+}
+
+.finance-fund-onboarding > div > strong { font-size: 0.92rem; line-height: 1.32; }
+.finance-fund-onboarding > div > p { color: var(--ui-muted); font-size: 0.74rem; line-height: 1.42; }
+.finance-fund-onboarding ol { display: grid; gap: 8px; }
+.finance-fund-onboarding li { display: grid; min-height: 46px; grid-template-columns: 28px minmax(0, 1fr); align-items: center; gap: 10px; }
+.finance-fund-onboarding li > b { display: grid; width: 28px; height: 28px; place-items: center; border-radius: 50%; background: var(--ui-surface); font-size: 0.72rem; }
+.finance-fund-onboarding li strong { font-size: 0.78rem; }
+.finance-fund-onboarding a { display: inline-flex; min-height: 42px; align-items: center; justify-content: center; gap: 5px; border-radius: var(--ds-radius-control); background: var(--ui-ink); padding-inline: 14px; color: var(--ui-surface); font-size: 0.78rem; font-weight: 680; }
+
+.finance-projection-basis {
+  overflow: hidden;
+  margin-top: var(--ds-space-3);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-control);
+  background: var(--ds-concept-surface);
+  padding-inline: var(--ds-space-3);
+}
+
+.finance-projection-basis > summary {
+  display: flex;
+  min-height: 52px;
+  cursor: pointer;
+  list-style: none;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.finance-projection-basis > summary::-webkit-details-marker { display: none; }
+.finance-projection-basis > summary > span { display: grid; gap: 1px; }
+.finance-projection-basis > summary small,
+.finance-projection-basis > small { color: var(--ui-muted); font-size: 0.68rem; line-height: 1.4; }
+.finance-projection-basis[open] > summary svg { transform: rotate(180deg); }
+.finance-projection-basis dl { border-top: 1px solid var(--ds-border); }
+.finance-projection-basis dl > div { display: flex; min-height: 40px; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--ds-border); font-size: 0.74rem; }
+.finance-projection-basis dt { color: var(--ui-muted); }
+.finance-projection-basis dd { font-variant-numeric: tabular-nums; font-weight: 650; }
+.finance-projection-basis > small { display: block; padding-block: 10px 12px; }
+.finance-projection-editor { margin-top: var(--ds-space-3); border-top: 1px solid var(--ds-border); padding-top: var(--ds-space-2); }
+
+.finance-fund-picker > span {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+  white-space: normal;
+}
+
+.finance-fund-picker > span strong {
+  overflow: hidden;
+  font-size: 0.8rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.finance-fund-picker > span small { color: var(--ui-muted); font-size: 0.65rem; }
+
+.finance-fund-shortage {
+  grid-column: 1 / -1;
+  color: #b42318 !important;
+  font-size: 0.69rem !important;
+  line-height: 1.35;
+}
+
+.finance-money-path {
+  display: grid;
+  gap: 3px;
+  border-radius: var(--ds-radius-control);
+  background: var(--ds-concept-surface);
+  padding: var(--ds-space-3);
+}
+
+.finance-money-path > span,
+.finance-money-path > small { color: var(--ui-muted); font-size: 0.68rem; line-height: 1.4; }
+.finance-money-path > strong { overflow-wrap: anywhere; font-size: 0.82rem; line-height: 1.35; }
+
+/* Sheets receive focus on open so assistive technology announces the dialog.
+   Keep focus rings on their controls instead of outlining the whole shell. */
+.editor-sheet[role="dialog"]:focus { outline: none !important; }
+
+@media (max-width: 520px) {
+  .task-intent-picker:not([data-compact]) {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .task-intent-picker:not([data-compact]) > button {
+    min-height: var(--ds-intent-row-height);
+    padding-block: 7px;
+  }
+
+  .task-intent-picker:not([data-compact]) small { white-space: normal; }
+  .task-intent-picker[data-compact] > button { min-height: 48px; padding: 7px; }
+  .task-intent-picker[data-compact] > button > svg { display: none; }
+  .task-intent-picker[data-compact] small { display: none; }
+  .task-intent-picker[data-compact] strong { font-size: 0.72rem; text-align: center; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .task-intent-picker > button,
+  .finance-planning-section-indicator,
+  .finance-planning-sections button { transition-duration: 1ms; }
+}

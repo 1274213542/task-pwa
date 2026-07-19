@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from 'motion/react'
 import {
@@ -62,6 +63,7 @@ import MobilePageHeader from '../components/MobilePageHeader'
 import TaskToolbar from '../components/TaskToolbar'
 import TaskViewSettingsSheet from '../components/TaskViewSettingsSheet'
 import TaskEditor, { type EditableTaskStatus } from '../components/TaskEditor'
+import TaskIntentSelector from '../components/TaskIntentSelector'
 import { MOTION } from '../lib/motion'
 import {
   defaultFixedRecurrence,
@@ -285,6 +287,7 @@ function SortablePendingRow({
 
 export default function Today() {
   const reduceMotion = useReducedMotion()
+  const location = useLocation()
   const [title, setTitle] = useState('')
   const [recurrence, setRecurrence] = useState<Recurrence | undefined>()
   const [categoryId, setCategoryId] = useState<string>('')
@@ -352,6 +355,18 @@ export default function Today() {
     window.addEventListener(FOCUS_QUICK_ADD_EVENT, focus)
     return () => window.removeEventListener(FOCUS_QUICK_ADD_EVENT, focus)
   }, [])
+
+  useEffect(() => {
+    if (!(location.state as { openTaskComposer?: boolean } | null)?.openTaskComposer) return
+    setOpenMenuTaskId(null)
+    setComposerOpen(true)
+    window.requestAnimationFrame(() => inputRef.current?.focus())
+    window.history.replaceState(
+      { ...window.history.state, usr: null },
+      '',
+      window.location.href,
+    )
+  }, [location.state])
 
   useEffect(() => {
     const closeMenu = () => setOpenMenuTaskId(null)
@@ -514,6 +529,16 @@ export default function Today() {
     setOpenMenuTaskId(null)
     setFixed(nextFixed)
     setRecurrence(nextFixed ? defaultFixedRecurrence(scope) : undefined)
+  }
+
+  function selectScheduleType(next: TaskScheduleType) {
+    setScheduleType(next)
+    if (next !== 'unscheduled' && !scheduleStart) setScheduleStart(todayISO)
+    if (next === 'unscheduled') setScheduleDue('')
+    if (next !== 'longTerm') {
+      setShowBeforeStart(false)
+      setSurfaceDaysBeforeDue(3)
+    }
   }
 
   async function syncCurrentPeriod() {
@@ -959,19 +984,13 @@ export default function Today() {
               )}
             </>
           )}
-          {!fixed && title.trim() && (
+          {!fixed && (
             <div className="task-schedule-composer" aria-label="任务时间设置">
-              <label>
-                时间类型
-                <select
-                  value={scheduleType}
-                  onChange={(event) => setScheduleType(event.target.value as TaskScheduleType)}
-                >
-                  <option value="today">今日必须完成</option>
-                  <option value="longTerm">长期任务</option>
-                  <option value="unscheduled">未排期</option>
-                </select>
-              </label>
+              <div className="task-schedule-intent-heading">
+                <span>先选择这件事的时间意图</span>
+                <strong>{scheduleType === 'today' ? '今天' : scheduleType === 'longTerm' ? '长期' : '收集箱'}</strong>
+              </div>
+              <TaskIntentSelector value={scheduleType} onChange={selectScheduleType} compact />
               {scheduleType !== 'unscheduled' && (
                 <label>
                   {scheduleType === 'today' ? '执行日期' : '开始日期'}
@@ -994,7 +1013,8 @@ export default function Today() {
                 </label>
               )}
               {scheduleType === 'longTerm' && (
-                <>
+                <details className="task-schedule-advanced">
+                  <summary>高级显示规则</summary>
                   <label className="task-schedule-toggle">
                     <input
                       type="checkbox"
@@ -1015,7 +1035,7 @@ export default function Today() {
                       /> 天
                     </span>
                   </label>
-                </>
+                </details>
               )}
             </div>
           )}

@@ -8,7 +8,6 @@ import { useCivilDate } from '../lib/useCivilDate'
 import MobilePageHeader from '../components/MobilePageHeader'
 import PageHeader from '../components/PageHeader'
 import AppIcon from '../components/AppIcon'
-import { FOCUS_QUICK_ADD_EVENT } from '../lib/appEvents'
 import {
   completeFixedOccurrence,
   completeTask,
@@ -43,6 +42,11 @@ function itemColor(item: CalItem): ColorToken {
 
 function itemCompleted(item: CalItem) {
   return item.kind === 'event' ? item.completed : item.completed
+}
+
+function itemSourceLabel(item: CalItem) {
+  if (item.kind === 'event') return '来自计划 · 日历事项'
+  return `来自任务${item.subtitle ? ` · ${item.subtitle}` : ''}`
 }
 
 function compactMoney(value: number) {
@@ -110,9 +114,15 @@ export default function Overview() {
       longTerm: incompleteTasks
         .filter((task) => taskScheduleTypeOf(task) === 'longTerm' && isTaskExecutable(task, today, snapshot.tasks)),
     }
+    const reservedTaskIds = new Set([
+      ...taskBuckets.overdue.map((task) => task.id),
+      ...taskBuckets.longTerm.map((task) => task.id),
+    ])
     const upcoming = nextSeven
+      .slice(1)
       .flatMap((date) => (byDay.get(date) ?? []).map((item) => ({ date, item })))
       .filter(({ item }) => !itemCompleted(item) && (item.kind === 'event' || !item.skipped))
+      .filter(({ item }) => item.kind === 'event' || !reservedTaskIds.has(item.task.id))
       .slice(0, 4)
     const finances = ledgerSummary({
       accounts: snapshot.accounts,
@@ -152,9 +162,9 @@ export default function Overview() {
     snapshot?.prefs?.defaultCompletedDisplay === 'hide' ? !itemCompleted(item) : true,
   )
 
-  function openTaskComposer() {
-    navigate('/today')
-    window.setTimeout(() => window.dispatchEvent(new CustomEvent(FOCUS_QUICK_ADD_EVENT)), 60)
+  function openTaskComposer(event?: MouseEvent<HTMLElement>) {
+    event?.stopPropagation()
+    navigate('/today', { state: { openTaskComposer: true } })
   }
 
   function navigateFromSurface(element: HTMLElement, to: string) {
@@ -303,7 +313,9 @@ export default function Overview() {
       >
         <header>
           <div><p>本日计划</p><h2 id="overview-today-list-title">今天需要处理</h2></div>
-          <Link to="/today" onClick={(event) => openSpatialLink(event, '/today')}>管理任务</Link>
+          <button type="button" className="overview-inline-create" onClick={openTaskComposer}>
+            <AppIcon name="plus" size={15} /> 新建今日任务
+          </button>
         </header>
         <p className="overview-action-feedback" role="status">{feedback}</p>
         {todayVisible.length > 0 ? (
@@ -321,7 +333,7 @@ export default function Overview() {
                 >
                   {itemCompleted(item) && <AppIcon name="check" size={14} />}
                 </button>
-                <div><strong>{itemTitle(item)}</strong><small>{item.kind === 'event' ? '日历事项' : item.subtitle ?? '任务'}</small></div>
+                <div><strong>{itemTitle(item)}</strong><small>{itemSourceLabel(item)}</small></div>
                 <AppIcon name={item.kind === 'event' ? 'calendar' : 'tasks'} size={17} />
               </li>
             ))}
@@ -416,7 +428,7 @@ export default function Overview() {
                 <button className="overview-item-check" aria-label="完成" onClick={() => void toggleItem(item)} />
                 <div>
                   <strong>{itemTitle(item)}</strong>
-                  <small>{date === today ? '今天' : labelDate(date, { month: 'numeric', day: 'numeric', weekday: 'short' })}</small>
+                  <small>{labelDate(date, { month: 'numeric', day: 'numeric', weekday: 'short' })} · {item.kind === 'event' ? '来自计划' : '来自任务'}</small>
                 </div>
                 <AppIcon name="chevronRight" size={16} />
               </li>

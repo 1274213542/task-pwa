@@ -1,5 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useMemo, useState, type FormEvent } from 'react'
+import { Link } from 'react-router-dom'
 import AppIcon from '../components/AppIcon'
 import { PrivateAmount } from '../components/AmountPrivacy'
 import { db, type ExpenseCategory } from '../lib/db'
@@ -66,23 +67,27 @@ export function FinanceFundsView({ accounts, onFeedback }: {
   accounts: Account[]
   onFeedback: (message: string) => void
 }) {
-  const pools = useLiveQuery(
+  const poolsLive = useLiveQuery(
     () => db.fundPools.where('lifecycleStatus').equals('active').sortBy('rank'),
     [],
-  ) ?? []
-  const allocations = useLiveQuery(
+  )
+  const allocationsLive = useLiveQuery(
     () => db.transactionFundAllocations.where('lifecycleStatus').equals('active').toArray(),
     [],
-  ) ?? []
-  const transfers = useLiveQuery(
+  )
+  const transfersLive = useLiveQuery(
     () => db.fundPoolTransfers.where('lifecycleStatus').equals('active').toArray(),
     [],
-  ) ?? []
-  const reservations = useLiveQuery(() => db.fundReservations.toArray(), [], []) ?? []
+  )
+  const reservationsLive = useLiveQuery(() => db.fundReservations.toArray(), [], [])
   const goals = useLiveQuery(
     () => db.savingsGoals.where('lifecycleStatus').equals('active').sortBy('rank'),
     [],
   ) ?? []
+  const pools = useMemo(() => poolsLive ?? [], [poolsLive])
+  const allocations = useMemo(() => allocationsLive ?? [], [allocationsLive])
+  const transfers = useMemo(() => transfersLive ?? [], [transfersLive])
+  const reservations = useMemo(() => reservationsLive ?? [], [reservationsLive])
   const states = useMemo(
     () => calculateFundPoolStates({ pools, allocations, transfers, reservations }),
     [pools, allocations, transfers, reservations],
@@ -209,11 +214,26 @@ export function FinanceFundsView({ accounts, onFeedback }: {
             setOpening(fromMinor(pool.openingBalanceMinor, pool.currency).toString())
             setAccountId(pool.accountId ?? '')
           }}>编辑</button><button type="button" onClick={() => void setFundPoolArchived(pool.id).then(() => onFeedback('资金池已停用')).catch((error: unknown) => onFeedback(error instanceof Error ? error.message : '停用失败'))}>停用</button></span></div></li>
-        })}</ul> : <div className="finance-empty-state">还没有资金池；旧流水会保留为“未指定资金来源”</div>}
+        })}</ul> : (
+          <div className="finance-fund-onboarding">
+            <div>
+              <span>第一次使用</span>
+              <strong>先分清“钱在哪里”和“钱准备做什么”</strong>
+              <p>资金池不会创建新钱，只把现实账户里的余额按用途分开。</p>
+            </div>
+            <ol>
+              <li><b>1</b><span><strong>现实账户</strong><small>日本银行、现金、支付宝、Suica</small></span></li>
+              <li><b>2</b><span><strong>用途资金池</strong><small>个人自由资金、父亲房租专项、个人储蓄</small></span></li>
+              <li><b>3</b><span><strong>记支出时一起确认</strong><small>日本银行账户 → 父亲房租专项</small></span></li>
+            </ol>
+            <Link to="/finance?mode=accounts">先检查现实账户 <AppIcon name="chevronRight" size={16} /></Link>
+            <small>旧流水会保留为“未指定资金来源”，不会被自动误判为专项资金。</small>
+          </div>
+        )}
       </section>
 
       <details className="finance-section-card finance-inline-details">
-        <summary><span><small>从未分配资金开始</small><strong>新建资金池</strong></span><AppIcon name="chevronDown" size={18} /></summary>
+        <summary><span><small>不改变账户余额，只分配用途</small><strong>新建资金池</strong></span><AppIcon name="chevronDown" size={18} /></summary>
         <form className="finance-form-grid-v2" onSubmit={createPool}>
           <label>名称<input value={name} onChange={(event) => setName(event.target.value)} placeholder="例如 父亲房租专项" /></label>
           <label>用途<select value={purpose} onChange={(event) => setPurpose(event.target.value as FundPoolPurpose)}>{Object.entries(purposeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
@@ -268,6 +288,7 @@ export function FinanceFundsView({ accounts, onFeedback }: {
 }
 
 export function FinancePlanningPanel({
+  section,
   accounts,
   categories,
   transactions,
@@ -275,6 +296,7 @@ export function FinancePlanningPanel({
   reportingCurrency,
   onFeedback,
 }: {
+  section: 'recurring' | 'projection'
   accounts: Account[]
   categories: ExpenseCategory[]
   transactions: FinanceTransaction[]
@@ -384,14 +406,17 @@ export function FinancePlanningPanel({
 
   return (
     <div className="finance-planning-view">
-      <section className="finance-section-card finance-recurring-list">
+      {section === 'recurring' && <section className="finance-section-card finance-recurring-list">
         <header><div><span>每个规则与账期只有一个稳定实例</span><h2>固定扣款</h2></div><button onClick={() => void runDueCheck()}>检查到期</button></header>
         {actionable.length > 0 && <ul className="finance-actionable-instances">{actionable.map((instance) => {
           const rule = rules.find((item) => item.id === instance.ruleId)
           return <li key={instance.id}><div><strong>{rule?.name ?? '固定扣款'}</strong><span>{instance.scheduledDate} · <PrivateAmount>{formatMoney(instance.amountMinor, instance.currency)}</PrivateAmount>{instance.shortageReason ? ` · ${instance.shortageReason}` : ''}</span></div><button onClick={() => void confirmRecurringInstance(instance.id).then(() => onFeedback('固定扣款已确认入账')).catch((error: unknown) => onFeedback(error instanceof Error ? error.message : '入账失败'))}>确认</button><button onClick={() => void skipRecurringInstance(instance.id).then(() => onFeedback('本期已跳过'))}>跳过</button></li>
         })}</ul>}
         {rules.length > 0 && <ul>{rules.map((rule) => <li key={rule.id}><div><strong>{rule.name}</strong><span>每月 {rule.billingDay} 日 · {rule.postingMode === 'automatic' ? '自动入账' : '待确认'} · {rule.enabled ? '已启用' : '已暂停'}</span></div><div><b><PrivateAmount>{formatMoney(rule.amountMinor, rule.currency)}</PrivateAmount></b><span className="finance-inline-actions"><button type="button" onClick={() => void setRecurringRuleEnabled(rule.id, !rule.enabled).then(() => onFeedback(rule.enabled ? '固定扣款已暂停' : '固定扣款已启用')).catch((error: unknown) => onFeedback(error instanceof Error ? error.message : '更新失败'))}>{rule.enabled ? '暂停' : '启用'}</button></span></div></li>)}</ul>}
-        <form className="finance-form-grid-v2 finance-recurring-composer" onSubmit={createRule}>
+        {rules.length === 0 && actionable.length === 0 && <div className="finance-empty-state">还没有固定扣款；房租、订阅等可按账期自动检查。</div>}
+        <details className="finance-recurring-composer-details finance-inline-details">
+          <summary><span><small>常用设置会保留在规则中</small><strong>新增固定扣款</strong></span><AppIcon name="chevronDown" size={17} /></summary>
+          <form className="finance-form-grid-v2 finance-recurring-composer" onSubmit={createRule}>
           <label>名称<input value={name} onChange={(event) => setName(event.target.value)} placeholder="例如 房租" /></label>
           <label>金额<input inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} /></label>
           <label>支付账户<select value={accountId} onChange={(event) => setAccountId(event.target.value)}><option value="">请选择</option>{accounts.filter((account) => account.lifecycleStatus === 'active').map((account) => <option key={account.id} value={account.id}>{account.name} · {account.currency}</option>)}</select></label>
@@ -400,19 +425,34 @@ export function FinancePlanningPanel({
           <label>每月扣款日<input type="number" min="1" max="31" value={billingDay} onChange={(event) => setBillingDay(event.target.value)} /></label>
           <label className="wide">入账方式<select value={postingMode} onChange={(event) => setPostingMode(event.target.value as 'automatic' | 'confirmation')}><option value="confirmation">待确认</option><option value="automatic">自动入账</option></select></label>
           <button className="primary wide" disabled={!name.trim() || !amount || !accountId}>创建固定扣款</button>
-        </form>
-      </section>
+          </form>
+        </details>
+      </section>}
 
-      <section className="finance-section-card finance-projection-card">
+      {section === 'projection' && <section className="finance-section-card finance-projection-card">
         <header><div><span>{currentMonth()} · 公式和假设可编辑</span><h2>预计月底可储蓄</h2></div><strong><PrivateAmount>{formatMoney(projection.projectedSavingsMinor, reportingCurrency)}</PrivateAmount></strong></header>
         <p>预计收入 − 固定扣款 − 已发生本人支出 − 已知计划支出 − 剩余生活预算</p>
-        <form className="finance-form-grid-v2" onSubmit={saveProjection}>
-          <label>预计收入<input inputMode="decimal" value={expectedIncome} onChange={(event) => setExpectedIncome(event.target.value)} placeholder={String(fromMinor(budget?.expectedIncomeMinor ?? 0, reportingCurrency))} /></label>
-          <label>剩余生活预算<input inputMode="decimal" value={livingBudget} onChange={(event) => setLivingBudget(event.target.value)} placeholder={String(fromMinor(budget?.remainingLivingBudgetMinor ?? 0, reportingCurrency))} /></label>
-          <label className="wide">已知计划支出<input inputMode="decimal" value={plannedExpense} onChange={(event) => setPlannedExpense(event.target.value)} placeholder={String(fromMinor(budget?.plannedExpenseMinor ?? 0, reportingCurrency))} /></label>
-          <button className="primary wide">保存预测假设</button>
-        </form>
-      </section>
+        <details className="finance-projection-basis" open>
+          <summary><span><small>每个数字都可以追溯</small><strong>基于什么</strong></span><AppIcon name="chevronDown" size={17} /></summary>
+          <dl>
+            <div><dt>预计收入</dt><dd><PrivateAmount>{formatMoney(projection.expectedIncomeMinor, reportingCurrency)}</PrivateAmount></dd></div>
+            <div><dt>已启用固定扣款</dt><dd>− <PrivateAmount>{formatMoney(recurringExpenseMinor, reportingCurrency)}</PrivateAmount></dd></div>
+            <div><dt>已发生本人支出</dt><dd>− <PrivateAmount>{formatMoney(monthSummary.actualPaidMinor, reportingCurrency)}</PrivateAmount></dd></div>
+            <div><dt>已知计划支出</dt><dd>− <PrivateAmount>{formatMoney(projection.plannedExpenseMinor, reportingCurrency)}</PrivateAmount></dd></div>
+            <div><dt>剩余生活预算</dt><dd>− <PrivateAmount>{formatMoney(projection.remainingLivingBudgetMinor, reportingCurrency)}</PrivateAmount></dd></div>
+          </dl>
+          <small>预测只使用已保存的假设和流水，不会提前改变任何账户余额。</small>
+        </details>
+        <details className="finance-inline-details finance-projection-editor">
+          <summary><span><small>修改后立即重算，不生成流水</small><strong>调整预测假设</strong></span><AppIcon name="chevronDown" size={17} /></summary>
+          <form className="finance-form-grid-v2" onSubmit={saveProjection}>
+            <label>预计收入<input inputMode="decimal" value={expectedIncome} onChange={(event) => setExpectedIncome(event.target.value)} placeholder={String(fromMinor(budget?.expectedIncomeMinor ?? 0, reportingCurrency))} /></label>
+            <label>剩余生活预算<input inputMode="decimal" value={livingBudget} onChange={(event) => setLivingBudget(event.target.value)} placeholder={String(fromMinor(budget?.remainingLivingBudgetMinor ?? 0, reportingCurrency))} /></label>
+            <label className="wide">已知计划支出<input inputMode="decimal" value={plannedExpense} onChange={(event) => setPlannedExpense(event.target.value)} placeholder={String(fromMinor(budget?.plannedExpenseMinor ?? 0, reportingCurrency))} /></label>
+            <button className="primary wide">保存预测假设</button>
+          </form>
+        </details>
+      </section>}
     </div>
   )
 }

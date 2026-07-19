@@ -55,6 +55,7 @@ import type {
 
 type FinanceView = 'overview' | 'accounts' | 'funds' | 'transactions' | 'planning' | 'work' | 'stats'
 type EntryKind = 'expense' | 'income' | 'transfer' | 'credit_payment' | 'topup' | 'refund'
+type FinancePlanningSection = 'recurring' | 'projection' | 'work' | 'stats'
 
 const ENTRY_KINDS: EntryKind[] = ['expense', 'income', 'transfer', 'credit_payment', 'topup', 'refund']
 const ENTRY_KIND_LABEL: Record<EntryKind, string> = {
@@ -65,6 +66,13 @@ const ENTRY_KIND_LABEL: Record<EntryKind, string> = {
   topup: '充值',
   refund: '退款',
 }
+
+const PLANNING_SECTIONS: Array<{ id: FinancePlanningSection; label: string }> = [
+  { id: 'recurring', label: '固定扣款' },
+  { id: 'projection', label: '储蓄预测' },
+  { id: 'work', label: '工资工时' },
+  { id: 'stats', label: '统计' },
+]
 
 const VIEW_ITEMS: { id: FinanceView; label: string }[] = financeFundsV3Enabled
   ? [
@@ -128,6 +136,27 @@ function formatMinutes(minutes: number) {
   return rest ? `${hours}小时 ${rest}分` : `${hours}小时`
 }
 
+const FINANCE_ENTRY_DEFAULTS_KEY = 'financeEntryDefaultsV1'
+
+type FinanceEntryDefaults = {
+  accountId?: string
+  categoryId?: string
+  fundPoolId?: string
+}
+
+function loadFinanceEntryDefaults(): FinanceEntryDefaults {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(FINANCE_ENTRY_DEFAULTS_KEY) ?? '{}')
+    return parsed && typeof parsed === 'object' ? parsed as FinanceEntryDefaults : {}
+  } catch {
+    return {}
+  }
+}
+
+function saveFinanceEntryDefaults(value: FinanceEntryDefaults) {
+  localStorage.setItem(FINANCE_ENTRY_DEFAULTS_KEY, JSON.stringify(value))
+}
+
 function accountDefaultSubtype(kind: Account['kind']): Account['subtype'] {
   if (kind === 'credit') return 'credit_card'
   if (kind === 'external') return 'external_payer'
@@ -146,6 +175,11 @@ export default function FinanceLedger() {
     ? normalizedRequestedView as FinanceView
     : 'overview'
   const [view, setView] = useState<FinanceView>(requestedView)
+  const [planningSection, setPlanningSection] = useState<FinancePlanningSection>(() => {
+    if (rawRequestedView === 'work' || rawRequestedView === 'stats') return rawRequestedView
+    const stored = localStorage.getItem('financePlanningSection') as FinancePlanningSection | null
+    return PLANNING_SECTIONS.some((item) => item.id === stored) ? stored! : 'recurring'
+  })
   const [reportingCurrency, setReportingCurrency] = useState<CurrencyCode>('JPY')
   const [entryOpen, setEntryOpen] = useState(query.get('new') === '1')
   const [entryKind, setEntryKind] = useState<EntryKind>('expense')
@@ -222,6 +256,7 @@ export default function FinanceLedger() {
     if (VIEW_ITEMS.some((item) => item.id === normalized)) {
       setView(normalized as FinanceView)
     }
+    if (raw === 'work' || raw === 'stats') setPlanningSection(raw)
     if (query.get('panel') === 'categories') setCategoryManagerOpen(true)
   }, [query])
 
@@ -254,6 +289,11 @@ export default function FinanceLedger() {
   function selectView(nextView: FinanceView) {
     setView(nextView)
     navigate(`/finance?mode=${nextView}`, { replace: true })
+  }
+
+  function selectPlanningSection(nextSection: FinancePlanningSection) {
+    setPlanningSection(nextSection)
+    localStorage.setItem('financePlanningSection', nextSection)
   }
 
   return (
@@ -377,28 +417,71 @@ export default function FinanceLedger() {
           )}
           {view === 'planning' && financeFundsV3Enabled && (
             <div className="finance-planning-shell">
-              <FinancePlanningPanel
-                accounts={accounts}
-                categories={categories}
-                transactions={transactions}
-                rates={rates}
-                reportingCurrency={reportingCurrency}
-                onFeedback={setFeedback}
-              />
-              <WorkView
-                entries={workEntries}
-                templates={workTemplates}
-                accounts={accounts}
-                initialDate={query.get('date') ?? todayISO()}
-                onFeedback={setFeedback}
-              />
-              <StatsView
-                accounts={accounts}
-                transactions={transactions}
-                rates={rates}
-                reportingCurrency={reportingCurrency}
-                onFeedback={setFeedback}
-              />
+              <nav className="finance-planning-sections" aria-label="财务计划内容">
+                <span
+                  className="finance-planning-section-indicator"
+                  aria-hidden="true"
+                  style={{ transform: `translate3d(${PLANNING_SECTIONS.findIndex((item) => item.id === planningSection) * 100}%, 0, 0)` }}
+                />
+                {PLANNING_SECTIONS.map((item) => (
+                  <button
+                    type="button"
+                    key={item.id}
+                    aria-selected={planningSection === item.id}
+                    onClick={() => selectPlanningSection(item.id)}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </nav>
+              <motion.section
+                key={planningSection}
+                className="finance-planning-section-content"
+                initial={reduceMotion ? false : { x: 10, opacity: 0.97 }}
+                animate={{ x: 0, opacity: 1 }}
+                transition={reduceMotion ? MOTION.reduced : MOTION.control}
+              >
+                {planningSection === 'recurring' && (
+                  <FinancePlanningPanel
+                    section="recurring"
+                    accounts={accounts}
+                    categories={categories}
+                    transactions={transactions}
+                    rates={rates}
+                    reportingCurrency={reportingCurrency}
+                    onFeedback={setFeedback}
+                  />
+                )}
+                {planningSection === 'projection' && (
+                  <FinancePlanningPanel
+                    section="projection"
+                    accounts={accounts}
+                    categories={categories}
+                    transactions={transactions}
+                    rates={rates}
+                    reportingCurrency={reportingCurrency}
+                    onFeedback={setFeedback}
+                  />
+                )}
+                {planningSection === 'work' && (
+                  <WorkView
+                    entries={workEntries}
+                    templates={workTemplates}
+                    accounts={accounts}
+                    initialDate={query.get('date') ?? todayISO()}
+                    onFeedback={setFeedback}
+                  />
+                )}
+                {planningSection === 'stats' && (
+                  <StatsView
+                    accounts={accounts}
+                    transactions={transactions}
+                    rates={rates}
+                    reportingCurrency={reportingCurrency}
+                    onFeedback={setFeedback}
+                  />
+                )}
+              </motion.section>
             </div>
           )}
           {view === 'work' && (
@@ -481,20 +564,24 @@ function FinanceOverview({
   onOpenTransactions: () => void
   onNew: (kind: EntryKind) => void
 }) {
-  const pools = useLiveQuery(
+  const poolsLive = useLiveQuery(
     () => db.fundPools.where('lifecycleStatus').equals('active').sortBy('rank'),
     [],
-  ) ?? []
-  const allocations = useLiveQuery(
+  )
+  const allocationsLive = useLiveQuery(
     () => db.transactionFundAllocations.where('lifecycleStatus').equals('active').toArray(),
     [],
-  ) ?? []
-  const poolTransfers = useLiveQuery(
+  )
+  const poolTransfersLive = useLiveQuery(
     () => db.fundPoolTransfers.where('lifecycleStatus').equals('active').toArray(),
     [],
-  ) ?? []
-  const reservations = useLiveQuery(() => db.fundReservations.toArray(), [], []) ?? []
+  )
+  const reservationsLive = useLiveQuery(() => db.fundReservations.toArray(), [], [])
   const recurringInstances = useLiveQuery(() => db.recurringTransactionInstances.toArray(), [], []) ?? []
+  const pools = useMemo(() => poolsLive ?? [], [poolsLive])
+  const allocations = useMemo(() => allocationsLive ?? [], [allocationsLive])
+  const poolTransfers = useMemo(() => poolTransfersLive ?? [], [poolTransfersLive])
+  const reservations = useMemo(() => reservationsLive ?? [], [reservationsLive])
   const poolStates = useMemo(
     () => calculateFundPoolStates({ pools, allocations, transfers: poolTransfers, reservations }),
     [pools, allocations, poolTransfers, reservations],
@@ -1358,23 +1445,47 @@ function FinanceEntrySheet({
     linkedTransactionId: string
     fee: string
   }>>>({})
+  const entryDefaults = useMemo(loadFinanceEntryDefaults, [])
+  const activeAccounts = accounts.filter((account) => !account.isArchived)
+  const initialEntryRef = useRef({
+    accountId: editing?.accountId ??
+      (entryDefaults.accountId && activeAccounts.some((account) => account.id === entryDefaults.accountId)
+        ? entryDefaults.accountId
+        : activeAccounts[0]?.id) ?? '',
+    categoryId: editing?.categoryId ??
+      (entryDefaults.categoryId && categories.some((category) => category.id === entryDefaults.categoryId)
+        ? entryDefaults.categoryId
+        : ''),
+    fundAllocations: (() => {
+      const editingAllocations = transactionFundAllocations.filter((row) =>
+        row.transactionId === editing?.id && ['debit', 'reserve'].includes(row.effect),
+      )
+      if (editingAllocations.length > 0) {
+        return editingAllocations.map((row) => ({
+          fundPoolId: row.fundPoolId,
+          amount: String(fromMinor(row.amountMinor, row.currency)),
+        }))
+      }
+      return entryDefaults.fundPoolId && fundPools.some((pool) => pool.id === entryDefaults.fundPoolId)
+        ? [{ fundPoolId: entryDefaults.fundPoolId, amount: '' }]
+        : []
+    })(),
+  })
+  const initialEntry = initialEntryRef.current
   const reduceMotion = useReducedMotion()
   const [kind, setKind] = useState<EntryKind>(initialKind)
   const [amount, setAmount] = useState(editing ? String(fromMinor(editing.amountMinor, editing.currency)) : '')
   const [date, setDate] = useState(editing?.localDate ?? todayISO())
-  const [accountId, setAccountId] = useState(editing?.accountId ?? accounts[0]?.id ?? '')
+  const [accountId, setAccountId] = useState(initialEntry.accountId)
   const [destinationId, setDestinationId] = useState('')
   const [destinationAmount, setDestinationAmount] = useState('')
   const [fee, setFee] = useState('')
-  const [categoryId, setCategoryId] = useState(editing?.categoryId ?? '')
+  const [categoryId, setCategoryId] = useState(initialEntry.categoryId)
   const existingAllocations = transactionFundAllocations.filter((row) =>
     row.transactionId === editing?.id && ['debit', 'reserve'].includes(row.effect),
   )
   const [fundAllocationDrafts, setFundAllocationDrafts] = useState<Array<{ fundPoolId: string; amount: string }>>(
-    existingAllocations.map((row) => ({
-      fundPoolId: row.fundPoolId,
-      amount: String(fromMinor(row.amountMinor, row.currency)),
-    })),
+    initialEntry.fundAllocations,
   )
   const [allocationsTouched, setAllocationsTouched] = useState(existingAllocations.length > 1)
   const [merchant, setMerchant] = useState(editing?.merchantNameSnapshot ?? '')
@@ -1385,6 +1496,13 @@ function FinanceEntrySheet({
   const [categoryManagerOpen, setCategoryManagerOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const fundPoolTransfersLive = useLiveQuery(
+    () => db.fundPoolTransfers.where('lifecycleStatus').equals('active').toArray(),
+    [],
+  )
+  const fundReservationsLive = useLiveQuery(() => db.fundReservations.toArray(), [], [])
+  const fundPoolTransfers = useMemo(() => fundPoolTransfersLive ?? [], [fundPoolTransfersLive])
+  const fundReservations = useMemo(() => fundReservationsLive ?? [], [fundReservationsLive])
   const transferKinds = ['transfer', 'credit_payment', 'topup'].includes(kind)
   const sourceOptions = useMemo(
     () => accounts.filter((account) => {
@@ -1445,13 +1563,24 @@ function FinanceEntrySheet({
       : accountOwnership(account) === 'self'),
   )
   const dirty = Boolean(
-    amount || destinationAmount || fee || categoryId || merchant.trim() || note.trim() || linkedTransactionId ||
-    date !== (editing?.localDate ?? todayISO()) || accountId !== (editing?.accountId ?? accounts[0]?.id ?? '') ||
-    fundAllocationDrafts.length > 0
+    amount || destinationAmount || fee || merchant.trim() || note.trim() || linkedTransactionId ||
+    date !== (editing?.localDate ?? todayISO()) ||
+    accountId !== initialEntry.accountId ||
+    categoryId !== initialEntry.categoryId ||
+    JSON.stringify(fundAllocationDrafts) !== JSON.stringify(initialEntry.fundAllocations)
   )
   const selectedCategory = categories.find((category) => category.id === categoryId)
   const eligibleFundPools = fundPools.filter((pool) =>
     pool.lifecycleStatus === 'active' && pool.currency === currency,
+  )
+  const fundPoolStates = useMemo(
+    () => calculateFundPoolStates({
+      pools: fundPools,
+      allocations: transactionFundAllocations.filter((row) => row.transactionId !== editing?.id),
+      transfers: fundPoolTransfers,
+      reservations: fundReservations.filter((row) => row.transactionId !== editing?.id),
+    }),
+    [editing?.id, fundPoolTransfers, fundPools, fundReservations, transactionFundAllocations],
   )
   const amountNumber = Number(amount)
   const amountValid = Number.isFinite(amountNumber) && amountNumber > 0
@@ -1466,6 +1595,21 @@ function FinanceEntrySheet({
     0,
   )
   const needsFundAllocation = kind === 'expense' && accountOwnership(source) === 'self' && financeFundsV3Enabled
+  const allocationShortages = fundAllocationDrafts.flatMap((row) => {
+    const pool = fundPools.find((item) => item.id === row.fundPoolId)
+    const requested = Number(row.amount)
+    if (!pool || !Number.isFinite(requested) || requested <= 0) return []
+    const availableMinor = fundPoolStates.get(pool.id)?.availableMinor ?? 0
+    const requestedMinor = toMinor(requested, pool.currency)
+    return requestedMinor > availableMinor
+      ? [{
+          fundPoolId: pool.id,
+          name: pool.name,
+          currency: pool.currency,
+          differenceMinor: requestedMinor - availableMinor,
+        }]
+      : []
+  })
   const canSubmit = Boolean(
     amountValid && date &&
     (kind === 'refund' ? linkedTransactionId && destinationId : source) &&
@@ -1474,7 +1618,8 @@ function FinanceEntrySheet({
     (!needsFundAllocation || (
       fundAllocationDrafts.length > 0 &&
       fundAllocationDrafts.every((row) => row.fundPoolId && Number(row.amount) > 0) &&
-      Math.abs(allocationsTotal - amountNumber) < 0.000001
+      Math.abs(allocationsTotal - amountNumber) < 0.000001 &&
+      allocationShortages.length === 0
     )),
   )
 
@@ -1557,6 +1702,8 @@ function FinanceEntrySheet({
               ? '请输入大于 0 的到账金额'
               : !feeValid
                 ? '手续费不能小于 0'
+            : allocationShortages.length > 0
+              ? `${allocationShortages[0].name}可用金额不足，差额 ${formatMoney(allocationShortages[0].differenceMinor, allocationShortages[0].currency)}`
             : needsFundAllocation
               ? '承担资金池的分摊总额必须与支出金额一致'
               : '请完成必填信息')
@@ -1599,6 +1746,11 @@ function FinanceEntrySheet({
             exchangeRateDate: converted.rate.rateDate,
             exchangeRateSource: converted.rate.providerLabel,
           }),
+        })
+        saveFinanceEntryDefaults({
+          accountId,
+          ...(categoryId && { categoryId }),
+          ...(fundAllocationDrafts[0]?.fundPoolId && { fundPoolId: fundAllocationDrafts[0].fundPoolId }),
         })
       } else if (kind === 'income') {
         const converted = await convertWithCachedRate({
@@ -1790,7 +1942,7 @@ function FinanceEntrySheet({
                   </>
                 ) : (
                   <FinancePickerRow
-                    label={kind === 'expense' ? '实际支付账户' : kind === 'income' ? '入账账户' : kind === 'credit_payment' ? '还款账户' : kind === 'topup' ? '付款账户' : '转出账户'}
+                    label={kind === 'expense' ? '现实从哪里付款' : kind === 'income' ? '入账账户' : kind === 'credit_payment' ? '还款账户' : kind === 'topup' ? '付款账户' : '转出账户'}
                     value={selectedAccount?.name}
                     placeholder="选择账户"
                     onClick={() => setPickerTarget({ kind: 'source' })}
@@ -1799,15 +1951,18 @@ function FinanceEntrySheet({
 
                 {kind === 'expense' && (
                   <>
-                    <div className="finance-sheet-static-row"><span>资金来源</span><strong>{accountOwnership(source) === 'external' ? '外部代付' : '本人资金'}</strong></div>
+                    <div className="finance-sheet-static-row"><span>资金承担者</span><strong>{accountOwnership(source) === 'external' ? '外部代付' : '本人资金'}</strong></div>
                     <FinancePickerRow label="分类" value={selectedCategory?.name ?? '未分类'} placeholder="未分类" onClick={() => setPickerTarget({ kind: 'category' })} />
                     {accountOwnership(source) !== 'external' && (
                       <fieldset className="finance-fund-allocation-fieldset">
-                        <legend>承担资金池</legend>
+                        <legend>这笔钱属于哪项用途资金</legend>
                         {fundAllocationDrafts.map((row, index) => (
                           <div key={`${row.fundPoolId}:${index}`}>
                             <button type="button" className="finance-fund-picker" onClick={() => setPickerTarget({ kind: 'fund-pool', index })}>
-                              <span>{eligibleFundPools.find((pool) => pool.id === row.fundPoolId)?.name ?? '选择资金池'}</span>
+                              <span>
+                                <strong>{eligibleFundPools.find((pool) => pool.id === row.fundPoolId)?.name ?? '选择用途资金池'}</strong>
+                                {row.fundPoolId && <small>可用 <PrivateAmount>{formatMoney(fundPoolStates.get(row.fundPoolId)?.availableMinor ?? 0, currency)}</PrivateAmount></small>}
+                              </span>
                               <AppIcon name="chevronRight" size={16} />
                             </button>
                             <input aria-label="分摊金额" inputMode="decimal" value={row.amount} onChange={(event) => {
@@ -1815,15 +1970,31 @@ function FinanceEntrySheet({
                               setFundAllocationDrafts((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, amount: event.target.value } : item))
                             }} />
                             {fundAllocationDrafts.length > 1 && <button type="button" aria-label="移除分摊" onClick={() => setFundAllocationDrafts((current) => current.filter((_, itemIndex) => itemIndex !== index))}><AppIcon name="close" size={16} /></button>}
+                            {allocationShortages.some((item) => item.fundPoolId === row.fundPoolId) && <p className="finance-fund-shortage">差额 <PrivateAmount>{formatMoney(allocationShortages.find((item) => item.fundPoolId === row.fundPoolId)!.differenceMinor, currency)}</PrivateAmount>，请更换或拆分资金池</p>}
                           </div>
                         ))}
-                        {fundAllocationDrafts.length === 0 && <p>{eligibleFundPools.length ? '选择承担本次支出的资金池' : '请先在“财务 → 资金池”分配余额'}</p>}
-                        {eligibleFundPools.length > 0 && <button type="button" className="finance-add-allocation" onClick={() => {
+                        {fundAllocationDrafts.length === 0 && <p>{!source
+                          ? '先选择现实支付账户，再确认这笔钱属于哪项用途资金'
+                          : eligibleFundPools.length
+                            ? '选择这笔支出属于哪项用途资金'
+                            : '请先在“财务 → 资金池”分配现实余额的用途'}</p>}
+                        {source && eligibleFundPools.length > 0 && <button type="button" className="finance-add-allocation" onClick={() => {
                           setAllocationsTouched(fundAllocationDrafts.length > 0)
                           setFundAllocationDrafts((current) => [...current, { fundPoolId: eligibleFundPools.find((pool) => !current.some((item) => item.fundPoolId === pool.id))?.id ?? eligibleFundPools[0].id, amount: current.length === 0 ? amount : '' }])
-                        }}>＋ {fundAllocationDrafts.length ? '增加分摊' : '选择资金池'}</button>}
+                        }}>＋ {fundAllocationDrafts.length ? '拆分到另一个资金池' : '选择用途资金池'}</button>}
                       </fieldset>
                     )}
+                    {source && <section className="finance-money-path" aria-label="资金路径确认">
+                      <span>保存后会记录</span>
+                      <strong>{source.name} → {accountOwnership(source) === 'external'
+                        ? '外部代付'
+                        : fundAllocationDrafts.length
+                          ? fundAllocationDrafts.map((row) => fundPools.find((pool) => pool.id === row.fundPoolId)?.name ?? '待选择用途').join(' + ')
+                          : '待选择用途资金池'}</strong>
+                      <small>{accountOwnership(source) === 'external'
+                        ? '计入消费行为，但不减少本人资产或资金池。'
+                        : '现实账户只扣款一次；资金池只记录用途归属，不会重复扣款。'}</small>
+                    </section>}
                     <label>商家 / 地点<input value={merchant} onChange={(event) => setMerchant(event.target.value)} placeholder="例如 Rakuten Ichiba" /></label>
                   </>
                 )}
