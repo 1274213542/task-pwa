@@ -6770,3 +6770,149 @@ select:focus {
     padding-inline: var(--space-3);
   }
 }
+
+/* Phase 1 · Shopping. Location groups and the flat view use one section
+   surface with compact rows. The destructive swipe layer is paint-contained
+   and stays transparent until the gesture has explicitly claimed the row, so
+   Safari cannot expose a red anti-aliased edge at rest. */
+@media (max-width: 1023px) {
+  .page-shopping {
+    align-content: start;
+    gap: var(--space-3) !important;
+  }
+
+  .page-shopping .mobile-shopping-view-switch {
+    margin: 0;
+  }
+
+  .page-shopping .shopping-feedback:empty,
+  .page-shopping .shopping-feedback:not(:has(span:not(:empty))) {
+    display: none;
+  }
+
+  .page-shopping .location-management {
+    margin: 0;
+  }
+
+  .page-shopping .location-management > summary {
+    min-height: var(--icon-button-size) !important;
+    width: fit-content;
+    max-width: 100%;
+    border-color: var(--color-border-subtle) !important;
+    border-radius: var(--radius-control) !important;
+    background: var(--color-surface-secondary) !important;
+    padding-inline: var(--space-3) !important;
+    color: var(--color-text-secondary) !important;
+  }
+
+  .page-shopping .shopping-group-stack {
+    gap: var(--space-3) !important;
+  }
+
+  .page-shopping .shopping-group-section {
+    padding: var(--space-1) var(--space-3) !important;
+  }
+
+  .page-shopping .shopping-group-title {
+    min-height: 44px !important;
+  }
+
+  .page-shopping .shopping-group-count {
+    min-width: 0;
+    height: 24px;
+    margin-left: auto;
+    padding-inline: var(--space-2);
+    white-space: nowrap;
+  }
+
+  .page-shopping .shopping-card-list {
+    gap: 0 !important;
+  }
+
+  .page-shopping .shopping-flat-list {
+    overflow: hidden;
+    margin-top: 0 !important;
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-card-medium);
+    background: var(--color-surface-primary);
+    padding: var(--space-1) var(--space-3);
+    box-shadow: var(--shadow-card);
+  }
+
+  .page-shopping .shopping-swipe-row {
+    overflow: clip;
+    contain: paint;
+    border-radius: 0;
+    background: var(--color-surface-primary);
+  }
+
+  .page-shopping .shopping-flat-list .shopping-swipe-row:first-child {
+    border-radius: calc(var(--radius-card-medium) - var(--space-1))
+      calc(var(--radius-card-medium) - var(--space-1)) 0 0;
+  }
+
+  .page-shopping .shopping-flat-list .shopping-swipe-row:last-child {
+    border-radius: 0 0 calc(var(--radius-card-medium) - var(--space-1))
+      calc(var(--radius-card-medium) - var(--space-1));
+  }
+
+  .page-shopping .shopping-flat-list .shopping-swipe-row:only-child {
+    border-radius: calc(var(--radius-card-medium) - var(--space-1));
+  }
+
+  .page-shopping .shopping-swipe-row + .shopping-swipe-row {
+    border-top: 1px solid var(--color-divider);
+  }
+
+  .page-shopping .shopping-swipe-row > .shopping-card {
+    min-height: 56px !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: var(--color-surface-primary) !important;
+    padding: 6px 0 !important;
+    box-shadow: none !important;
+    transform: translateZ(0);
+  }
+
+  .page-shopping .shopping-card p:first-child {
+    color: var(--color-text-primary);
+    font-size: 0.875rem !important;
+    font-weight: 620 !important;
+    line-height: 1.25;
+  }
+
+  .page-shopping .shopping-card p + p {
+    margin-top: 2px !important;
+    color: var(--color-text-secondary) !important;
+    font-size: var(--ds-type-meta) !important;
+    line-height: var(--ds-leading-meta);
+  }
+
+  .page-shopping .shopping-swipe-delete {
+    top: 1px;
+    right: 1px;
+    bottom: 1px;
+    width: 81px;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .page-shopping .shopping-swipe-row[data-swipe-open] .shopping-swipe-delete {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .page-shopping .shopping-item-more {
+    min-width: var(--icon-button-size);
+    min-height: var(--icon-button-size);
+  }
+
+  .page-shopping .shopping-group-empty-action {
+    min-height: var(--icon-button-size);
+  }
+
+  .page-shopping .shopping-empty-state {
+    min-height: 132px !important;
+    padding: var(--space-4) !important;
+  }
+}

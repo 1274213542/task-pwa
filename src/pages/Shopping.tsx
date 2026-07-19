@@ -982,7 +982,10 @@ export default function Shopping() {
   const activeItem = pending.find((item) => item.id === activeItemId)
 
   return (
-    <section className="app-page page-shopping">
+    <section
+      className="app-page page-shopping"
+      data-shopping-view={grouped ? 'grouped' : 'flat'}
+    >
       <MobilePageHeader
         title="购物清单"
         eyebrow={`${pending.length} 件待购`}
@@ -1211,7 +1214,7 @@ export default function Shopping() {
             items={pending.map((item) => item.id)}
             strategy={verticalListSortingStrategy}
           >
-            <ul className="shopping-card-list mt-4">
+            <ul className="shopping-card-list shopping-flat-list mt-4">
               <AnimatePresence initial={false} mode="popLayout">
               {pending.map((item, index) => (
                 <SortableShoppingRow
