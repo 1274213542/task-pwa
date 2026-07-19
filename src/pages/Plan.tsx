@@ -30,6 +30,7 @@ import AppIcon from '../components/AppIcon'
 import MarkerIcon from '../components/MarkerIcon'
 import { FOCUS_QUICK_ADD_EVENT } from '../lib/appEvents'
 import { MOTION } from '../lib/motion'
+import MobilePageHeader from '../components/MobilePageHeader'
 
 const WEEK_LABELS_MON = ['一', '二', '三', '四', '五', '六', '日']
 const WEEK_LABELS_SUN = ['日', '一', '二', '三', '四', '五', '六']
@@ -227,6 +228,10 @@ export default function Plan() {
     return item.kind === 'event' ? item.event.title : item.task.title
   }
 
+  function itemsForDate(dateISO: string) {
+    return (byDay?.get(dateISO) ?? []).filter((item) => itemTitle(item).trim().length > 0)
+  }
+
   function itemTime(item: CalItem) {
     if (item.kind !== 'event' || !item.event.startAt) return null
     return new Date(item.event.startAt).toLocaleTimeString('zh-CN', {
@@ -347,7 +352,7 @@ export default function Plan() {
     const inMonth = dateISO.slice(0, 7) === cursor.toString().slice(0, 7)
     const isToday = dateISO === todayISO
     const isSelected = dateISO === selected
-    const items = byDay?.get(dateISO) ?? []
+    const items = itemsForDate(dateISO)
     const dayWork = (workRecords ?? []).filter((record) => record.date === dateISO && record.worked)
     const totalCount = items.length + dayWork.length
     const firstVisual = items[0] ? itemVisual(items[0]) : undefined
@@ -443,7 +448,11 @@ export default function Plan() {
     )
   }
 
-  const selectedItems = byDay?.get(selected) ?? []
+  const selectedItems = itemsForDate(selected)
+  const futureAgendaGroups = agendaDates
+    .map((date) => ({ date, items: itemsForDate(date) }))
+    .filter((group) => group.items.length > 0)
+  const futureAgendaCount = futureAgendaGroups.reduce((sum, group) => sum + group.items.length, 0)
   const selectedWork = (workRecords ?? []).filter((record) => record.date === selected)
   const monthLabel = `${cursor.year} 年 ${cursor.month} 月`
   const weekLabel = `${dateLabel(weekDates[0], { month: 'short', day: 'numeric' })} – ${dateLabel(weekDates[6], { month: 'short', day: 'numeric' })}`
@@ -566,28 +575,21 @@ export default function Plan() {
 
   return (
     <section className="app-page page-plan" data-mode={mode}>
-      <header className="plan-mobile-header">
-        <div className="plan-mobile-heading">
-          <p>{dateLabel(selected, { month: 'long', day: 'numeric' })}</p>
-          <h1>计划</h1>
-        </div>
-        <button
-          type="button"
-          aria-label={mode === 'agenda' && composerOpen ? '收起新增区域' : '新增安排'}
-          aria-expanded={mode === 'agenda' && composerOpen}
-          className="plan-mobile-add"
-          onClick={() => {
-            if (mode === 'agenda' && composerOpen) {
-              setComposerOpen(false)
-              return
-            }
-            switchMode('agenda')
-            setComposerOpen(true)
-          }}
-        >
-          <AppIcon name={mode === 'agenda' && composerOpen ? 'chevronUp' : 'plus'} size={24} />
-        </button>
-      </header>
+      <MobilePageHeader
+        title="计划"
+        eyebrow={dateLabel(selected, { month: 'long', day: 'numeric' })}
+        onPrimary={() => {
+          if (mode === 'agenda' && composerOpen) {
+            setComposerOpen(false)
+            return
+          }
+          switchMode('agenda')
+          setComposerOpen(true)
+        }}
+        primaryLabel={mode === 'agenda' && composerOpen ? '收起新增区域' : '新增安排'}
+        primaryIcon={mode === 'agenda' && composerOpen ? 'chevronUp' : 'plus'}
+        showSecondary={false}
+      />
       <div className="plan-mobile-mode-switch" role="tablist" aria-label="视图模式">
         {([
           ['month', 'month', '月历'],
@@ -748,7 +750,7 @@ export default function Plan() {
                 </div>
                 <div className="week-board" role="grid" aria-label={weekLabel}>
                   {weekDates.map((date, index) => {
-                    const items = byDay?.get(date) ?? []
+                    const items = itemsForDate(date)
                     return (
                       <section
                         key={date}
@@ -843,23 +845,27 @@ export default function Plan() {
         <div className="agenda-layout">
           <div className="agenda-day-focus">{dayPanel}</div>
           <div className="agenda-hero">
-            <MarkerIcon symbol="flower" color="purple" size={62} />
             <div>
               <span>未来 30 天</span>
               <h2>日程安排</h2>
             </div>
+            <div className="agenda-hero-summary">
+              <strong>{futureAgendaCount} 项</strong>
+              <span>{futureAgendaGroups[0] ? `最近 ${dateLabel(futureAgendaGroups[0].date, { month: 'numeric', day: 'numeric' })}` : '暂无安排'}</span>
+              <AppIcon name="chevronRight" size={18} />
+            </div>
           </div>
           <div className="agenda-list">
-            {byDay && agendaDates.filter((date) => (byDay.get(date)?.length ?? 0) > 0).map((date) => (
+            {byDay && futureAgendaGroups.map(({ date, items }) => (
               <section key={date} className="agenda-day">
                 <header>
                   <time dateTime={date}>{dateLabel(date, { month: 'long', day: 'numeric' })}</time>
                   <span>{dateLabel(date, { weekday: 'long' })}{date === todayISO ? ' · 今天' : ''}</span>
                 </header>
-                <ul className="calendar-item-list">{byDay.get(date)!.map(itemRow)}</ul>
+                <ul className="calendar-item-list">{items.map(itemRow)}</ul>
               </section>
             ))}
-            {byDay && agendaDates.every((date) => (byDay.get(date)?.length ?? 0) === 0) && (
+            {byDay && futureAgendaGroups.length === 0 && (
               <div className="calendar-empty-agenda">
                 <MarkerIcon symbol="star" color="green" size={72} />
                 <strong>未来 30 天暂无安排</strong>

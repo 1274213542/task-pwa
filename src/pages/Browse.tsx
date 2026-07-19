@@ -19,6 +19,7 @@ import {
   nextMarkerSymbol,
 } from '../lib/themes'
 import MobilePageHeader from '../components/MobilePageHeader'
+import { voidRecord } from '../lib/tasks'
 
 function CategoryRow({ cat, taskCount }: { cat: Category; taskCount: number }) {
   const [editing, setEditing] = useState(false)
@@ -70,20 +71,14 @@ function CategoryRow({ cat, taskCount }: { cat: Category; taskCount: number }) {
           {cat.name}
         </button>
       )}
-      {!confirming && (
-        <>
-          <button
-            type="button"
-            aria-label={`切换 ${cat.name} 的颜色`}
-            data-color-token={cat.colorToken}
-            className="category-color-button"
-            onClick={() => void setCategoryColor(cat.id, nextColorToken(cat.colorToken))}
-          />
-          <span className="category-count tabular" aria-label={`${taskCount} 个任务`}>
-            {taskCount}
-          </span>
-        </>
-      )}
+      {!confirming && <span className="category-count tabular" aria-label={`${taskCount} 个任务`}>{taskCount}</span>}
+      {!confirming && <button
+        type="button"
+        aria-label={`切换 ${cat.name} 的颜色`}
+        data-color-token={cat.colorToken}
+        className="category-color-button"
+        onClick={() => void setCategoryColor(cat.id, nextColorToken(cat.colorToken))}
+      />}
       {confirming ? (
         <button
           onClick={() => void softDeleteCategory(cat.id)}
@@ -237,8 +232,16 @@ export default function Browse() {
                           {r.resolution === 'skipped' && (
                             <span className="record-skipped">已跳过</span>
                           )}
-                          {r.occurrenceKey !== 'single' && <span aria-label="周期任务">↻</span>}
+                          {r.occurrenceKey !== 'single' && <span>周期</span>}
                         </span>
+                        <button
+                          type="button"
+                          className="record-restore hit-target"
+                          aria-label={`恢复完成记录：${r.titleSnapshot}`}
+                          onClick={() => void voidRecord(r.id)}
+                        >
+                          <AppIcon name="sync" size={16} />
+                        </button>
                       </li>
                     ))}
                   </ul>

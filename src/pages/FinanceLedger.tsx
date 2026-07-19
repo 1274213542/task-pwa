@@ -171,14 +171,14 @@ export default function FinanceLedger() {
   return (
     <section className="app-page page-finance finance-ledger-page">
       <MobilePageHeader
-        eyebrow="账户、消费与工资"
+        eyebrow="工时、收入与支出"
         title="财务"
         onPrimary={() => openEntry('expense')}
         primaryLabel="快速记账"
         primaryIcon="plus"
       />
       <PageHeader
-        eyebrow="账户、消费与工资"
+        eyebrow="工时、收入与支出"
         title="财务"
         actions={
           <>
@@ -231,6 +231,7 @@ export default function FinanceLedger() {
           transactions={recentTransactions}
           currency={reportingCurrency}
           summary={currentSummary}
+          workEntries={workEntries}
           onOpenAccounts={() => setView('accounts')}
           onOpenTransactions={() => setView('transactions')}
           onNew={openEntry}
@@ -265,7 +266,7 @@ export default function FinanceLedger() {
       )}
       {view === 'stats' && (
         <StatsView
-          summary={currentSummary}
+          accounts={accounts}
           transactions={transactions}
           rates={rates}
           reportingCurrency={reportingCurrency}
@@ -301,6 +302,7 @@ function FinanceOverview({
   transactions,
   currency,
   summary,
+  workEntries,
   onOpenAccounts,
   onOpenTransactions,
   onNew,
@@ -310,12 +312,27 @@ function FinanceOverview({
   transactions: FinanceTransaction[]
   currency: CurrencyCode
   summary: ReturnType<typeof ledgerSummary>
+  workEntries: WorkEntry[]
   onOpenAccounts: () => void
   onOpenTransactions: () => void
   onNew: (kind: EntryKind) => void
 }) {
+  const monthWork = workEntries.filter((entry) =>
+    entry.lifecycleStatus === 'active' && entry.worked &&
+    entry.date >= monthStartISO() && entry.date <= todayISO(),
+  )
+  const workMinutes = monthWork.reduce((sum, entry) => sum + entry.durationMinutes, 0)
+  const estimatedPay = monthWork
+    .filter((entry) => entry.currency === currency && entry.settlementStatus === 'unsettled')
+    .reduce((sum, entry) => sum + entry.estimatedGrossMinor, 0)
   return (
     <div className="finance-ledger-dashboard">
+      <div className="finance-work-summary">
+        <article><span>本月至今工时</span><strong>{formatMinutes(workMinutes)}</strong><small>{monthWork.length} 个工作日</small></article>
+        <article><span>预计税前工资</span><strong>{formatMoney(estimatedPay, currency)}</strong><small>未结算工作记录</small></article>
+        <article><span>本月至今支出</span><strong>{formatMoney(summary.consumptionMinor, currency)}</strong><small>含外部代付</small></article>
+      </div>
+
       <section className="finance-net-worth-card">
         <span>个人净资产</span>
         <strong>{formatMoney(summary.netWorthMinor, currency)}</strong>
@@ -323,30 +340,6 @@ function FinanceOverview({
           <span>资产 {formatMoney(summary.assetsMinor, currency)}</span>
           <span>负债 {formatMoney(summary.liabilitiesMinor, currency)}</span>
         </div>
-      </section>
-
-      <div className="finance-ledger-metrics">
-        <article><span>本月全部消费</span><strong>{formatMoney(summary.consumptionMinor, currency)}</strong><small>含本人支付与外部代付</small></article>
-        <article><span>本人实际支付</span><strong>{formatMoney(summary.actualPaidMinor, currency)}</strong><small>不含信用卡还款重复项</small></article>
-        <article><span>外部代付</span><strong>{formatMoney(summary.externalPaidMinor, currency)}</strong><small>不影响个人净资产</small></article>
-        <article><span>本月收入</span><strong>{formatMoney(summary.incomeMinor, currency)}</strong><small>仅统计实际入账</small></article>
-      </div>
-
-      <section className="finance-section-card finance-account-snapshot">
-        <header><div><span>账户</span><h2>原币种余额</h2></div><button onClick={onOpenAccounts}>管理账户</button></header>
-        {accounts.length ? (
-          <ul>
-            {accounts.slice(0, 6).map((account) => (
-              <li key={account.id}>
-                <span className={`finance-account-mark is-${account.kind}`} aria-hidden />
-                <div><strong>{account.name}</strong><span>{ACCOUNT_SUBTYPE_LABEL[account.subtype]}</span></div>
-                <b>{formatMoney(balances.get(account.id) ?? 0, account.currency)}</b>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <button className="finance-empty-action" onClick={onOpenAccounts}>创建第一个账户</button>
-        )}
       </section>
 
       <section className="finance-section-card finance-quick-actions">
@@ -365,6 +358,24 @@ function FinanceOverview({
         accounts={accounts}
         onSeeAll={onOpenTransactions}
       />
+
+      <section className="finance-section-card finance-account-snapshot">
+        <header><div><span>账户</span><h2>原币种余额</h2></div><button onClick={onOpenAccounts}>管理账户</button></header>
+        {accounts.length ? (
+          <ul>
+            {accounts.slice(0, 6).map((account) => (
+              <li key={account.id}>
+                <span className={`finance-account-mark is-${account.kind}`} aria-hidden />
+                <div><strong>{account.name}</strong><span>{ACCOUNT_SUBTYPE_LABEL[account.subtype]}</span></div>
+                <b>{formatMoney(balances.get(account.id) ?? 0, account.currency)}</b>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <button className="finance-empty-action" onClick={onOpenAccounts}>创建第一个账户</button>
+        )}
+      </section>
+
     </div>
   )
 }
@@ -739,22 +750,36 @@ function WorkView({
 }
 
 function StatsView({
-  summary,
+  accounts,
   transactions,
   rates,
   reportingCurrency,
   onFeedback,
 }: {
-  summary: ReturnType<typeof ledgerSummary>
+  accounts: Account[]
   transactions: FinanceTransaction[]
   rates: ExchangeRate[]
   reportingCurrency: CurrencyCode
   onFeedback: (value: string) => void
 }) {
+  const [startDate, setStartDate] = useState(monthStartISO())
+  const [endDate, setEndDate] = useState(todayISO())
   const [refreshing, setRefreshing] = useState(false)
+  const summary = useMemo(
+    () => ledgerSummary({
+      accounts,
+      transactions,
+      rates,
+      reportingCurrency,
+      startDate,
+      endDate,
+    }),
+    [accounts, transactions, rates, reportingCurrency, startDate, endDate],
+  )
   const categories = new Map<string, number>()
   const merchants = new Map<string, number>()
   for (const transaction of transactions) {
+    if (transaction.localDate < startDate || transaction.localDate > endDate) continue
     if (!transaction.includeInSpending || !['expense', 'credit_purchase', 'external_payment'].includes(transaction.type)) continue
     const value = transaction.reportingCurrency === reportingCurrency
       ? transaction.reportingAmountMinor ?? 0
@@ -784,16 +809,35 @@ function StatsView({
 
   return (
     <div className="finance-stats-view">
+      <details className="finance-range-panel">
+        <summary>
+          <span>统计范围</span>
+          <strong>{startDate} — {endDate}</strong>
+          <AppIcon name="chevronDown" size={18} />
+        </summary>
+        <div className="finance-range-fields">
+          <input aria-label="开始日期" type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} />
+          <span>至</span>
+          <input aria-label="结束日期" type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} />
+        </div>
+      </details>
       <div className="finance-ledger-metrics">
         <article><span>净资产</span><strong>{formatMoney(summary.netWorthMinor, reportingCurrency)}</strong><small>资产减个人负债</small></article>
         <article><span>全部消费</span><strong>{formatMoney(summary.consumptionMinor, reportingCurrency)}</strong><small>含外部代付</small></article>
         <article><span>个人支付</span><strong>{formatMoney(summary.actualPaidMinor, reportingCurrency)}</strong><small>不含还款重复项</small></article>
         <article><span>外部代付</span><strong>{formatMoney(summary.externalPaidMinor, reportingCurrency)}</strong><small>消费行为，不影响资产</small></article>
       </div>
-      <div className="finance-breakdown-grid-v2">
-        <Breakdown title="按分类" data={[...categories.entries()].sort((a, b) => b[1] - a[1])} currency={reportingCurrency} />
-        <Breakdown title="按商家 / 地点" data={[...merchants.entries()].sort((a, b) => b[1] - a[1])} currency={reportingCurrency} />
-      </div>
+      {categories.size || merchants.size ? (
+        <div className="finance-breakdown-grid-v2">
+          <Breakdown title="按分类" data={[...categories.entries()].sort((a, b) => b[1] - a[1])} currency={reportingCurrency} />
+          <Breakdown title="按商家 / 地点" data={[...merchants.entries()].sort((a, b) => b[1] - a[1])} currency={reportingCurrency} />
+        </div>
+      ) : (
+        <section className="finance-section-card finance-stats-empty">
+          <AppIcon name="finance" size={24} />
+          <div><h2>还没有支出统计</h2><span>添加支出后会在这里按分类和商家汇总</span></div>
+        </section>
+      )}
       <section className="finance-section-card finance-rate-card">
         <header><div><span>余额使用最新缓存率；历史流水使用发生日快照</span><h2>汇率</h2></div><button disabled={refreshing} onClick={() => void refresh()}>{refreshing ? '更新中…' : '手动刷新'}</button></header>
         <p>{latest ? `${latest.baseCurrency}/${latest.quoteCurrency} ${latest.rate} · ${latest.providerLabel} · ${latest.rateDate}` : '还没有缓存汇率；记账仍可离线完成'}</p>

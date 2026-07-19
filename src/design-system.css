@@ -27,11 +27,15 @@
   --ds-icon-large: 24px;
 
   /* Concentric radius scale: panel > card > control > compact control. */
-  --ds-radius-panel: 28px;
-  --ds-radius-card: 22px;
-  --ds-radius-control: 16px;
-  --ds-radius-compact: 13px;
+  --ds-radius-panel: 24px;
+  --ds-radius-card: 19px;
+  --ds-radius-control: 15px;
+  --ds-radius-compact: 12px;
   --ds-radius-pill: 999px;
+
+  --ds-section-gap: 20px;
+  --ds-list-gap: 10px;
+  --ds-card-padding: 16px;
 
   --ds-type-display: clamp(2rem, 4vw, 2.75rem);
   --ds-type-page-mobile: 1.5rem;
@@ -1646,6 +1650,18 @@ select:focus {
   opacity: 0.62;
 }
 
+.task-card .strike,
+.shopping-card .strike {
+  background-image: none !important;
+}
+
+.task-card .strike[data-done='true'],
+.shopping-card .strike[data-done='true'] {
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+  text-decoration-color: currentColor;
+}
+
 .task-card-check::before {
   border-color: var(--ui-muted) !important;
   background: var(--ui-surface);
@@ -1726,6 +1742,10 @@ select:focus {
 .calendar-day[data-selected='true'] .calendar-date-number[data-today='true'] {
   background: var(--ui-dark) !important;
   color: #fff !important;
+  box-shadow: none !important;
+}
+
+.calendar-day[data-selected='true'] {
   box-shadow: none !important;
 }
 
@@ -2122,12 +2142,12 @@ select:focus {
   }
 
   .mobile-nav-fade {
-    height: calc(var(--nav-content-clearance) + 48px);
+    height: calc(var(--dock-visual-height) + var(--dock-bottom-gap) + 34px);
     background: linear-gradient(
       to bottom,
       transparent 0%,
-      color-mix(in srgb, var(--ui-bg) 72%, transparent) 43%,
-      var(--ui-bg) 78%
+      color-mix(in srgb, var(--ui-bg) 58%, transparent) 46%,
+      var(--ui-bg) 88%
     );
   }
 
@@ -2236,6 +2256,440 @@ select:focus {
   .mobile-page-actions,
   .task-mobile-actions {
     gap: 4px;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Mobile system convergence — July 19, 2026
+
+   This layer removes the remaining page-local visual experiments. It keeps
+   one neutral surface hierarchy, one mobile header, compact list rows and a
+   single dock clearance. Feature colors remain data, never card backgrounds.
+   -------------------------------------------------------------------------- */
+
+.app-page {
+  gap: var(--ds-section-gap);
+}
+
+.mobile-page-primary,
+.mobile-page-secondary,
+.mobile-page-avatar,
+.page-icon-button {
+  width: var(--ds-control-height) !important;
+  height: var(--ds-control-height) !important;
+  min-width: var(--ds-control-height) !important;
+  min-height: var(--ds-control-height) !important;
+  border-radius: 50% !important;
+}
+
+.quick-card:focus-within,
+.task-composer-card:focus-within,
+.shopping-composer-card:focus-within,
+.calendar-composer:focus-within {
+  border-color: var(--ds-border-strong) !important;
+  box-shadow: var(--ds-shadow-card) !important;
+  transform: none !important;
+}
+
+.task-composer-card,
+.shopping-composer-card,
+.calendar-composer {
+  border-radius: var(--ds-radius-card) !important;
+}
+
+.task-composer-card textarea,
+.shopping-composer-card textarea,
+.calendar-composer textarea {
+  border-radius: var(--ds-radius-control) !important;
+}
+
+.task-type-switch {
+  display: inline-flex;
+  min-height: 40px;
+  padding: 3px;
+}
+
+.task-type-switch button {
+  min-height: 34px;
+  border-radius: var(--ds-radius-compact);
+  padding: 0 12px;
+  color: var(--ui-muted);
+}
+
+.task-type-switch button.is-active {
+  background: var(--ui-surface);
+  color: var(--ui-ink);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.06);
+}
+
+/* Browse: section headings no longer masquerade as underlined tabs. */
+.browse-layout {
+  gap: var(--ds-section-gap) !important;
+  margin-top: 0 !important;
+}
+
+.browse-section-head {
+  min-height: 40px !important;
+  align-items: center !important;
+  border: 0 !important;
+  padding: 0 2px 8px !important;
+}
+
+.browse-section-title {
+  gap: 6px !important;
+  font-size: var(--ds-type-section) !important;
+  font-weight: 680 !important;
+  line-height: var(--ds-leading-tight) !important;
+  letter-spacing: -0.025em !important;
+}
+
+.browse-section-muted {
+  color: var(--ui-muted) !important;
+  font-weight: 560 !important;
+}
+
+.browse-count-token,
+.browse-count-complete {
+  display: inline-flex !important;
+  width: auto !important;
+  min-width: 28px !important;
+  height: 26px !important;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--ds-border) !important;
+  border-radius: var(--ds-radius-pill) !important;
+  background: var(--ui-soft) !important;
+  padding: 0 8px;
+  color: var(--ui-muted) !important;
+  font-size: 0.72rem !important;
+  font-weight: 650;
+  box-shadow: none !important;
+}
+
+.browse-category-card,
+.record-list {
+  margin-top: 0 !important;
+  overflow: hidden;
+  border: 1px solid var(--ds-border) !important;
+  border-radius: var(--ds-radius-card) !important;
+  background: var(--ui-surface) !important;
+  box-shadow: var(--ds-shadow-card) !important;
+}
+
+.category-row {
+  min-height: 58px !important;
+  grid-template-columns: 38px minmax(0, 1fr) auto 34px 40px !important;
+  gap: 4px;
+  padding: 2px 4px 2px 8px !important;
+}
+
+.category-row:hover,
+.category-row:focus-within {
+  background: var(--ui-soft) !important;
+}
+
+.category-token > span {
+  width: 30px !important;
+  height: 30px !important;
+  box-shadow: none !important;
+}
+
+.category-name-button,
+.category-name-input {
+  min-height: 44px;
+  padding: 8px 6px !important;
+  font-size: 0.94rem !important;
+  font-weight: 640 !important;
+}
+
+.category-count {
+  min-width: 26px;
+  border-radius: var(--ds-radius-pill);
+  background: var(--ui-soft);
+  padding: 4px 7px;
+  color: var(--ui-muted) !important;
+  text-align: center;
+}
+
+.category-color-button {
+  width: 18px !important;
+  height: 18px !important;
+  border-width: 2px !important;
+  box-shadow: 0 0 0 1px var(--ds-border) !important;
+}
+
+.category-composer {
+  min-height: 56px !important;
+  border-top: 1px solid var(--ds-border);
+  background: var(--ui-surface) !important;
+  padding: 6px 8px 6px 12px !important;
+}
+
+.category-add {
+  min-width: 60px;
+  border-radius: var(--ds-radius-compact) !important;
+  background: var(--ui-dark) !important;
+  color: #fff !important;
+  box-shadow: none !important;
+}
+
+.record-group {
+  margin-top: 10px !important;
+}
+
+.record-row {
+  min-height: 54px !important;
+  grid-template-columns: minmax(0, 1fr) auto 40px !important;
+  gap: 8px !important;
+  padding: 7px 8px 7px 14px !important;
+}
+
+.record-title {
+  font-size: 0.91rem !important;
+}
+
+.record-meta {
+  max-width: 46vw;
+  color: var(--ui-muted) !important;
+  font-size: 0.7rem !important;
+}
+
+.record-category,
+.record-skipped {
+  min-height: 24px !important;
+  border-radius: var(--ds-radius-pill) !important;
+  background: var(--ui-soft) !important;
+  padding: 4px 7px !important;
+  color: var(--ui-muted) !important;
+}
+
+.record-restore {
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--ui-muted);
+}
+
+/* Plan: day details and future agenda remain useful without tall empty art. */
+.calendar-day-panel,
+.calendar-selection-summary,
+.agenda-hero {
+  border-radius: var(--ds-radius-card) !important;
+}
+
+.calendar-day-panel .calendar-empty-day {
+  min-height: 64px !important;
+  grid-template-columns: 28px auto;
+  place-content: center;
+  gap: 8px;
+}
+
+.calendar-day-panel .calendar-empty-day .marker-icon {
+  width: 26px;
+  height: 26px;
+}
+
+.calendar-empty-agenda {
+  min-height: 104px !important;
+  border-radius: var(--ds-radius-card) !important;
+  padding: 16px;
+}
+
+.agenda-hero {
+  display: flex !important;
+  min-height: 82px !important;
+  align-items: center !important;
+  justify-content: space-between;
+  gap: 14px !important;
+  padding: 14px 16px !important;
+}
+
+.agenda-hero h2 {
+  font-size: 1.2rem !important;
+}
+
+.agenda-hero-summary {
+  display: grid;
+  min-width: 96px;
+  grid-template-columns: minmax(0, 1fr) 20px;
+  align-items: center;
+  gap: 0 6px;
+  text-align: right;
+}
+
+.agenda-hero-summary strong {
+  font-size: 0.82rem;
+}
+
+.agenda-hero-summary span {
+  grid-column: 1;
+  color: var(--ui-muted) !important;
+  font-size: 0.68rem !important;
+  font-weight: 560 !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+}
+
+.agenda-hero-summary svg {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  color: var(--ui-muted);
+}
+
+.agenda-list,
+.agenda-day {
+  gap: var(--ds-list-gap) !important;
+}
+
+.calendar-item-list {
+  gap: var(--ds-list-gap) !important;
+}
+
+.calendar-item-card {
+  min-height: 62px !important;
+  border-radius: var(--ds-radius-card) !important;
+  padding-block: 8px !important;
+}
+
+.calendar-item-card .calendar-item-main strong,
+.mobile-timeline-event strong,
+.week-event strong {
+  color: var(--ui-ink) !important;
+}
+
+.calendar-item-card .calendar-item-main span,
+.mobile-timeline-event span,
+.week-event > span {
+  color: var(--ui-muted) !important;
+}
+
+/* Shopping: destructive and ordering controls live in the one temporary
+   menu; ordinary rows expose only completion, content and More. */
+.shopping-move-menu {
+  min-width: 190px;
+  overflow: hidden;
+  border-radius: var(--ds-radius-control) !important;
+}
+
+.shopping-move-menu > button {
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  gap: 8px;
+}
+
+.shopping-menu-drag,
+.shopping-menu-delete {
+  border-top: 1px solid var(--ds-border) !important;
+}
+
+.shopping-menu-delete {
+  color: #b42318 !important;
+}
+
+.shopping-menu-delete.is-confirming {
+  background: #b42318 !important;
+  color: #fff !important;
+}
+
+/* Finance: net worth remains the account anchor, while the requested work,
+   estimated pay and spending values form a compact, consistent first row. */
+.finance-net-worth-card {
+  min-height: 136px !important;
+  border-radius: var(--ds-radius-panel) !important;
+  padding: var(--ds-card-padding) !important;
+}
+
+.finance-net-worth-card > strong {
+  font-size: clamp(1.85rem, 7vw, 3.2rem) !important;
+}
+
+.finance-net-worth-card > div {
+  margin-top: 12px !important;
+}
+
+.finance-work-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--ds-list-gap);
+}
+
+.finance-work-summary article {
+  display: grid;
+  min-height: 104px;
+  align-content: space-between;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-card);
+  background: var(--ui-surface);
+  padding: 14px;
+  box-shadow: var(--ds-shadow-card);
+}
+
+.finance-work-summary article:last-child {
+  min-height: 68px;
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.finance-work-summary span,
+.finance-work-summary small {
+  color: var(--ui-muted);
+  font-size: var(--ds-type-meta);
+}
+
+.finance-work-summary strong {
+  font-size: clamp(1.08rem, 4.5vw, 1.55rem);
+  font-weight: 690;
+  letter-spacing: -0.035em;
+  font-variant-numeric: tabular-nums;
+}
+
+.finance-work-summary article:last-child strong {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  text-align: right;
+}
+
+.finance-section-card {
+  border-radius: var(--ds-radius-card) !important;
+  padding: var(--ds-card-padding) !important;
+}
+
+.finance-stats-empty {
+  display: flex;
+  min-height: 92px;
+  align-items: center;
+  gap: 12px;
+  color: var(--ui-muted);
+}
+
+.finance-stats-empty div {
+  display: grid;
+  gap: 2px;
+}
+
+.finance-stats-empty h2 {
+  color: var(--ui-ink);
+  font-size: var(--ds-type-card);
+}
+
+.finance-stats-empty span {
+  font-size: var(--ds-type-meta);
+}
+
+@media (max-width: 1023px) {
+  .mobile-page-header {
+    min-height: 72px !important;
+    padding: 10px 0 14px !important;
+  }
+
+  .page-browse .mobile-page-heading p {
+    display: none;
+  }
+
+  .app-shell main {
+    overscroll-behavior-y: contain;
   }
 }
 
@@ -3100,8 +3554,88 @@ select:focus {
   }
 }
 
+@media (min-width: 720px) {
+  .finance-ledger-dashboard {
+    grid-template-columns: minmax(0, 1.15fr) minmax(300px, 0.85fr);
+    align-items: start;
+  }
+
+  .finance-work-summary {
+    grid-column: 1;
+    grid-row: 1;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .finance-quick-actions {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .finance-net-worth-card {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .finance-work-summary article,
+  .finance-work-summary article:last-child {
+    min-height: 104px;
+    grid-column: auto;
+    grid-template-columns: 1fr;
+    align-items: initial;
+  }
+
+  .finance-work-summary article:last-child strong {
+    grid-column: auto;
+    grid-row: auto;
+    text-align: left;
+  }
+
+  .finance-account-snapshot {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .finance-transaction-list {
+    grid-column: 1 / -1;
+    grid-row: 3;
+  }
+}
+
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .finance-ledger-sheet {
     background: var(--ui-surface);
+  }
+}
+
+/* Final specificity pass for legacy mobile selectors that load before this
+   system file but still carry older decorative defaults. */
+.category-delete {
+  background: transparent !important;
+  color: var(--ui-muted) !important;
+}
+
+.category-delete:hover,
+.category-delete:focus-visible {
+  background: var(--ui-soft) !important;
+  color: var(--ui-ink) !important;
+  transform: none !important;
+}
+
+.browse-empty-state {
+  min-height: 104px !important;
+}
+
+.shopping-group-section .shopping-marker {
+  display: none !important;
+}
+
+@media (max-width: 520px) {
+  .finance-quick-actions > div {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .finance-quick-actions > div button {
+    min-height: 58px;
+    padding-inline: 2px;
   }
 }

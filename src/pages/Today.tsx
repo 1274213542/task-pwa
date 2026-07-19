@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { AnimatePresence, LayoutGroup } from 'motion/react'
+import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from 'motion/react'
 import {
   DndContext,
   DragOverlay,
@@ -56,6 +56,8 @@ import AppIcon from '../components/AppIcon'
 import MarkerIcon from '../components/MarkerIcon'
 import RecurrencePicker from '../components/RecurrencePicker'
 import PageHeader from '../components/PageHeader'
+import MobilePageHeader from '../components/MobilePageHeader'
+import { MOTION } from '../lib/motion'
 import {
   defaultFixedRecurrence,
   taskScopeOf,
@@ -255,6 +257,7 @@ function SortablePendingRow({
 }
 
 export default function Today() {
+  const reduceMotion = useReducedMotion()
   const [title, setTitle] = useState('')
   const [recurrence, setRecurrence] = useState<Recurrence | undefined>()
   const [categoryId, setCategoryId] = useState<string>('')
@@ -618,35 +621,16 @@ export default function Today() {
           </button>
         )}
       />
-      <header className="task-mobile-toolbar">
-        <div className="task-mobile-brand">
-          <div>
-            <p>{dateLabel}</p>
-            <h1>任务</h1>
-          </div>
-        </div>
-        <div className="task-mobile-actions">
-          <button
-            type="button"
-            aria-label={composerOpen ? '收起新增任务' : '新增任务'}
-            aria-expanded={composerOpen}
-            onClick={() => {
-              setOpenMenuTaskId(null)
-              setComposerOpen((open) => !open)
-            }}
-            className="task-round-action task-round-action-primary"
-          >
-            <AppIcon name={composerOpen ? 'chevronUp' : 'plus'} size={25} />
-          </button>
-          <a
-            href="#/settings"
-            aria-label="设置"
-            className="task-round-action task-round-action-settings"
-          >
-            <AppIcon name="settings" size={23} />
-          </a>
-        </div>
-      </header>
+      <MobilePageHeader
+        title="任务"
+        eyebrow={dateLabel}
+        onPrimary={() => {
+          setOpenMenuTaskId(null)
+          setComposerOpen((open) => !open)
+        }}
+        primaryLabel={composerOpen ? '收起新增任务' : '新增任务'}
+        primaryIcon={composerOpen ? 'chevronUp' : 'plus'}
+      />
 
       <div className="task-filter-shell">
         <span className="task-filter-icon" aria-hidden>
@@ -688,7 +672,15 @@ export default function Today() {
         <span>已完成 {done.length} 项</span>
       </div>
 
-      {composerOpen && <div className="quick-card task-composer-card rounded-2xl bg-white/70 p-2 shadow-sm ring-1 ring-black/5 dark:bg-neutral-800/70 dark:ring-white/5">
+      <AnimatePresence initial={false}>
+      {composerOpen && <motion.div
+        key="task-composer"
+        initial={reduceMotion ? false : { opacity: 0, y: -6, scale: 0.99 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -4, scale: 0.99 }}
+        transition={reduceMotion ? MOTION.reduced : MOTION.sheet}
+        className="quick-card task-composer-card"
+      >
         <div className="flex items-center gap-2">
           <textarea
             ref={inputRef}
@@ -720,18 +712,18 @@ export default function Today() {
           <span className="desktop-composer-hint">Enter 换行 · ⌘/Ctrl + Enter 添加全部</span>
         </p>
         <div className="mt-1 flex flex-wrap items-center gap-2 px-1 pb-1">
-          <div className="flex rounded-lg bg-black/5 p-0.5 text-[12px] dark:bg-white/10">
+          <div className="segmented-control task-type-switch text-[12px]" role="group" aria-label="任务类型">
             <button
               onClick={() => setTaskType(false)}
               aria-pressed={!fixed}
-              className={`min-h-11 rounded-md px-2.5 ${!fixed ? 'bg-white shadow-sm dark:bg-neutral-700' : 'text-neutral-500'}`}
+              className={!fixed ? 'is-active' : ''}
             >
               普通任务
             </button>
             <button
               onClick={() => setTaskType(true)}
               aria-pressed={fixed}
-              className={`min-h-11 rounded-md px-2.5 ${fixed ? 'bg-white shadow-sm dark:bg-neutral-700' : 'text-neutral-500'}`}
+              className={fixed ? 'is-active' : ''}
             >
               固定任务
             </button>
@@ -765,7 +757,8 @@ export default function Today() {
             </>
           )}
         </div>
-      </div>}
+      </motion.div>}
+      </AnimatePresence>
       <p role="status" className="min-h-5 px-2 pt-1 text-[12px] text-neutral-500">
         {feedback}
       </p>

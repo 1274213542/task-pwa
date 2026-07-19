@@ -158,38 +158,40 @@ function ItemRow({
                   {location.name}
                 </button>
               ))}
+              <button
+                type="button"
+                role="menuitem"
+                className="shopping-menu-drag"
+                aria-label={`长按拖动 ${item.name}`}
+                {...dragProps}
+              >
+                <AppIcon name="drag" size={17} /> 长按拖动排序
+              </button>
+              {confirming ? (
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="shopping-menu-delete is-confirming"
+                  onClick={() => void softDeleteItem(item.id)}
+                >
+                  确认删除
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="shopping-menu-delete"
+                  onClick={() => {
+                    setConfirming(true)
+                    setTimeout(() => setConfirming(false), 3000)
+                  }}
+                >
+                  <AppIcon name="trash" size={17} /> 删除商品
+                </button>
+              )}
             </div>
           )}
-          <button
-            type="button"
-            aria-label={`长按拖动 ${item.name}`}
-            className="shopping-drag-handle hit-target"
-            {...dragProps}
-          >
-            <AppIcon name="drag" size={18} />
-          </button>
         </div>
-      )}
-
-      {confirming ? (
-        <button
-          onClick={() => void softDeleteItem(item.id)}
-          className="shrink-0 rounded-lg bg-red-500 px-2 py-1 text-[12px]
-            font-medium text-white"
-        >
-          确认删除
-        </button>
-      ) : (
-        <button
-          aria-label="删除"
-          onClick={() => {
-            setConfirming(true)
-            setTimeout(() => setConfirming(false), 3000)
-          }}
-          className="hit-target -mr-2 shrink-0 text-neutral-300 dark:text-neutral-600"
-        >
-          <AppIcon name="close" size={19} />
-        </button>
       )}
     </motion.li>
   )
@@ -379,6 +381,31 @@ export default function Shopping() {
     window.addEventListener(FOCUS_QUICK_ADD_EVENT, openComposer)
     return () => window.removeEventListener(FOCUS_QUICK_ADD_EVENT, openComposer)
   }, [])
+
+  useEffect(() => {
+    if (!moveMenuId) return
+    const closeOutside = (event: PointerEvent) => {
+      const target = event.target as Element | null
+      if (!target?.closest('.shopping-item-actions')) setMoveMenuId(null)
+    }
+    const closeOnScroll = () => setMoveMenuId(null)
+    const closeOnKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMoveMenuId(null)
+    }
+    const closeWhenHidden = () => {
+      if (document.visibilityState !== 'visible') setMoveMenuId(null)
+    }
+    document.addEventListener('pointerdown', closeOutside, true)
+    window.addEventListener('scroll', closeOnScroll, true)
+    window.addEventListener('keydown', closeOnKey)
+    document.addEventListener('visibilitychange', closeWhenHidden)
+    return () => {
+      document.removeEventListener('pointerdown', closeOutside, true)
+      window.removeEventListener('scroll', closeOnScroll, true)
+      window.removeEventListener('keydown', closeOnKey)
+      document.removeEventListener('visibilitychange', closeWhenHidden)
+    }
+  }, [moveMenuId])
 
   // 频次建议：输入同名商品时按已购历史自动预选地点（手动选择优先）
   useEffect(() => {
