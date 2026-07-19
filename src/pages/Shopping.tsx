@@ -17,6 +17,7 @@ import {
   motion,
   useMotionValue,
   useReducedMotion,
+  useTransform,
   type AnimationPlaybackControls,
 } from 'motion/react'
 import {
@@ -74,9 +75,10 @@ type ShoppingRowDragProps = Pick<
 type ShoppingDragHandleProps = ButtonHTMLAttributes<HTMLButtonElement>
 
 const MOVE_UNDO_TIMEOUT_MS = 7_000
-const SWIPE_REVEAL_PX = 82
-const SWIPE_COMMIT_PX = 44
+const SWIPE_REVEAL_PX = 216
+const SWIPE_COMMIT_PX = 58
 const SWIPE_DIRECTION_LOCK_PX = 10
+const SHOPPING_SWIPE_OPEN_EVENT = 'task-pwa:shopping-swipe-open'
 
 function stopDragActivation(event: { stopPropagation: () => void }) {
   event.stopPropagation()
@@ -124,6 +126,8 @@ function ItemRow({
   const [menuPosition, setMenuPosition] = useState<CSSProperties | null>(null)
   const purchased = item.purchaseStatus === 'purchased'
   const swipeX = useMotionValue(swipeOpen ? -SWIPE_REVEAL_PX : 0)
+  const swipeActionOpacity = useTransform(swipeX, [-24, -8, 0], [1, 0.45, 0])
+  const swipeActionScale = useTransform(swipeX, [-SWIPE_REVEAL_PX, -18, 0], [1, 0.96, 0.9])
   const swipeAnimation = useRef<AnimationPlaybackControls | null>(null)
   const gesture = useRef<{
     pointerId: number
@@ -158,6 +162,17 @@ function ItemRow({
 
   useEffect(() => () => swipeAnimation.current?.stop(), [])
 
+  useEffect(() => {
+    const closeForAnotherRow = (event: Event) => {
+      if ((event as CustomEvent<string>).detail === item.id) return
+      settleSwipe(0)
+    }
+    window.addEventListener(SHOPPING_SWIPE_OPEN_EVENT, closeForAnotherRow)
+    return () => window.removeEventListener(SHOPPING_SWIPE_OPEN_EVENT, closeForAnotherRow)
+    // settleSwipe intentionally hands off from the current presentation value.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item.id])
+
   function onSwipePointerDown(event: ReactPointerEvent<HTMLDivElement>) {
     if (purchased || dragging || event.button !== 0) return
     const target = event.target as Element
@@ -187,6 +202,7 @@ function ItemRow({
       }
       state.axis = 'horizontal'
       event.currentTarget.setPointerCapture(event.pointerId)
+      window.dispatchEvent(new CustomEvent(SHOPPING_SWIPE_OPEN_EVENT, { detail: item.id }))
       onSwipeOpen?.()
     }
     if (state.axis !== 'horizontal') return
@@ -293,16 +309,42 @@ function ItemRow({
       {...rowDragProps}
     >
       {!purchased && (
-        <button
-          type="button"
-          className="shopping-swipe-delete"
-          aria-label={`删除 ${item.name}`}
-          onPointerDown={stopDragActivation}
-          onClick={onDelete}
+        <motion.div
+          className="shopping-swipe-actions"
+          aria-label={`${item.name} 的滑动操作`}
+          style={{ opacity: swipeActionOpacity, scale: swipeActionScale }}
         >
-          <AppIcon name="trash" size={18} />
-          <span>删除</span>
-        </button>
+          <button
+            type="button"
+            className="shopping-swipe-action shopping-swipe-more"
+            aria-label={`更多 ${item.name}`}
+            onPointerDown={stopDragActivation}
+            onClick={onMenuToggle}
+          >
+            <AppIcon name="more" size={18} />
+            <span>更多</span>
+          </button>
+          <button
+            type="button"
+            className="shopping-swipe-action shopping-swipe-move"
+            aria-label={`移动 ${item.name}`}
+            onPointerDown={stopDragActivation}
+            onClick={onMenuToggle}
+          >
+            <AppIcon name="folder" size={18} />
+            <span>移动</span>
+          </button>
+          <button
+            type="button"
+            className="shopping-swipe-action shopping-swipe-delete"
+            aria-label={`删除 ${item.name}`}
+            onPointerDown={stopDragActivation}
+            onClick={onDelete}
+          >
+            <AppIcon name="trash" size={18} />
+            <span>删除</span>
+          </button>
+        </motion.div>
       )}
       <motion.div
         className="shopping-card relative flex min-w-0 items-center gap-3"

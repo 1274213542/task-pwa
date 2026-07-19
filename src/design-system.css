@@ -8183,3 +8183,166 @@ select:focus {
     }
   }
 }
+
+/* Apple mobile normalization · Shopping. Locations are section cards and
+   products are grouped rows. The swipe tray is transparent; each action owns
+   its rounded surface so a dangerous fill cannot leak around an idle row. */
+@media (max-width: 1023px) {
+  .page-shopping .location-management > summary {
+    min-height: 44px !important;
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-pill) !important;
+    background: var(--color-surface-primary);
+    padding-inline: var(--space-4) !important;
+    color: var(--color-text-secondary) !important;
+    font-size: var(--ds-type-pill) !important;
+    line-height: var(--ds-leading-pill);
+    font-weight: 600;
+  }
+
+  .page-shopping .shopping-group-stack {
+    gap: var(--space-3) !important;
+  }
+
+  .page-shopping .shopping-group-section {
+    border-radius: var(--radius-card-large) !important;
+    padding: var(--space-3) var(--space-4) !important;
+  }
+
+  .page-shopping .shopping-group-title {
+    min-height: 44px;
+    gap: var(--space-3);
+    padding: 0 !important;
+  }
+
+  .page-shopping .shopping-group-title > span:not(.shopping-group-count) {
+    font-size: var(--ds-type-section) !important;
+    line-height: var(--ds-leading-section);
+    font-weight: 600;
+  }
+
+  .page-shopping .shopping-group-count {
+    min-height: 24px;
+    border-radius: var(--radius-pill);
+    font-size: var(--ds-type-desc) !important;
+    line-height: var(--ds-leading-desc);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .page-shopping .shopping-card-list {
+    overflow: clip;
+    border-radius: calc(var(--radius-card-medium) - var(--space-1));
+  }
+
+  .page-shopping .shopping-swipe-row > .shopping-card {
+    min-height: 68px !important;
+    gap: var(--space-3) !important;
+    padding: var(--space-2) 0 !important;
+  }
+
+  .page-shopping .shopping-card p:first-child {
+    font-size: var(--ds-type-card) !important;
+    line-height: var(--ds-leading-card) !important;
+    font-weight: 500 !important;
+  }
+
+  .page-shopping .shopping-card p + p {
+    margin-top: 2px !important;
+    font-size: var(--ds-type-meta) !important;
+    line-height: var(--ds-leading-meta) !important;
+  }
+
+  .page-shopping .shopping-swipe-row + .shopping-swipe-row {
+    position: relative;
+    border-top: 0 !important;
+  }
+
+  .page-shopping .shopping-swipe-row + .shopping-swipe-row::before {
+    position: absolute;
+    z-index: 3;
+    top: 0;
+    right: var(--space-4);
+    left: 60px;
+    height: 1px;
+    background: var(--color-divider);
+    content: '';
+    pointer-events: none;
+  }
+
+  .page-shopping .shopping-swipe-actions {
+    position: absolute;
+    z-index: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    display: grid;
+    width: 216px;
+    grid-template-columns: repeat(3, 68px);
+    align-items: center;
+    justify-content: end;
+    gap: var(--space-1);
+    padding-right: var(--space-1);
+    pointer-events: none;
+    transform-origin: right center;
+  }
+
+  .page-shopping .shopping-swipe-row[data-swipe-open] .shopping-swipe-actions {
+    pointer-events: auto;
+  }
+
+  .page-shopping .shopping-swipe-action,
+  .page-shopping .shopping-swipe-delete {
+    position: static !important;
+    inset: auto !important;
+    display: grid;
+    width: 68px !important;
+    height: 44px !important;
+    min-height: 44px;
+    place-content: center;
+    gap: 1px;
+    border: 0;
+    border-radius: 22px !important;
+    padding: 0;
+    color: var(--color-text-primary);
+    font-size: 12px;
+    line-height: 14px;
+    font-weight: 600;
+    text-align: center;
+    opacity: 1 !important;
+    pointer-events: auto;
+  }
+
+  .page-shopping .shopping-swipe-more {
+    background: color-mix(in srgb, var(--color-text-secondary) 20%, var(--color-surface-primary));
+  }
+
+  .page-shopping .shopping-swipe-move {
+    background: color-mix(in srgb, var(--color-text-primary) 9%, var(--color-surface-primary));
+  }
+
+  .page-shopping .shopping-swipe-delete {
+    background: #d92d20;
+    color: #fff;
+  }
+
+  .page-shopping .shopping-group-empty-action {
+    min-height: 56px !important;
+    border-radius: var(--radius-card-small) !important;
+    padding-inline: var(--space-4);
+    font-size: var(--ds-type-meta);
+  }
+
+  .page-shopping .location-manager {
+    border-radius: var(--radius-card-medium) !important;
+  }
+
+  .page-shopping .location-manager li {
+    min-height: 56px;
+    padding-inline: var(--space-4) !important;
+  }
+
+  .page-shopping .location-manager li + li {
+    border-top: 0 !important;
+    box-shadow: inset 60px 1px 0 var(--color-divider);
+  }
+}
