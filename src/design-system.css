@@ -47,6 +47,12 @@
   --blur-floating: 16px;
   --blur-sheet: 20px;
   --surface-opacity-floating: 0.88;
+  --material-nav-fill: color-mix(in srgb, var(--color-surface-primary) 86%, transparent);
+  --material-nav-fallback: color-mix(in srgb, var(--color-surface-primary) 97%, var(--color-page-bg));
+  --material-nav-border: color-mix(in srgb, var(--color-text-primary) 10%, transparent);
+  --material-nav-shadow: 0 1px 0 rgb(255 255 255 / 0.68) inset,
+    0 8px 22px rgb(20 21 20 / 0.08);
+  --material-nav-blur: 16px;
 
   --page-inline-padding: 16px;
   --page-header-height: 74px;
@@ -161,6 +167,11 @@
     0 10px 28px rgb(0 0 0 / 0.16);
   --ds-shadow-float: 0 1px 0 rgb(255 255 255 / 0.08) inset,
     0 14px 38px rgb(0 0 0 / 0.3);
+  --material-nav-fill: color-mix(in srgb, var(--ui-surface) 88%, transparent);
+  --material-nav-fallback: color-mix(in srgb, var(--ui-surface) 97%, var(--ui-bg));
+  --material-nav-border: rgb(255 255 255 / 0.12);
+  --material-nav-shadow: 0 1px 0 rgb(255 255 255 / 0.08) inset,
+    0 10px 26px rgb(0 0 0 / 0.24);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -172,6 +183,11 @@
       0 10px 28px rgb(0 0 0 / 0.16);
     --ds-shadow-float: 0 1px 0 rgb(255 255 255 / 0.08) inset,
       0 14px 38px rgb(0 0 0 / 0.3);
+    --material-nav-fill: color-mix(in srgb, var(--ui-surface) 88%, transparent);
+    --material-nav-fallback: color-mix(in srgb, var(--ui-surface) 97%, var(--ui-bg));
+    --material-nav-border: rgb(255 255 255 / 0.12);
+    --material-nav-shadow: 0 1px 0 rgb(255 255 255 / 0.08) inset,
+      0 10px 26px rgb(0 0 0 / 0.24);
   }
 }
 
@@ -7581,5 +7597,47 @@ select:focus {
 
   .finance-shell .finance-projection-basis {
     margin-top: var(--space-2);
+  }
+}
+
+/* Phase 2 · persistent bottom navigation material. Geometry and safe-area
+   clearance stay unchanged; only the long-lived visual layer receives blur,
+   border and depth. The high-opacity fallback prevents a translucent wash on
+   browsers that cannot composite backdrop filters reliably. */
+@media (max-width: 1023px) {
+  .mobile-nav-material {
+    border-color: var(--material-nav-border) !important;
+    background: var(--material-nav-fallback) !important;
+    background: var(--material-nav-fill) !important;
+    box-shadow: var(--material-nav-shadow) !important;
+    backdrop-filter: blur(var(--material-nav-blur)) saturate(112%);
+    -webkit-backdrop-filter: blur(var(--material-nav-blur)) saturate(112%);
+  }
+
+  .mobile-nav-fade {
+    height: calc(var(--dock-visual-height) + var(--dock-bottom-gap) + 28px);
+    background: linear-gradient(
+      to bottom,
+      transparent 0%,
+      color-mix(in srgb, var(--color-page-bg) 46%, transparent) 42%,
+      color-mix(in srgb, var(--color-page-bg) 88%, transparent) 72%,
+      var(--color-page-bg) 100%
+    );
+  }
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  @media (max-width: 1023px) {
+    .mobile-nav-material {
+      background: var(--material-nav-fallback) !important;
+    }
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) and (max-width: 1023px) {
+  .mobile-nav-material {
+    background: var(--material-nav-fallback) !important;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
 }
