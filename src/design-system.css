@@ -7048,3 +7048,134 @@ select:focus {
     will-change: auto;
   }
 }
+
+/* Phase 1 · Finance / overview. One compact primary number anchors the
+   page; purpose balances and current-month values are metric groups; actions,
+   transactions and accounts are progressively denser section rows. */
+@media (max-width: 1023px) {
+  .finance-shell .finance-ledger-dashboard {
+    gap: var(--space-3) !important;
+  }
+
+  .finance-shell .finance-net-worth-card {
+    min-height: 116px !important;
+    align-content: center;
+    border-radius: var(--radius-card-large) !important;
+    padding: var(--space-4) !important;
+  }
+
+  .finance-shell .finance-net-worth-card > span {
+    color: var(--color-text-secondary);
+    font-size: var(--ds-type-meta);
+    line-height: var(--ds-leading-meta);
+  }
+
+  .finance-shell .finance-net-worth-card > strong {
+    margin-top: var(--space-1);
+    color: var(--color-text-primary);
+    font-size: clamp(1.8rem, 8vw, 2.25rem) !important;
+    line-height: 1;
+  }
+
+  .finance-shell .finance-net-worth-card > div {
+    gap: var(--space-1) var(--space-3);
+    margin-top: var(--space-3) !important;
+    color: var(--color-text-secondary);
+    font-size: 0.68rem;
+  }
+
+  .finance-shell .finance-overview-support {
+    border-radius: var(--radius-card-medium);
+    box-shadow: none;
+  }
+
+  .finance-shell .finance-overview-support button {
+    min-height: 46px;
+    gap: 1px;
+    padding: 7px var(--space-3);
+  }
+
+  .finance-shell .finance-overview-support span {
+    color: var(--color-text-secondary);
+    font-size: 0.65rem;
+  }
+
+  .finance-shell .finance-overview-support strong {
+    color: var(--color-text-primary);
+    font-size: 0.82rem;
+  }
+
+  .finance-shell .finance-work-summary {
+    gap: 0;
+    overflow: hidden;
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-card-medium);
+    background: var(--color-surface-primary);
+    box-shadow: var(--shadow-card);
+  }
+
+  .finance-shell .finance-work-summary article,
+  .finance-shell .finance-work-summary article:last-child {
+    min-height: 72px !important;
+    padding: 10px var(--space-3) !important;
+  }
+
+  .finance-shell .finance-work-summary article:last-child {
+    min-height: 52px !important;
+  }
+
+  .finance-shell .finance-work-summary article > span,
+  .finance-shell .finance-work-summary article > small,
+  .finance-shell .finance-consumption-summary small span {
+    color: var(--color-text-secondary);
+  }
+
+  .finance-shell .finance-work-summary strong {
+    color: var(--color-text-primary);
+    font-size: clamp(1rem, 4.2vw, 1.3rem) !important;
+  }
+
+  .finance-shell .finance-section-card {
+    padding: var(--space-3) !important;
+  }
+
+  .finance-shell .finance-section-card > header {
+    min-height: 38px;
+  }
+
+  .finance-shell .finance-section-card > header span {
+    color: var(--color-text-secondary);
+  }
+
+  .finance-shell .finance-quick-actions > div {
+    margin-top: var(--space-1) !important;
+  }
+
+  .finance-shell .finance-quick-actions > div button {
+    min-height: var(--icon-button-size) !important;
+    gap: 3px;
+  }
+
+  .finance-shell .finance-quick-actions {
+    padding: var(--space-2) var(--space-3) !important;
+  }
+
+  .finance-shell .finance-quick-actions > header {
+    min-height: 30px;
+  }
+
+  .finance-shell .finance-account-snapshot li,
+  .finance-shell .finance-transaction-list li {
+    min-height: 54px !important;
+  }
+
+  .finance-shell .finance-account-snapshot li span,
+  .finance-shell .finance-transaction-list li span {
+    color: var(--color-text-secondary);
+  }
+
+  .finance-shell .finance-empty-action,
+  .finance-shell .finance-empty-state {
+    min-height: 64px;
+  }
+}
