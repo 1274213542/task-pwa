@@ -9,7 +9,7 @@ vi.mock('./db', async () => {
   const { default: Dexie } = await import('dexie')
   const db = new Dexie('task-pwa-ledger-persistence-test')
   db.version(1).stores({
-    accounts: 'id, kind, ownership, currency',
+    accounts: 'id, kind, ownership, currency, lifecycleStatus',
     financeTransactions: 'id, type, accountId, linkedTransactionId, lifecycleStatus',
     expenseCategories: 'id, rank, lifecycleStatus',
     merchants: 'id, name, lifecycleStatus',
@@ -17,12 +17,20 @@ vi.mock('./db', async () => {
     creditCardSettlements: 'id, transactionId, status',
     workEntries: 'id, date, settlementStatus, lifecycleStatus',
     paychecks: 'id, status, payoutAccountId',
+    fundPools: 'id, lifecycleStatus, currency, rank',
+    fundPoolTransfers: 'id, lifecycleStatus, sourcePoolId, destinationPoolId',
+    transactionFundAllocations: 'id, lifecycleStatus, transactionId, fundPoolId',
+    fundReservations: 'id, status, transactionId, creditAccountId, [creditAccountId+status]',
+    recurringTransactionRules: 'id, lifecycleStatus, rank',
+    recurringTransactionInstances: 'id, ruleId, billingPeriod, status, scheduledDate',
   })
   testState.db = db
   return { db }
 })
 
 let ledger: typeof import('./ledger')
+let recurring: typeof import('./recurringFinance')
+let funds: typeof import('./funds')
 
 function account(overrides: Partial<Account> & Pick<Account, 'id' | 'name'>): Account {
   const { id, name, ...rest } = overrides
@@ -33,7 +41,7 @@ function account(overrides: Partial<Account> & Pick<Account, 'id' | 'name'>): Ac
     ownership: 'self',
     subtype: 'bank',
     currency: 'JPY',
-    openingBalanceMinor: 0,
+    openingBalanceMinor: 100_000,
     includeInNetWorth: true,
     includeInSpending: true,
     rank: 'a0',
@@ -87,6 +95,8 @@ function workEntry(overrides: Partial<WorkEntry> & Pick<WorkEntry, 'id'>): WorkE
 
 beforeAll(async () => {
   ledger = await import('./ledger')
+  recurring = await import('./recurringFinance')
+  funds = await import('./funds')
   await (testState.db as Dexie).open()
 })
 
@@ -133,11 +143,18 @@ describe('财务账本持久化约束', () => {
   it('编辑支出日期时同步更新流水排序时间但保留记录身份', async () => {
     const db = testState.db as Dexie
     await db.table('accounts').add(account({ id: 'cash', name: '现金' }))
+    await db.table('fundPools').add({
+      id: 'free', name: '个人自由资金', purpose: 'free', currency: 'JPY',
+      openingBalanceMinor: 100_000, includeInDisposable: true, includeInSavings: false,
+      restricted: false, rank: 'a0', lifecycleStatus: 'active',
+      createdAt: '2026-07-19T00:00:00.000Z', updatedAt: '2026-07-19T00:00:00.000Z',
+    })
     const id = await ledger.saveSpending({
       amountMinor: 1800,
       currency: 'JPY',
       localDate: '2026-07-19',
       accountId: 'cash',
+      fundAllocations: [{ fundPoolId: 'free', amountMinor: 1800 }],
     })
     const created = await db.table('financeTransactions').get(id)
 
@@ -147,6 +164,7 @@ describe('财务账本持久化约束', () => {
       currency: 'JPY',
       localDate: '2026-07-22',
       accountId: 'cash',
+      fundAllocations: [{ fundPoolId: 'free', amountMinor: 1800 }],
     })
 
     expect(await db.table('financeTransactions').get(id)).toMatchObject({
@@ -260,5 +278,182 @@ describe('财务账本持久化约束', () => {
 
     expect(await db.table('financeTransactions').count()).toBe(0)
     expect(await db.table('financeTransfers').count()).toBe(0)
+  })
+
+  it('本人信用卡消费锁定资金池，还款只结算负债且不重复统计支出', async () => {
+    const db = testState.db as Dexie
+    await db.table('accounts').bulkAdd([
+      account({ id: 'bank', name: '本人银行' }),
+      account({
+        id: 'card',
+        name: '本人信用卡',
+        kind: 'credit',
+        subtype: 'credit_card',
+        openingBalanceMinor: 0,
+      }),
+    ])
+    await db.table('fundPools').add({
+      id: 'free', name: '个人自由资金', purpose: 'free', currency: 'JPY',
+      openingBalanceMinor: 100_000, includeInDisposable: true, includeInSavings: false,
+      restricted: false, rank: 'a0', lifecycleStatus: 'active',
+      createdAt: '2026-07-19T00:00:00.000Z', updatedAt: '2026-07-19T00:00:00.000Z',
+    })
+
+    const purchaseId = await ledger.saveSpending({
+      amountMinor: 10_000,
+      currency: 'JPY',
+      localDate: '2026-07-19',
+      accountId: 'card',
+      fundAllocations: [{ fundPoolId: 'free', amountMinor: 10_000 }],
+    })
+    expect(await db.table('financeTransactions').get(purchaseId)).toMatchObject({
+      type: 'credit_purchase',
+      includeInSpending: true,
+    })
+    expect(await db.table('fundReservations').where('transactionId').equals(purchaseId).first()).toMatchObject({
+      amountMinor: 10_000,
+      settledAmountMinor: 0,
+      status: 'active',
+    })
+
+    await ledger.saveTransfer({
+      sourceAccountId: 'bank',
+      destinationAccountId: 'card',
+      sourceAmountMinor: 10_000,
+      localDate: '2026-07-25',
+      kind: 'credit_payment',
+    })
+    expect(await db.table('fundReservations').where('transactionId').equals(purchaseId).first()).toMatchObject({
+      settledAmountMinor: 10_000,
+      status: 'settled',
+    })
+    const allTransactions = await db.table('financeTransactions').toArray()
+    const balances = ledger.calculateAccountBalances(
+      await db.table('accounts').toArray(),
+      allTransactions,
+    )
+    expect(balances.get('bank')).toBe(90_000)
+    expect(balances.get('card')).toBe(0)
+    expect(allTransactions.filter((row) => row.includeInSpending)).toHaveLength(1)
+  })
+
+  it('同一支出可由多个资金池分摊，账户和任一资金池不足都会阻止保存', async () => {
+    const db = testState.db as Dexie
+    await db.table('accounts').add(account({ id: 'bank', name: '本人银行', openingBalanceMinor: 100_000 }))
+    await db.table('fundPools').bulkAdd([
+      {
+        id: 'rent', name: '父亲房租专项', purpose: 'restricted_rent', currency: 'JPY',
+        openingBalanceMinor: 80_000, includeInDisposable: false, includeInSavings: false,
+        restricted: true, rank: 'a0', lifecycleStatus: 'active',
+        createdAt: '2026-07-19T00:00:00.000Z', updatedAt: '2026-07-19T00:00:00.000Z',
+      },
+      {
+        id: 'free', name: '个人自由资金', purpose: 'free', currency: 'JPY',
+        openingBalanceMinor: 20_000, includeInDisposable: true, includeInSavings: false,
+        restricted: false, rank: 'a1', lifecycleStatus: 'active',
+        createdAt: '2026-07-19T00:00:00.000Z', updatedAt: '2026-07-19T00:00:00.000Z',
+      },
+    ])
+    const id = await ledger.saveSpending({
+      amountMinor: 100_000,
+      currency: 'JPY',
+      localDate: '2026-07-19',
+      accountId: 'bank',
+      fundAllocations: [
+        { fundPoolId: 'rent', amountMinor: 80_000 },
+        { fundPoolId: 'free', amountMinor: 20_000 },
+      ],
+    })
+    expect(await db.table('transactionFundAllocations').where('transactionId').equals(id).count()).toBe(2)
+
+    await expect(ledger.saveSpending({
+      amountMinor: 1,
+      currency: 'JPY',
+      localDate: '2026-07-20',
+      accountId: 'bank',
+      fundAllocations: [{ fundPoolId: 'free', amountMinor: 1 }],
+    })).rejects.toThrow('支付账户余额不足')
+
+    await ledger.softDeleteFinanceTransaction(id)
+    const restored = (await funds.loadFundPoolStates()).states
+    expect(restored.get('rent')?.grossMinor).toBe(80_000)
+    expect(restored.get('free')?.grossMinor).toBe(20_000)
+    const balances = ledger.calculateAccountBalances(
+      await db.table('accounts').toArray(),
+      await db.table('financeTransactions').toArray(),
+    )
+    expect(balances.get('bank')).toBe(100_000)
+  })
+
+  it('固定扣款使用规则与账期唯一键，短月和连续刷新不会重复入账', async () => {
+    const db = testState.db as Dexie
+    await db.table('accounts').add(account({ id: 'bank', name: '本人银行', openingBalanceMinor: 200_000 }))
+    await db.table('fundPools').add({
+      id: 'rent', name: '父亲房租专项', purpose: 'restricted_rent', currency: 'JPY',
+      openingBalanceMinor: 200_000, includeInDisposable: false, includeInSavings: false,
+      restricted: true, rank: 'a0', lifecycleStatus: 'active',
+      createdAt: '2026-02-01T00:00:00.000Z', updatedAt: '2026-02-01T00:00:00.000Z',
+    })
+    const ruleId = await recurring.saveRecurringRule({
+      name: '房租',
+      amountMinor: 100_000,
+      currency: 'JPY',
+      accountId: 'bank',
+      fundAllocations: [{ fundPoolId: 'rent', amountMinor: 100_000 }],
+      billingDay: 31,
+      startDate: '2026-02-01',
+      postingMode: 'automatic',
+    })
+
+    const first = await recurring.processDueRecurringRules('2026-02-28')
+    const second = await recurring.processDueRecurringRules('2026-02-28')
+    expect(first.posted).toBe(1)
+    expect(second.posted).toBe(0)
+    expect(await db.table('financeTransactions').count()).toBe(1)
+    expect(await db.table('recurringTransactionInstances').get(
+      recurring.recurringInstanceId(ruleId, '2026-02'),
+    )).toMatchObject({ scheduledDate: '2026-02-28', status: 'posted' })
+  })
+
+  it('资金用途调整可修改和撤销，始终不改变实际账户余额', async () => {
+    const db = testState.db as Dexie
+    await db.table('accounts').add(account({ id: 'bank', name: '本人银行', openingBalanceMinor: 100_000 }))
+    await db.table('fundPools').bulkAdd([
+      {
+        id: 'free', name: '个人自由资金', purpose: 'free', currency: 'JPY',
+        openingBalanceMinor: 70_000, includeInDisposable: true, includeInSavings: false,
+        restricted: false, rank: 'a0', lifecycleStatus: 'active',
+        createdAt: '2026-07-19T00:00:00.000Z', updatedAt: '2026-07-19T00:00:00.000Z',
+      },
+      {
+        id: 'savings', name: '个人储蓄', purpose: 'savings', currency: 'JPY',
+        openingBalanceMinor: 0, includeInDisposable: false, includeInSavings: true,
+        restricted: true, rank: 'a1', lifecycleStatus: 'active',
+        createdAt: '2026-07-19T00:00:00.000Z', updatedAt: '2026-07-19T00:00:00.000Z',
+      },
+    ])
+
+    const transferId = await funds.saveFundPoolTransfer({
+      sourcePoolId: 'free', destinationPoolId: 'savings', amountMinor: 10_000,
+      currency: 'JPY', localDate: '2026-07-19', note: '第一次分配',
+    })
+    let states = (await funds.loadFundPoolStates()).states
+    expect(states.get('free')?.grossMinor).toBe(60_000)
+    expect(states.get('savings')?.grossMinor).toBe(10_000)
+
+    await funds.saveFundPoolTransfer({
+      id: transferId, sourcePoolId: 'free', destinationPoolId: 'savings', amountMinor: 20_000,
+      currency: 'JPY', localDate: '2026-07-19', note: '修改后',
+    })
+    states = (await funds.loadFundPoolStates()).states
+    expect(states.get('free')?.grossMinor).toBe(50_000)
+    expect(states.get('savings')?.grossMinor).toBe(20_000)
+
+    await funds.softDeleteFundPoolTransfer(transferId)
+    states = (await funds.loadFundPoolStates()).states
+    expect(states.get('free')?.grossMinor).toBe(70_000)
+    expect(states.get('savings')?.grossMinor).toBe(0)
+    expect((await funds.actualAssetBalanceByCurrency()).get('JPY')).toBe(100_000)
+    expect(await db.table('financeTransactions').count()).toBe(0)
   })
 })

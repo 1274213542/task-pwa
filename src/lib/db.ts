@@ -1,22 +1,33 @@
 import Dexie, { type EntityTable } from 'dexie'
 import dexieCloud from 'dexie-cloud-addon'
-import { DEXIE_CLOUD_URL, cloudEnabled, financeLedgerV2Enabled } from '../config'
+import { DEXIE_CLOUD_URL, cloudEnabled, financeFundsV3Enabled, financeLedgerV2Enabled } from '../config'
 import type { Recurrence } from './recurrence'
 import { ensureTaskScope } from './migrations'
 import type {
   Account,
   CreditCardSettlement,
   ExchangeRate,
+  FinanceFundsMigrationState,
   FinanceMigrationState,
   FinanceTransaction,
   FinanceTransfer,
+  FinancialProjection,
+  FundPool,
+  FundPoolTransfer,
+  FundReservation,
   Merchant,
   Paycheck,
+  RecurringTransactionInstance,
+  RecurringTransactionRule,
+  SavingsGoal,
+  BudgetPlan,
+  TransactionFundAllocation,
   WorkEntry,
   WorkTemplate,
 } from './ledgerTypes'
 import { migrateLegacyFinanceData } from './financeMigration'
 import { ensureFinanceOwnershipMigration } from './financeOwnershipMigration'
+import { ensureFinanceFundsMigration } from './financeFundsMigration'
 
 /**
  * 数据模型见技术方案 v4.2 §8。
@@ -176,6 +187,8 @@ export interface ExpenseCategory {
   rank: string
   sortOrder?: number
   archived?: boolean
+  defaultAccountId?: string
+  defaultFundPoolId?: string
   lifecycleStatus: LifecycleStatus
   deletedAt?: string
   createdAt: string
@@ -230,6 +243,16 @@ export const db = new Dexie('task-pwa', { addons: [dexieCloud] }) as Dexie & {
   paychecks: EntityTable<Paycheck, 'id'>
   merchants: EntityTable<Merchant, 'id'>
   financeMigrations: EntityTable<FinanceMigrationState, 'id'>
+  fundPools: EntityTable<FundPool, 'id'>
+  transactionFundAllocations: EntityTable<TransactionFundAllocation, 'id'>
+  fundPoolTransfers: EntityTable<FundPoolTransfer, 'id'>
+  fundReservations: EntityTable<FundReservation, 'id'>
+  recurringTransactionRules: EntityTable<RecurringTransactionRule, 'id'>
+  recurringTransactionInstances: EntityTable<RecurringTransactionInstance, 'id'>
+  savingsGoals: EntityTable<SavingsGoal, 'id'>
+  budgetPlans: EntityTable<BudgetPlan, 'id'>
+  financialProjections: EntityTable<FinancialProjection, 'id'>
+  financeFundsMigrations: EntityTable<FinanceFundsMigrationState, 'id'>
 }
 
 db.version(2).stores({
@@ -333,6 +356,31 @@ db.version(10).stores({
   expenseCategories: 'id, lifecycleStatus, archived, rank, sortOrder',
 })
 
+// v11：只新增资金池域表及可选索引，不在版本升级中改写任何同步旧表。
+// 历史流水的“未指定资金来源”兼容关系由 ready 后的幂等迁移建立。
+db.version(11).stores({
+  financeTransactions:
+    'id, lifecycleStatus, type, fundingParty, localDate, accountId, counterpartyAccountId, categoryId, merchantId, transferId, paycheckId, recurringInstanceId, [lifecycleStatus+localDate], [accountId+localDate]',
+  expenseCategories:
+    'id, lifecycleStatus, archived, rank, sortOrder, defaultAccountId, defaultFundPoolId',
+  fundPools:
+    'id, lifecycleStatus, purpose, currency, accountId, rank, [lifecycleStatus+rank]',
+  transactionFundAllocations:
+    'id, lifecycleStatus, transactionId, fundPoolId, reservationId, [transactionId+fundPoolId]',
+  fundPoolTransfers:
+    'id, lifecycleStatus, sourcePoolId, destinationPoolId, localDate, currency',
+  fundReservations:
+    'id, status, transactionId, creditAccountId, fundPoolId, [creditAccountId+status]',
+  recurringTransactionRules:
+    'id, lifecycleStatus, enabled, billingDay, startDate, endDate, rank',
+  recurringTransactionInstances:
+    'id, ruleId, billingPeriod, scheduledDate, status, transactionId, [ruleId+billingPeriod]',
+  savingsGoals: 'id, lifecycleStatus, fundPoolId, currency, rank',
+  budgetPlans: 'id, month, currency, [month+currency]',
+  financialProjections: 'id, month, currency, [month+currency]',
+  financeFundsMigrations: 'id, status, version',
+})
+
 if (cloudEnabled) {
   db.cloud.configure({
     databaseUrl: DEXIE_CLOUD_URL,
@@ -387,4 +435,5 @@ db.on('ready', async () => {
     await migrateLegacyFinanceData(db)
     await ensureFinanceOwnershipMigration(db)
   }
+  if (financeFundsV3Enabled) await ensureFinanceFundsMigration(db)
 })

@@ -28,6 +28,16 @@ export const BUSINESS_TABLES = [
   'paychecks',
   'merchants',
   'financeMigrations',
+  'fundPools',
+  'transactionFundAllocations',
+  'fundPoolTransfers',
+  'fundReservations',
+  'recurringTransactionRules',
+  'recurringTransactionInstances',
+  'savingsGoals',
+  'budgetPlans',
+  'financialProjections',
+  'financeFundsMigrations',
   'syncedPreferences',
 ] as const
 

@@ -15,3 +15,10 @@ export const cloudEnabled = DEXIE_CLOUD_URL.length > 0
  */
 export const financeLedgerV2Enabled =
   import.meta.env.VITE_FINANCE_LEDGER_V2 !== 'false'
+
+/**
+ * 资金池、固定扣款和储蓄预测使用独立开关。关闭时旧账本仍可完整使用，
+ * 新表不会被清空，便于部署后发现同步兼容问题时安全回退 UI 与写入路径。
+ */
+export const financeFundsV3Enabled =
+  financeLedgerV2Enabled && import.meta.env.VITE_FINANCE_FUNDS_V3 !== 'false'

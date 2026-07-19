@@ -19,6 +19,7 @@ import {
 import { toggleEventCompletion } from '../lib/events'
 import { spatialOriginFromRect, type SpatialRouteSource } from '../lib/motion'
 import { fromMinor, ledgerSummary } from '../lib/ledger'
+import { dailyCompletionRate } from '../lib/dailyCompletion'
 
 function labelDate(dateISO: string, options: Intl.DateTimeFormatOptions) {
   return new Date(`${dateISO}T00:00:00`).toLocaleDateString('zh-CN', options)
@@ -108,8 +109,12 @@ export default function Overview() {
   }, [snapshot, today])
 
   const todayLabel = labelDate(today, { month: 'long', day: 'numeric', weekday: 'long' })
-  const completedToday = view?.todayItems.filter(itemCompleted).length ?? 0
-  const todayTotal = view?.todayItems.length ?? 0
+  const completion = dailyCompletionRate((view?.todayItems ?? []).map((item) => ({
+    completed: itemCompleted(item),
+    skipped: item.kind === 'task' ? item.skipped : false,
+  })))
+  const completedToday = completion.completed
+  const todayTotal = completion.total
   const todayVisible = (view?.todayItems ?? []).filter((item) =>
     snapshot?.prefs?.defaultCompletedDisplay === 'hide' ? !itemCompleted(item) : true,
   )
@@ -217,9 +222,13 @@ export default function Overview() {
           </h2>
           <span>{completedToday > 0 ? `已完成 ${completedToday} 项` : '先从最重要的一项开始'}</span>
         </div>
-        <div className="overview-hero-progress" aria-label={`今天已完成 ${completedToday} 项，共 ${todayTotal} 项`}>
-          <strong>{todayTotal ? Math.round((completedToday / todayTotal) * 100) : 0}</strong>
-          <small>%</small>
+        <div className="overview-hero-progress" aria-label={todayTotal ? `本日完成率 ${completion.percentage}%，已完成 ${completedToday} 项，共 ${todayTotal} 项` : '今天暂无任务'}>
+          {completion.percentage === undefined ? (
+            <strong className="overview-hero-progress-empty">暂无</strong>
+          ) : (
+            <><strong>{completion.percentage}</strong><small>%</small></>
+          )}
+          <span>本日完成率</span>
         </div>
       </section>
 

@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { useLiveQuery } from 'dexie-react-hooks'
+import { useLiveQuery, useObservable } from 'dexie-react-hooks'
 import {
   animate,
   motion,
@@ -35,7 +35,9 @@ import {
 } from './lib/motion'
 import { CLOSE_TASK_MENU_EVENT, FOCUS_QUICK_ADD_EVENT } from './lib/appEvents'
 import { applyVisualPreferences, storeVisualPreferences } from './lib/visualPreferences'
-import { financeLedgerV2Enabled } from './config'
+import { financeFundsV3Enabled, financeLedgerV2Enabled } from './config'
+import { processDueRecurringRules } from './lib/recurringFinance'
+import { todayLocalISO } from './lib/dates'
 
 const Overview = lazy(() => import('./pages/Overview'))
 const Today = lazy(() => import('./pages/Today'))
@@ -122,6 +124,7 @@ export default function App() {
   const routeVelocity = useRef(0)
   const routeScrollPositions = useRef(new Map<string, number>())
   const appHasMounted = useRef(false)
+  const financeRecurringCheckRunning = useRef(false)
   const navPositioned = useRef(false)
   const navXAnimation = useRef<ReturnType<typeof animate> | null>(null)
   const navYAnimation = useRef<ReturnType<typeof animate> | null>(null)
@@ -130,6 +133,7 @@ export default function App() {
   const navY = useMotionValue(0)
   const reduceMotion = useReducedMotion()
   const prefs = useLiveQuery(() => db.syncedPreferences.get('#prefs'), [])
+  const financeSyncState = useObservable(db.cloud.syncState)
   const activeTabIndex = TABS.findIndex((tab) => location.pathname === tab.to)
   const currentRouteRank = ROUTE_RANK[location.pathname] ?? 0
   const previousRouteRank = ROUTE_RANK[previousPath.current] ?? currentRouteRank
@@ -157,6 +161,42 @@ export default function App() {
     void ensurePersistentStorage()
     appHasMounted.current = true
   }, [])
+
+  useEffect(() => {
+    if (!financeFundsV3Enabled) return
+    const run = async () => {
+      if (financeRecurringCheckRunning.current) return
+      financeRecurringCheckRunning.current = true
+      try {
+        await processDueRecurringRules(todayLocalISO())
+      } catch (error) {
+        console.warn('固定扣款检查失败，将在下次启动或同步后重试', error)
+      } finally {
+        financeRecurringCheckRunning.current = false
+      }
+    }
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void run()
+    }
+    void run()
+    window.addEventListener('pageshow', run)
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      window.removeEventListener('pageshow', run)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (financeFundsV3Enabled && financeSyncState?.phase === 'in-sync') {
+      if (!financeRecurringCheckRunning.current) {
+        financeRecurringCheckRunning.current = true
+        void processDueRecurringRules(todayLocalISO())
+          .catch((error) => console.warn('同步后的固定扣款检查失败', error))
+          .finally(() => { financeRecurringCheckRunning.current = false })
+      }
+    }
+  }, [financeSyncState?.phase])
 
   useEffect(() => {
     if (!prefs) return

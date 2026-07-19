@@ -105,6 +105,7 @@ describe('账户余额与消费口径', () => {
     expect(summary.actualPaidMinor).toBe(3_500)
     expect(summary.externalPaidMinor).toBe(3_000)
     expect(summary.consumptionMinor).toBe(6_500)
+    expect(summary.assetAccountDecreaseMinor).toBe(3_500)
   })
 
   it('信用卡还款不重复计入支出', () => {
@@ -127,6 +128,7 @@ describe('账户余额与消费口径', () => {
       reportingCurrency: 'JPY',
     })
     expect(summary.actualPaidMinor).toBe(2_000)
+    expect(summary.assetAccountDecreaseMinor).toBe(1_000)
     expect(summary.liabilitiesMinor).toBe(1_000)
     expect(summary.netWorthMinor).toBe(8_000)
   })

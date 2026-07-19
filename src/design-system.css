@@ -3791,11 +3791,12 @@ select:focus {
 
 .finance-ledger-tab-surface {
   top: 4px !important;
-  left: 0 !important;
+  left: 4px !important;
   width: calc((100% - 8px) / 5) !important;
   height: 44px !important;
   border-radius: calc(var(--ds-radius-control) - 1px) !important;
   will-change: transform !important;
+  transition: transform 240ms var(--ds-ease-move), opacity 120ms var(--ds-ease-out);
 }
 
 .finance-ledger-toolbar {
@@ -4110,6 +4111,10 @@ select:focus {
   .mobile-tab-icon,
   .mobile-tab-label {
     transition-duration: 120ms !important;
+  }
+
+  .finance-ledger-tab-surface {
+    transition-duration: 100ms !important;
   }
 }
 
@@ -4839,7 +4844,7 @@ select:focus {
 .expense-category-manager > ul > li { display: grid; min-height: 58px; grid-template-columns: 10px minmax(0, 1fr) auto; align-items: center; gap: 10px; border-top: 1px solid var(--ds-border); }
 .expense-category-manager > ul > li:first-child { border-top: 0; }
 .expense-category-manager li > input { min-width: 0; min-height: 40px; border-radius: var(--ds-radius-compact); background: var(--neutral-control); padding: 0 9px; }
-.expense-category-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ui-muted); }
+.expense-category-dot { display: grid; width: 22px; height: 22px; place-items: center; }
 .expense-category-row-actions { display: flex; align-items: center; }
 .expense-category-row-actions button { min-height: 40px; padding: 0 5px; color: var(--ui-muted); font-size: 0.68rem; }
 .expense-category-row-actions button:disabled { opacity: 0.25; }
@@ -4916,4 +4921,328 @@ select:focus {
   .finance-sheet-actions,
   .category-sheet-layout > footer,
   .expense-category-sheet { background: var(--ui-surface); backdrop-filter: none; -webkit-backdrop-filter: none; }
+}
+
+/* --------------------------------------------------------------------------
+   Finance funds v3
+
+   Reality-facing accounts stay separate from purpose-facing funds. These
+   panels reuse the shared surface, row and form tokens; they deliberately do
+   not introduce a second finance theme.
+   -------------------------------------------------------------------------- */
+
+.finance-funds-view,
+.finance-planning-shell,
+.finance-planning-view {
+  display: grid;
+  gap: var(--ds-space-3);
+  min-width: 0;
+}
+
+.finance-fund-metrics {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.finance-work-summary.finance-funds-summary {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.finance-work-summary.finance-funds-summary article,
+.finance-work-summary.finance-funds-summary article:last-child {
+  min-height: 78px !important;
+  grid-column: auto !important;
+  grid-template-columns: 1fr !important;
+  border-top: 0 !important;
+}
+
+.finance-work-summary.finance-funds-summary article:nth-child(even) {
+  border-left: 1px solid var(--ds-border) !important;
+}
+
+.finance-work-summary.finance-funds-summary article:nth-child(n + 3) {
+  border-top: 1px solid var(--ds-border) !important;
+}
+
+.finance-fund-list > ul,
+.finance-recurring-list > ul,
+.finance-savings-goals > ul,
+.finance-actionable-instances {
+  display: grid;
+  margin-top: var(--ds-space-3);
+  border-top: 1px solid var(--ds-border);
+}
+
+.finance-fund-list li,
+.finance-recurring-list li,
+.finance-savings-goals li {
+  display: grid;
+  min-height: var(--ds-row-height);
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--ds-space-3);
+  border-bottom: 1px solid var(--ds-border);
+  padding-block: var(--ds-space-2);
+}
+
+.finance-fund-list li:last-child,
+.finance-recurring-list li:last-child,
+.finance-savings-goals li:last-child {
+  border-bottom: 0;
+}
+
+.finance-fund-list li > div,
+.finance-recurring-list li > div,
+.finance-savings-goals li > div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.finance-fund-list li > div:last-child {
+  justify-items: end;
+}
+
+.finance-fund-row-value,
+.finance-fund-transfer-list li > div:last-child,
+.finance-recurring-list li > div:last-child {
+  justify-items: end;
+}
+
+.finance-inline-actions {
+  display: flex !important;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--ds-space-1);
+}
+
+.finance-inline-actions button {
+  min-width: 44px;
+  min-height: 32px;
+  border: 0;
+  border-radius: var(--ds-radius-pill);
+  background: var(--ds-control-bg);
+  padding-inline: var(--ds-space-2);
+  color: var(--ui-ink);
+  font-size: var(--ds-type-meta);
+  font-weight: 640;
+}
+
+.finance-fund-transfer-list {
+  display: grid;
+  margin-top: var(--ds-space-3);
+  border-top: 1px solid var(--ds-border);
+}
+
+.finance-fund-transfer-list li {
+  display: grid;
+  min-height: var(--ds-row-height);
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--ds-space-3);
+  border-bottom: 1px solid var(--ds-border);
+  padding-block: var(--ds-space-2);
+}
+
+.finance-fund-transfer-list li:last-child { border-bottom: 0; }
+.finance-fund-transfer-list li > div { display: grid; min-width: 0; gap: 2px; }
+.finance-fund-transfer-list li span { color: var(--ui-muted); font-size: var(--ds-type-meta); }
+
+.finance-fund-list li span,
+.finance-fund-list li small,
+.finance-recurring-list li span,
+.finance-savings-goals li span,
+.finance-projection-card > p {
+  color: var(--ui-muted);
+  font-size: var(--ds-type-meta);
+  line-height: var(--ds-leading-meta);
+}
+
+.finance-inline-details {
+  overflow: clip;
+}
+
+.finance-inline-details > summary {
+  display: flex;
+  min-height: var(--ds-control-height);
+  cursor: pointer;
+  list-style: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-space-3);
+}
+
+.finance-inline-details > summary::-webkit-details-marker { display: none; }
+.finance-inline-details > summary > span { display: grid; gap: 1px; }
+.finance-inline-details > summary small { color: var(--ui-muted); font-size: var(--ds-type-meta); }
+.finance-inline-details[open] > summary { margin-bottom: var(--ds-space-3); }
+.finance-inline-details[open] > summary svg { transform: rotate(180deg); }
+
+.finance-form-grid-v2 > button.primary,
+.finance-recurring-composer > button.primary {
+  min-height: var(--ds-control-height);
+  border-radius: var(--ds-radius-control);
+  background: var(--ui-ink);
+  color: var(--ui-surface);
+  font-weight: 680;
+}
+
+.finance-savings-goals progress {
+  width: min(160px, 32vw);
+  height: 8px;
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--ds-radius-pill);
+  background: var(--ds-control-bg);
+}
+
+.finance-savings-goals progress::-webkit-progress-bar { background: var(--ds-control-bg); }
+.finance-savings-goals progress::-webkit-progress-value { background: var(--ui-ink); }
+.finance-savings-goals progress::-moz-progress-bar { background: var(--ui-ink); }
+
+.finance-actionable-instances li {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+}
+
+.finance-actionable-instances button,
+.finance-funds-summary button {
+  min-height: 34px;
+  border-radius: var(--ds-radius-pill);
+  background: var(--ds-control-bg);
+  padding-inline: var(--ds-space-3);
+  color: var(--ui-ink);
+  font-weight: 640;
+}
+
+.finance-projection-card > p {
+  margin-block: var(--ds-space-2) var(--ds-space-3);
+}
+
+.finance-manual-rate {
+  margin-top: var(--ds-space-3);
+  border-top: 1px solid var(--ds-border);
+  padding-top: var(--ds-space-2);
+}
+
+.finance-manual-rate > summary {
+  min-height: 44px;
+  cursor: pointer;
+  color: var(--ui-ink);
+  font-weight: 640;
+  line-height: 44px;
+}
+
+.finance-manual-rate[open] > summary { margin-bottom: var(--ds-space-2); }
+
+.finance-fund-allocation-fieldset {
+  display: grid;
+  min-width: 0;
+  gap: var(--ds-space-2);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-control);
+  padding: var(--ds-space-3);
+}
+
+.finance-fund-allocation-fieldset legend {
+  padding-inline: 4px;
+  color: var(--ui-muted);
+  font-size: 0.7rem;
+  font-weight: 650;
+}
+
+.finance-fund-allocation-fieldset > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(82px, 0.6fr) 36px;
+  gap: var(--ds-space-2);
+}
+
+.finance-fund-allocation-fieldset > div > button {
+  display: grid;
+  min-height: 36px;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--ui-muted);
+}
+
+.finance-fund-allocation-fieldset > p {
+  color: var(--ui-muted);
+  font-size: var(--ds-type-meta);
+}
+
+.finance-add-allocation {
+  min-height: 38px;
+  justify-self: start;
+  border-radius: var(--ds-radius-pill);
+  background: var(--ds-control-bg);
+  padding-inline: var(--ds-space-3);
+  color: var(--ui-ink);
+  font-weight: 650;
+}
+
+.expense-category-defaults {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: var(--ds-space-2);
+  border-top: 1px solid var(--ds-border);
+  padding-block: var(--ds-space-2);
+}
+
+.expense-category-defaults summary {
+  cursor: pointer;
+  color: var(--ui-muted);
+  font-size: var(--ds-type-meta);
+  font-weight: 650;
+}
+
+.expense-category-defaults label {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--ds-space-2);
+  color: var(--ui-muted);
+  font-size: var(--ds-type-meta);
+}
+
+.expense-category-defaults select {
+  min-width: 0;
+  min-height: 38px;
+  border-radius: var(--ds-radius-compact);
+  background: var(--ds-control-bg);
+  padding-inline: var(--ds-space-2);
+  color: var(--ui-ink);
+}
+
+.overview-hero-progress > span {
+  display: block;
+  margin-top: 2px;
+  color: currentColor;
+  font-size: 0.64rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+}
+
+.overview-hero-progress-empty {
+  font-size: clamp(1.15rem, 5vw, 1.6rem) !important;
+}
+
+@media (max-width: 719px) {
+  .finance-fund-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .finance-fund-metrics article:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+
+  .finance-planning-shell .finance-work-v2,
+  .finance-planning-shell .finance-stats-view {
+    margin-top: var(--ds-space-2);
+  }
+
+  .finance-actionable-instances li {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .finance-actionable-instances li > button:last-child {
+    grid-column: 2;
+  }
 }

@@ -1,4 +1,6 @@
 import { db } from './db'
+import { financeFundsV3Enabled } from '../config'
+import { calculateFundPoolStates, prorateMinor } from './fundMath'
 import type {
   Account,
   CreditCardSettlement,
@@ -8,8 +10,10 @@ import type {
   FinanceTransactionType,
   FinanceTransfer,
   FundingParty,
+  FundReservation,
   Merchant,
   Paycheck,
+  TransactionFundAllocation,
 } from './ledgerTypes'
 
 const now = () => new Date().toISOString()
@@ -201,6 +205,7 @@ export function ledgerSummary(opts: {
   let actualPaidMinor = 0
   let externalPaidMinor = 0
   let incomeMinor = 0
+  let assetAccountDecreaseMinor = 0
   for (const transaction of activeTransactions) {
     const reportAmount =
       transaction.reportingCurrency === opts.reportingCurrency &&
@@ -222,6 +227,14 @@ export function ledgerSummary(opts: {
     } else if (transaction.type === 'income') {
       incomeMinor += reportAmount
     }
+    if (
+      fundingParty === 'self' &&
+      (transaction.type === 'expense' ||
+        transaction.type === 'credit_payment' ||
+        (transaction.type === 'adjustment' && transaction.direction === 'outflow'))
+    ) {
+      assetAccountDecreaseMinor += reportAmount
+    }
   }
 
   return {
@@ -233,6 +246,7 @@ export function ledgerSummary(opts: {
     externalPaidMinor,
     consumptionMinor: actualPaidMinor + externalPaidMinor,
     incomeMinor,
+    assetAccountDecreaseMinor,
     missingRates: [...missingRates],
   }
 }
@@ -337,6 +351,7 @@ export async function saveSpending(input: {
   exchangeRate?: number
   exchangeRateDate?: string
   exchangeRateSource?: string
+  fundAllocations?: Array<{ fundPoolId: string; amountMinor: number }>
 }): Promise<string> {
   positiveMinor(input.amountMinor)
   const account = await db.accounts.get(input.accountId)
@@ -407,13 +422,143 @@ export async function saveSpending(input: {
     ...(input.exchangeRate && { exchangeRate: input.exchangeRate }),
     ...(input.exchangeRateDate && { exchangeRateDate: input.exchangeRateDate }),
     ...(input.exchangeRateSource && { exchangeRateSource: input.exchangeRateSource }),
+    ...(financeFundsV3Enabled && fundingParty === 'self' && { fundAllocationVersion: 1 as const }),
     lifecycleStatus: 'active',
     createdAt: existing?.createdAt ?? timestamp,
     updatedAt: timestamp,
   }
-  await db.transaction('rw', db.financeTransactions, db.merchants, async () => {
+  await db.transaction(
+    'rw',
+    [
+      db.accounts,
+      db.financeTransactions,
+      db.merchants,
+      db.fundPools,
+      db.fundPoolTransfers,
+      db.transactionFundAllocations,
+      db.fundReservations,
+    ],
+    async () => {
+    if (existing) {
+      const linkedRefund = await db.financeTransactions
+        .filter((candidate) =>
+          candidate.lifecycleStatus === 'active' &&
+          candidate.type === 'refund' &&
+          candidate.linkedTransactionId === existing.id,
+        )
+        .first()
+      if (linkedRefund) throw new Error('已有退款的消费不能直接修改，请先删除退款')
+      const settledReservation = await db.fundReservations
+        .where('transactionId')
+        .equals(existing.id)
+        .filter((reservation) => reservation.settledAmountMinor > 0)
+        .first()
+      if (settledReservation) throw new Error('已还款的信用卡消费不能直接修改')
+    }
+
+    const normalized = new Map<string, number>()
+    for (const allocation of input.fundAllocations ?? []) {
+      positiveMinor(allocation.amountMinor)
+      normalized.set(
+        allocation.fundPoolId,
+        (normalized.get(allocation.fundPoolId) ?? 0) + allocation.amountMinor,
+      )
+    }
+    const requested = [...normalized].map(([fundPoolId, amountMinor]) => ({ fundPoolId, amountMinor }))
+    if (financeFundsV3Enabled && fundingParty === 'self') {
+      if (requested.length === 0) throw new Error('请选择承担资金池')
+      if (requested.reduce((sum, allocation) => sum + allocation.amountMinor, 0) !== input.amountMinor) {
+        throw new Error('资金池分摊金额必须等于支出金额')
+      }
+    }
+    if (fundingParty === 'external' && requested.length > 0) {
+      throw new Error('外部代付默认不扣减本人的资金池')
+    }
+
+    const allTransactions = await db.financeTransactions
+      .where('lifecycleStatus')
+      .equals('active')
+      .filter((transaction) => transaction.id !== id)
+      .toArray()
+    if (fundingParty === 'self' && account.kind === 'asset') {
+      const allAccounts = await db.accounts.where('lifecycleStatus').equals('active').toArray()
+      const available = calculateAccountBalances(allAccounts, allTransactions).get(account.id) ?? 0
+      if (input.amountMinor > available) {
+        throw new Error(`支付账户余额不足，差额 ${fromMinor(input.amountMinor - available, input.currency)}`)
+      }
+    }
+
+    const [pools, allocations, transfers, reservations] = await Promise.all([
+      db.fundPools.where('lifecycleStatus').equals('active').toArray(),
+      db.transactionFundAllocations.where('lifecycleStatus').equals('active').filter((allocation) => allocation.transactionId !== id).toArray(),
+      db.fundPoolTransfers.where('lifecycleStatus').equals('active').toArray(),
+      db.fundReservations.filter((reservation) => reservation.transactionId !== id).toArray(),
+    ])
+    const poolMap = new Map(pools.map((pool) => [pool.id, pool]))
+    const states = calculateFundPoolStates({ pools, allocations, transfers, reservations })
+    for (const allocation of requested) {
+      const pool = poolMap.get(allocation.fundPoolId)
+      if (!pool || pool.currency !== input.currency) throw new Error('资金池不存在、已停用或币种不一致')
+      const available = states.get(pool.id)?.availableMinor ?? 0
+      if (allocation.amountMinor > available) {
+        throw new Error(`${pool.name}可用金额不足，差额 ${fromMinor(allocation.amountMinor - available, pool.currency)}`)
+      }
+    }
+
+    const effect = account.kind === 'credit' ? 'reserve' : 'debit'
+    const nextAllocations: TransactionFundAllocation[] = requested.map((allocation) => {
+      const reservationId = effect === 'reserve' ? `${id}:reservation:${allocation.fundPoolId}` : undefined
+      return {
+        id: `${id}:fund:${allocation.fundPoolId}:${effect}`,
+        transactionId: id,
+        fundPoolId: allocation.fundPoolId,
+        amountMinor: allocation.amountMinor,
+        currency: input.currency,
+        effect,
+        ...(reservationId && { reservationId }),
+        lifecycleStatus: 'active',
+        createdAt: existing?.createdAt ?? timestamp,
+        updatedAt: timestamp,
+      }
+    })
+    const nextReservations: FundReservation[] = effect === 'reserve'
+      ? requested.map((allocation) => ({
+          id: `${id}:reservation:${allocation.fundPoolId}`,
+          transactionId: id,
+          creditAccountId: account.id,
+          fundPoolId: allocation.fundPoolId,
+          amountMinor: allocation.amountMinor,
+          settledAmountMinor: 0,
+          releasedAmountMinor: 0,
+          currency: input.currency,
+          status: 'active',
+          createdAt: existing?.createdAt ?? timestamp,
+          updatedAt: timestamp,
+        }))
+      : []
+
+    const oldAllocations = await db.transactionFundAllocations.where('transactionId').equals(id).toArray()
+    const desiredAllocationIds = new Set(nextAllocations.map((allocation) => allocation.id))
+    for (const old of oldAllocations) {
+      if (!desiredAllocationIds.has(old.id)) {
+        await db.transactionFundAllocations.update(old.id, {
+          lifecycleStatus: 'deleted',
+          deletedAt: timestamp,
+          updatedAt: timestamp,
+        })
+      }
+    }
+    const oldReservations = await db.fundReservations.where('transactionId').equals(id).toArray()
+    const desiredReservationIds = new Set(nextReservations.map((reservation) => reservation.id))
+    for (const old of oldReservations) {
+      if (!desiredReservationIds.has(old.id)) {
+        await db.fundReservations.update(old.id, { status: 'voided', updatedAt: timestamp })
+      }
+    }
     if (merchant) await db.merchants.put(merchant)
     await db.financeTransactions.put(row)
+    if (nextAllocations.length > 0) await db.transactionFundAllocations.bulkPut(nextAllocations)
+    if (nextReservations.length > 0) await db.fundReservations.bulkPut(nextReservations)
   })
   return id
 }
@@ -425,6 +570,11 @@ export async function saveIncome(input: {
   accountId: string
   note?: string
   paycheckId?: string
+  reportingCurrency?: CurrencyCode
+  reportingAmountMinor?: number
+  exchangeRate?: number
+  exchangeRateDate?: string
+  exchangeRateSource?: string
 }): Promise<string> {
   positiveMinor(input.amountMinor)
   const account = await db.accounts.get(input.accountId)
@@ -444,6 +594,13 @@ export async function saveIncome(input: {
     fundingParty: 'self',
     ...(clean(input.note) && { note: clean(input.note) }),
     ...(input.paycheckId && { paycheckId: input.paycheckId }),
+    ...(input.reportingCurrency && { reportingCurrency: input.reportingCurrency }),
+    ...(Number.isSafeInteger(input.reportingAmountMinor) && {
+      reportingAmountMinor: input.reportingAmountMinor,
+    }),
+    ...(input.exchangeRate && { exchangeRate: input.exchangeRate }),
+    ...(input.exchangeRateDate && { exchangeRateDate: input.exchangeRateDate }),
+    ...(input.exchangeRateSource && { exchangeRateSource: input.exchangeRateSource }),
     includeInSpending: false,
     affectsNetWorth: true,
     reportingCurrency: input.currency,
@@ -489,6 +646,14 @@ export async function saveTransfer(input: {
   const destinationAmountMinor = positiveMinor(
     input.destinationAmountMinor ?? input.sourceAmountMinor,
   )
+  const [allAccounts, allTransactions] = await Promise.all([
+    db.accounts.where('lifecycleStatus').equals('active').toArray(),
+    db.financeTransactions.where('lifecycleStatus').equals('active').toArray(),
+  ])
+  const sourceBalance = calculateAccountBalances(allAccounts, allTransactions).get(source.id) ?? 0
+  if (input.sourceAmountMinor > sourceBalance) {
+    throw new Error(`转出账户余额不足，差额 ${fromMinor(input.sourceAmountMinor - sourceBalance, source.currency)}`)
+  }
   const timestamp = now()
   const transactionId = crypto.randomUUID()
   const transferId = crypto.randomUUID()
@@ -508,6 +673,7 @@ export async function saveTransfer(input: {
     includeInSpending: false,
     affectsNetWorth: kind === 'credit_payment',
     transferId,
+    ...(financeFundsV3Enabled && kind === 'credit_payment' && { fundAllocationVersion: 1 as const }),
     lifecycleStatus: 'active',
     createdAt: timestamp,
     updatedAt: timestamp,
@@ -551,10 +717,53 @@ export async function saveTransfer(input: {
     db.financeTransactions,
     db.financeTransfers,
     db.creditCardSettlements,
+    db.transactionFundAllocations,
+    db.fundReservations,
     async () => {
       await db.financeTransactions.add(transaction)
       await db.financeTransfers.add(transfer)
       if (settlement) await db.creditCardSettlements.add(settlement)
+      if (financeFundsV3Enabled && kind === 'credit_payment') {
+        let remaining = destinationAmountMinor
+        const reservations = (await db.fundReservations
+          .where('[creditAccountId+status]')
+          .equals([destination.id, 'active'])
+          .toArray())
+          .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+        const allocations: TransactionFundAllocation[] = []
+        for (const reservation of reservations) {
+          if (remaining <= 0) break
+          const open = Math.max(
+            0,
+            reservation.amountMinor - reservation.settledAmountMinor - reservation.releasedAmountMinor,
+          )
+          const amountMinor = Math.min(open, remaining)
+          if (amountMinor <= 0) continue
+          remaining -= amountMinor
+          const settledAmountMinor = reservation.settledAmountMinor + amountMinor
+          const status = settledAmountMinor + reservation.releasedAmountMinor >= reservation.amountMinor
+            ? 'settled'
+            : 'active'
+          await db.fundReservations.update(reservation.id, {
+            settledAmountMinor,
+            status,
+            updatedAt: timestamp,
+          })
+          allocations.push({
+            id: `${transactionId}:fund:${reservation.id}:debit`,
+            transactionId,
+            fundPoolId: reservation.fundPoolId,
+            amountMinor,
+            currency: reservation.currency,
+            effect: 'debit',
+            reservationId: reservation.id,
+            lifecycleStatus: 'active',
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          })
+        }
+        if (allocations.length > 0) await db.transactionFundAllocations.bulkPut(allocations)
+      }
     },
   )
   return { transactionId, transferId, ...(settlement && { settlementId: settlement.id }) }
@@ -568,7 +777,13 @@ export async function saveRefund(input: {
 }): Promise<string> {
   positiveMinor(input.amountMinor)
   const id = crypto.randomUUID()
-  await db.transaction('rw', db.accounts, db.financeTransactions, async () => {
+  await db.transaction(
+    'rw',
+    db.accounts,
+    db.financeTransactions,
+    db.transactionFundAllocations,
+    db.fundReservations,
+    async () => {
     // Validate and add in one write transaction so concurrent taps cannot both
     // observe the same remaining amount and over-refund the original purchase.
     const linked = await db.financeTransactions.get(input.linkedTransactionId)
@@ -583,15 +798,15 @@ export async function saveRefund(input: {
     if (!account || account.currency !== linked.currency) {
       throw new Error('原消费的账户或币种信息异常')
     }
-    const refunds = await db.financeTransactions.toArray()
-    const refundedMinor = refunds
+    const transactions = await db.financeTransactions.toArray()
+    const linkedRefunds = transactions
       .filter(
         (transaction) =>
           transaction.lifecycleStatus === 'active' &&
           transaction.type === 'refund' &&
           transaction.linkedTransactionId === linked.id,
       )
-      .reduce((sum, transaction) => sum + transaction.amountMinor, 0)
+    const refundedMinor = linkedRefunds.reduce((sum, transaction) => sum + transaction.amountMinor, 0)
     if (refundedMinor + input.amountMinor > linked.amountMinor) {
       const remaining = Math.max(0, linked.amountMinor - refundedMinor)
       throw new Error(`退款超过可退金额，剩余 ${fromMinor(remaining, linked.currency)}`)
@@ -604,6 +819,107 @@ export async function saveRefund(input: {
       ? Math.round((linked.reportingAmountMinor! * input.amountMinor) / linked.amountMinor)
       : undefined
     const timestamp = now()
+    const fundRows: TransactionFundAllocation[] = []
+    if (financeFundsV3Enabled && fundingParty === 'self') {
+      if (linked.type === 'expense') {
+        const original = await db.transactionFundAllocations
+          .where('transactionId')
+          .equals(linked.id)
+          .filter((allocation) => allocation.lifecycleStatus === 'active' && allocation.effect === 'debit')
+          .toArray()
+        for (const { row: allocation, amountMinor } of prorateMinor(original, input.amountMinor)) {
+          fundRows.push({
+            id: `${id}:fund:${allocation.fundPoolId}:credit`,
+            transactionId: id,
+            fundPoolId: allocation.fundPoolId,
+            amountMinor,
+            currency: allocation.currency,
+            effect: 'credit',
+            lifecycleStatus: 'active',
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          })
+        }
+      } else if (linked.type === 'credit_purchase') {
+        let remaining = input.amountMinor
+        const reservations = await db.fundReservations
+          .where('transactionId')
+          .equals(linked.id)
+          .toArray()
+        const openRows = reservations.map((reservation) => ({
+          reservation,
+          amountMinor: Math.max(
+            0,
+            reservation.amountMinor - reservation.settledAmountMinor - reservation.releasedAmountMinor,
+          ),
+        })).filter((row) => row.amountMinor > 0)
+        const releaseTarget = Math.min(
+          remaining,
+          openRows.reduce((sum, row) => sum + row.amountMinor, 0),
+        )
+        for (const { row, amountMinor } of prorateMinor(openRows, releaseTarget)) {
+          remaining -= amountMinor
+          const releasedAmountMinor = row.reservation.releasedAmountMinor + amountMinor
+          const status = releasedAmountMinor + row.reservation.settledAmountMinor >= row.reservation.amountMinor
+            ? 'released'
+            : 'active'
+          await db.fundReservations.update(row.reservation.id, {
+            releasedAmountMinor,
+            status,
+            updatedAt: timestamp,
+          })
+          fundRows.push({
+            id: `${id}:fund:${row.reservation.id}:release`,
+            transactionId: id,
+            fundPoolId: row.reservation.fundPoolId,
+            amountMinor,
+            currency: row.reservation.currency,
+            effect: 'release',
+            reservationId: row.reservation.id,
+            lifecycleStatus: 'active',
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          })
+        }
+        if (remaining > 0) {
+          const previousRefundIds = new Set(linkedRefunds.map((refund) => refund.id))
+          const previousCredits = (await db.transactionFundAllocations.toArray())
+            .filter((allocation) =>
+              allocation.lifecycleStatus === 'active' &&
+              allocation.effect === 'credit' &&
+              previousRefundIds.has(allocation.transactionId),
+            )
+          const creditedByPool = new Map<string, number>()
+          for (const allocation of previousCredits) {
+            creditedByPool.set(
+              allocation.fundPoolId,
+              (creditedByPool.get(allocation.fundPoolId) ?? 0) + allocation.amountMinor,
+            )
+          }
+          const paidRows = reservations.map((reservation) => ({
+            reservation,
+            amountMinor: Math.max(
+              0,
+              reservation.settledAmountMinor - (creditedByPool.get(reservation.fundPoolId) ?? 0),
+            ),
+          })).filter((row) => row.amountMinor > 0)
+          for (const { row, amountMinor } of prorateMinor(paidRows, remaining)) {
+            fundRows.push({
+              id: `${id}:fund:${row.reservation.fundPoolId}:credit`,
+              transactionId: id,
+              fundPoolId: row.reservation.fundPoolId,
+              amountMinor,
+              currency: row.reservation.currency,
+              effect: 'credit',
+              reservationId: row.reservation.id,
+              lifecycleStatus: 'active',
+              createdAt: timestamp,
+              updatedAt: timestamp,
+            })
+          }
+        }
+      }
+    }
     await db.financeTransactions.add({
       id,
       type: 'refund',
@@ -630,10 +946,12 @@ export async function saveRefund(input: {
       ...(linked.exchangeRate && { exchangeRate: linked.exchangeRate }),
       ...(linked.exchangeRateDate && { exchangeRateDate: linked.exchangeRateDate }),
       ...(linked.exchangeRateSource && { exchangeRateSource: linked.exchangeRateSource }),
+      ...(financeFundsV3Enabled && fundingParty === 'self' && { fundAllocationVersion: 1 }),
       lifecycleStatus: 'active',
       createdAt: timestamp,
       updatedAt: timestamp,
     })
+    if (fundRows.length > 0) await db.transactionFundAllocations.bulkPut(fundRows)
   })
   return id
 }
@@ -816,6 +1134,14 @@ export async function softDeleteFinanceTransaction(id: string): Promise<void> {
   const transaction = await db.financeTransactions.get(id)
   if (!transaction) return
   if (transaction.paycheckId) throw new Error('工资入账请从工资结算中撤销')
+  if (transaction.type === 'credit_purchase') {
+    const settled = await db.fundReservations
+      .where('transactionId')
+      .equals(transaction.id)
+      .filter((reservation) => reservation.settledAmountMinor > 0)
+      .first()
+    if (settled) throw new Error('该信用卡消费已经还款，不能直接删除')
+  }
   if (['expense', 'credit_purchase', 'external_payment'].includes(transaction.type)) {
     const linkedRefund = await db.financeTransactions
       .filter(
@@ -832,6 +1158,8 @@ export async function softDeleteFinanceTransaction(id: string): Promise<void> {
     db.financeTransactions,
     db.financeTransfers,
     db.creditCardSettlements,
+    db.transactionFundAllocations,
+    db.fundReservations,
     async () => {
       await db.financeTransactions.update(id, {
         lifecycleStatus: 'deleted',
@@ -853,6 +1181,48 @@ export async function softDeleteFinanceTransaction(id: string): Promise<void> {
             updatedAt: timestamp,
           })
         }
+      }
+      const fundRows = await db.transactionFundAllocations
+        .where('transactionId')
+        .equals(id)
+        .filter((allocation) => allocation.lifecycleStatus === 'active')
+        .toArray()
+      for (const allocation of fundRows) {
+        if (allocation.reservationId) {
+          const reservation = await db.fundReservations.get(allocation.reservationId)
+          if (reservation) {
+            if (transaction.type === 'credit_payment' && allocation.effect === 'debit') {
+              const settledAmountMinor = Math.max(0, reservation.settledAmountMinor - allocation.amountMinor)
+              await db.fundReservations.update(reservation.id, {
+                settledAmountMinor,
+                status: settledAmountMinor + reservation.releasedAmountMinor >= reservation.amountMinor
+                  ? reservation.status
+                  : 'active',
+                updatedAt: timestamp,
+              })
+            } else if (transaction.type === 'refund' && allocation.effect === 'release') {
+              const releasedAmountMinor = Math.max(0, reservation.releasedAmountMinor - allocation.amountMinor)
+              await db.fundReservations.update(reservation.id, {
+                releasedAmountMinor,
+                status: reservation.settledAmountMinor + releasedAmountMinor >= reservation.amountMinor
+                  ? reservation.status
+                  : 'active',
+                updatedAt: timestamp,
+              })
+            }
+          }
+        }
+        await db.transactionFundAllocations.update(allocation.id, {
+          lifecycleStatus: 'deleted',
+          deletedAt: timestamp,
+          updatedAt: timestamp,
+        })
+      }
+      if (transaction.type === 'credit_purchase') {
+        await db.fundReservations
+          .where('transactionId')
+          .equals(transaction.id)
+          .modify({ status: 'voided', updatedAt: timestamp })
       }
     },
   )
