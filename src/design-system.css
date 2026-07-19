@@ -1218,6 +1218,122 @@ select:focus {
   }
 }
 
+/* Apple mobile normalization · Plan. Navigation controls use distinct
+   circle/pill geometry, while repeated agenda entries remain rows inside one
+   section surface. Date buttons keep a 44px hit target around a smaller
+   visible state marker. */
+@media (max-width: 1023px) {
+  .page-plan .calendar-toolbar {
+    gap: var(--space-3);
+  }
+
+  .page-plan .calendar-toolbar h2 {
+    font-size: var(--ds-type-section);
+    line-height: var(--ds-leading-section);
+    font-weight: 600;
+  }
+
+  .page-plan .calendar-panel-action {
+    display: grid;
+    grid-template-columns: var(--icon-button-size) auto var(--icon-button-size);
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .page-plan .calendar-panel-action button {
+    width: var(--icon-button-size);
+    min-width: var(--icon-button-size) !important;
+    height: var(--icon-button-size);
+    min-height: var(--icon-button-size) !important;
+    border-radius: 50% !important;
+    padding: 0;
+  }
+
+  .page-plan .calendar-panel-action button:nth-child(2) {
+    width: auto;
+    min-width: 64px !important;
+    border-radius: var(--radius-pill) !important;
+    padding-inline: var(--space-4);
+    font-size: var(--ds-type-pill);
+    line-height: var(--ds-leading-pill);
+    font-weight: 600;
+  }
+
+  .page-plan .calendar-selection-summary {
+    border-radius: var(--radius-card-medium) !important;
+    padding: var(--space-3) var(--space-4) !important;
+  }
+
+  .page-plan .calendar-selection-summary header strong,
+  .page-plan .agenda-day > header time {
+    font-size: var(--ds-type-section);
+    line-height: var(--ds-leading-section);
+    font-weight: 600;
+  }
+
+  .page-plan .calendar-selection-summary header span,
+  .page-plan .calendar-selection-summary li small,
+  .page-plan .agenda-day > header span {
+    font-size: var(--ds-type-desc);
+    line-height: var(--ds-leading-desc);
+  }
+
+  .page-plan .calendar-selection-summary header button {
+    min-height: 40px !important;
+    border-radius: var(--radius-pill) !important;
+    padding-inline: var(--space-4);
+    font-size: var(--ds-type-pill);
+    line-height: var(--ds-leading-pill);
+    font-weight: 600;
+  }
+
+  .page-plan .calendar-item-list {
+    border-radius: var(--radius-card-medium) !important;
+  }
+
+  .page-plan .calendar-item-list .calendar-item-card {
+    min-height: 68px !important;
+    padding: var(--space-2) var(--space-4) !important;
+  }
+
+  .page-plan .calendar-item-list .calendar-item-card + .calendar-item-card {
+    position: relative;
+    border-top: 0 !important;
+  }
+
+  .page-plan .calendar-item-list .calendar-item-card + .calendar-item-card::before {
+    position: absolute;
+    top: 0;
+    right: var(--space-4);
+    left: 60px;
+    height: 1px;
+    background: var(--color-divider);
+    content: '';
+    pointer-events: none;
+  }
+
+  .page-plan .calendar-item-main strong {
+    font-size: var(--ds-type-card) !important;
+    line-height: var(--ds-leading-card) !important;
+    font-weight: 500 !important;
+  }
+
+  .page-plan .calendar-item-main span {
+    font-size: var(--ds-type-meta) !important;
+    line-height: var(--ds-leading-meta) !important;
+  }
+
+  .page-plan .agenda-hero {
+    border-radius: var(--radius-card-large) !important;
+    padding: var(--space-4) var(--space-5) !important;
+  }
+
+  .page-plan .agenda-hero h2 {
+    font-size: var(--ds-type-section);
+    line-height: var(--ds-leading-section);
+  }
+}
+
 /* --------------------------------------------------------------------------
    Apple mobile normalization · typography and reusable grouped primitives
 
