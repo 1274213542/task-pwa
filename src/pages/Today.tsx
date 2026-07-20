@@ -22,7 +22,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { CLOSE_TASK_MENU_EVENT, FOCUS_QUICK_ADD_EVENT } from '../lib/appEvents'
+import { FOCUS_QUICK_ADD_EVENT } from '../lib/appEvents'
 import {
   db,
   type Category,
@@ -45,7 +45,6 @@ import {
   addTasksDetailed,
   completeFixedOccurrence,
   completeTask,
-  renameTask,
   reorderTask,
   repairAfterCompletionCache,
   resolveAfterCompletion,
@@ -317,9 +316,6 @@ export default function Today() {
   const [showDone, setShowDone] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null)
-  // A task menu is a page-level transient surface: task rows never own an
-  // independent open state, so menus cannot accumulate on top of each other.
-  const [openMenuTaskId, setOpenMenuTaskId] = useState<string | null>(null)
   const [editingItem, setEditingItem] = useState<TodayItem | null>(null)
   // 完成感窗口（v4.2 §12）：勾选后原地保留 ~800ms 展示动画，再按策略归置
   const [recentlyDone, setRecentlyDone] = useState<Set<string>>(new Set())
@@ -352,7 +348,6 @@ export default function Today() {
   // ⌘N：聚焦快速添加（App 层广播）
   useEffect(() => {
     const focus = () => {
-      setOpenMenuTaskId(null)
       setComposerOpen(true)
       window.requestAnimationFrame(() => inputRef.current?.focus())
     }
@@ -362,7 +357,6 @@ export default function Today() {
 
   useEffect(() => {
     if (!(location.state as { openTaskComposer?: boolean } | null)?.openTaskComposer) return
-    setOpenMenuTaskId(null)
     setComposerOpen(true)
     window.requestAnimationFrame(() => inputRef.current?.focus())
     window.history.replaceState(
@@ -371,29 +365,6 @@ export default function Today() {
       window.location.href,
     )
   }, [location.state])
-
-  useEffect(() => {
-    const closeMenu = () => setOpenMenuTaskId(null)
-    window.addEventListener(CLOSE_TASK_MENU_EVENT, closeMenu)
-    return () => window.removeEventListener(CLOSE_TASK_MENU_EVENT, closeMenu)
-  }, [])
-
-  useEffect(() => {
-    const closeMenu = () => setOpenMenuTaskId(null)
-    const closeWhenHidden = () => {
-      if (document.visibilityState !== 'visible') closeMenu()
-    }
-    // Capture catches the actual scrolling element on both Safari and the PWA
-    // shell without changing the list's own scroll physics.
-    window.addEventListener('scroll', closeMenu, true)
-    window.addEventListener('blur', closeMenu)
-    document.addEventListener('visibilitychange', closeWhenHidden)
-    return () => {
-      window.removeEventListener('scroll', closeMenu, true)
-      window.removeEventListener('blur', closeMenu)
-      document.removeEventListener('visibilitychange', closeWhenHidden)
-    }
-  }, [])
 
   useEffect(() => {
     localStorage.setItem('taskViewSettingsV1', JSON.stringify(viewSettings))
@@ -489,7 +460,6 @@ export default function Today() {
 
   function switchScope(next: TaskScope) {
     if (next === scope) return
-    setOpenMenuTaskId(null)
     setViewSettingsOpen(false)
     setContentDirection(next === 'weekly' ? 1 : -1)
     const scrollRoot = document.querySelector('.app-shell main')
@@ -530,7 +500,6 @@ export default function Today() {
   }
 
   function setTaskType(nextFixed: boolean) {
-    setOpenMenuTaskId(null)
     setFixed(nextFixed)
     setRecurrence(nextFixed ? defaultFixedRecurrence(scope) : undefined)
   }
@@ -549,7 +518,6 @@ export default function Today() {
     if (syncingPeriodRef.current) return
     syncingPeriodRef.current = true
     setSyncingPeriod(true)
-    setOpenMenuTaskId(null)
     setFeedback(scope === 'daily' ? '正在同步今日固定任务…' : '正在同步本周固定任务…')
     try {
       const result = await synchronizeTaskPeriod(scope, todayISO)
@@ -571,7 +539,6 @@ export default function Today() {
     if (submittingRef.current || !title.trim()) return
     submittingRef.current = true
     setSubmitting(true)
-    setOpenMenuTaskId(null)
     setFeedback('')
     try {
       const result = await addTasksDetailed(
@@ -631,11 +598,9 @@ export default function Today() {
     const { task } = item
     return {
       onEdit: () => {
-        setOpenMenuTaskId(null)
         setEditingItem(item)
       },
       onToggle: () => {
-        setOpenMenuTaskId(null)
         void guarded(async () => {
           if (!item.completed) holdInPlace(`${task.id}:${item.occurrenceKey}`)
           if (item.kind === 'single') {
@@ -650,44 +615,9 @@ export default function Today() {
           }
         })
       },
-      onSkip:
-        item.kind === 'single' || item.completed || item.conflict
-          ? undefined
-          : () => {
-              setOpenMenuTaskId(null)
-              void guarded(async () => {
-                if (item.kind === 'fixed') {
-                  await skipFixedOccurrence(task, item.occurrenceDate)
-                } else {
-                  await resolveAfterCompletion(task, 'skipped')
-                }
-              })
-            },
-      // 两步确认由 TaskRow 承担；周期任务额外提供"仅本次"（=跳过本期）
       onDelete: () => {
-        setOpenMenuTaskId(null)
         void softDeleteTask(task.id)
       },
-      onDeleteOnce:
-        task.recurrence && !item.completed && !item.conflict
-          ? () => {
-              setOpenMenuTaskId(null)
-              void guarded(async () => {
-                if (item.kind === 'fixed') {
-                  await skipFixedOccurrence(task, item.occurrenceDate)
-                } else {
-                  await resolveAfterCompletion(task, 'skipped')
-                }
-              })
-            }
-          : undefined,
-      onRename:
-        item.kind === 'single' || !item.completed
-          ? (t: string) => {
-              setOpenMenuTaskId(null)
-              void renameTask(task.id, t)
-            }
-          : undefined,
     }
   }
 
@@ -695,7 +625,6 @@ export default function Today() {
     item: TodayItem,
     extra: TaskRowProjectionExtra = {},
   ) {
-    const itemMenuId = keyOf(item)
     let nestingLevel = 0
     let parentId = item.task.parentTaskId
     const visitedParents = new Set<string>()
@@ -743,12 +672,7 @@ export default function Today() {
         overdue={item.overdue}
         nestingLevel={nestingLevel}
         actions={actionsFor(item)}
-        menuOpen={openMenuTaskId === itemMenuId}
-        menuId={`task-menu-${item.task.id}-${item.occurrenceKey}`}
-        onMenuToggle={() =>
-          setOpenMenuTaskId((current) => (current === itemMenuId ? null : itemMenuId))
-        }
-        onMenuClose={() => setOpenMenuTaskId(null)}
+        rowId={`${item.task.id}:${item.occurrenceKey}`}
         {...extra}
       />
     )
@@ -814,7 +738,6 @@ export default function Today() {
   }, [selectedIds, pending])
 
   function onDragStart(e: DragStartEvent) {
-    setOpenMenuTaskId(null)
     setActiveTaskId(String(e.active.id))
   }
 
@@ -848,7 +771,6 @@ export default function Today() {
             aria-label={composerOpen ? '收起新增任务' : '新增任务'}
             aria-expanded={composerOpen}
             onClick={() => {
-              setOpenMenuTaskId(null)
               setComposerOpen((open) => !open)
             }}
             className="task-round-action task-round-action-primary"
@@ -861,7 +783,6 @@ export default function Today() {
         title="任务"
         eyebrow={dateLabel}
         onPrimary={() => {
-          setOpenMenuTaskId(null)
           setComposerOpen((open) => !open)
         }}
         primaryLabel={composerOpen ? '收起新增任务' : '新增任务'}
@@ -878,7 +799,6 @@ export default function Today() {
         stuck={toolbarStuck}
         onScopeChange={switchScope}
         onOpenSettings={() => {
-          setOpenMenuTaskId(null)
           setViewSettingsOpen(true)
         }}
         onSync={() => void syncCurrentPeriod()}
@@ -891,13 +811,6 @@ export default function Today() {
         animate={reduceMotion ? { opacity: 1 } : { x: 0 }}
         transition={reduceMotion ? MOTION.reduced : MOTION.taskContent}
       >
-      <div
-        className="task-date-context"
-        aria-label={scope === 'daily' ? dateLabel : `本周 ${weeklyRangeLabel}`}
-      >
-        <span>{scope === 'daily' ? dateLabel : `本周 ${weeklyRangeLabel}`}</span>
-      </div>
-
       <div className="task-progress-line" aria-label="任务进度">
         <span>{activeSettingCount > 0 ? '筛选结果' : scope === 'daily' ? '今日任务' : '本周任务'} {pending.length + done.length} 项</span>
         <i aria-hidden>·</i>

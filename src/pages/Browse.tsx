@@ -167,11 +167,12 @@ export default function Browse() {
 
   return (
     <section className="app-page page-browse">
-      <MobilePageHeader
-        title="分类与记录"
-        eyebrow="分类与记录"
-        backHref="#/overview"
-      />
+      <div className="page-top-chrome page-top-chrome-secondary">
+        <MobilePageHeader
+          title="分类与记录"
+          backHref="#/overview"
+        />
+      </div>
       <PageHeader
         title="浏览"
         eyebrow="分类与记录"

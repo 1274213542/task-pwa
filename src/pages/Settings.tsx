@@ -108,12 +108,13 @@ export default function Settings() {
 
   return (
     <section className="app-page page-settings">
-      <MobilePageHeader
-        title="设置"
-        eyebrow="数据与偏好"
-        backHref="#/overview"
-        showSecondary={false}
-      />
+      <div className="page-top-chrome page-top-chrome-secondary">
+        <MobilePageHeader
+          title="设置"
+          backHref="#/overview"
+          showSecondary={false}
+        />
+      </div>
       <PageHeader
         title="设置"
         eyebrow="数据与偏好"

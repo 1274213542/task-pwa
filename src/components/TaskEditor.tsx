@@ -167,7 +167,8 @@ export default function TaskEditor({
           </button>
         </div>
 
-        <div className="mt-3 space-y-3">
+        <div className="task-editor-scroll">
+        <div className="space-y-3">
           <label className="block text-[12px] font-medium text-neutral-500">
             标题
             <input
@@ -257,7 +258,6 @@ export default function TaskEditor({
           <section className="task-editor-schedule" aria-labelledby="task-schedule-title">
             <div className="task-editor-section-heading">
               <div>
-                <span>时间关系</span>
                 <h3 id="task-schedule-title">排期与 DDL</h3>
               </div>
               {dueStatus.label && <strong data-due-tone={dueStatus.tone}>{dueStatus.label}</strong>}
@@ -375,7 +375,7 @@ export default function TaskEditor({
           )}
         </div>
 
-        <div className="mt-3 border-t border-black/5 pt-3 dark:border-white/10">
+        <div className="task-editor-danger-zone">
           <button
             onClick={() => void remove()}
             disabled={saving}
@@ -395,6 +395,7 @@ export default function TaskEditor({
         <p role="status" className="mt-2 min-h-5 text-[13px] text-red-500">
           {error}
         </p>
+        </div>
     </GestureSheet>
   )
 }

@@ -352,7 +352,7 @@ export default function FinanceLedger() {
       </nav>
 
       <div className="finance-ledger-toolbar">
-        <span>{feedback || '原币种保留；汇总金额使用已缓存参考汇率'}</span>
+        {feedback && <span role="status">{feedback}</span>}
         <div className="finance-ledger-toolbar-actions">
           <AmountPrivacyToggle compact />
           <label>
@@ -932,7 +932,7 @@ function TransactionList({
   const accountMap = new Map(accounts.map((account) => [account.id, account]))
   return (
     <section className="finance-section-card finance-transaction-list">
-      <header><div><span>按发生时间排序</span><h2>{title}</h2></div>{onSeeAll && <button onClick={onSeeAll}>查看全部</button>}</header>
+      <header><div><h2>{title}</h2></div>{onSeeAll && <button onClick={onSeeAll}>查看全部</button>}</header>
       {transactions.length ? <ul>{transactions.map((transaction, index) => {
         const account = accountMap.get(transaction.accountId)
         const positive = transaction.type === 'income' || transaction.type === 'refund'

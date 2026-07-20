@@ -229,12 +229,14 @@ export default function Overview() {
 
   return (
     <section className="app-page page-overview">
-      <MobilePageHeader
-        title="总览"
-        eyebrow={todayLabel}
-        onPrimary={openTaskComposer}
-        primaryLabel="新增任务"
-      />
+      <div className="page-top-chrome page-top-chrome-overview">
+        <MobilePageHeader
+          title="总览"
+          eyebrow={todayLabel}
+          onPrimary={openTaskComposer}
+          primaryLabel="新增任务"
+        />
+      </div>
       <PageHeader
         title="总览"
         eyebrow={todayLabel}

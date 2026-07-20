@@ -4921,6 +4921,177 @@ select:focus {
   }
 }
 
+/* --------------------------------------------------------------------------
+   Global interaction cleanup · task rows, editor scrolling and top chrome
+
+   These rules intentionally sit after the legacy normalization layers. They
+   define one stable row grid, one swipe surface and one independently
+   scrollable sheet body without changing task or shopping data behavior.
+   -------------------------------------------------------------------------- */
+@media (max-width: 1023px) {
+  /* Every task projection shares the same two-column grid. Completion,
+     recurrence and nesting no longer introduce a third visual column. */
+  html .task-card-list .task-card {
+    display: grid !important;
+    min-height: var(--grouped-row-height-two-line) !important;
+    grid-template-columns: 44px minmax(0, 1fr) !important;
+    align-items: center !important;
+    column-gap: var(--space-3) !important;
+    row-gap: 0 !important;
+    padding: var(--space-3) var(--space-4) !important;
+  }
+
+  html .task-card-list .task-card-check {
+    width: 44px !important;
+    min-width: 44px !important;
+    height: 44px !important;
+    min-height: 44px !important;
+    align-self: center !important;
+    justify-self: center !important;
+    margin: 0 !important;
+  }
+
+  html .task-card-list .task-card-copy {
+    display: grid !important;
+    min-width: 0;
+    align-self: center !important;
+    align-content: center !important;
+    gap: 3px !important;
+  }
+
+  html .task-card-list .task-card-title-button,
+  html .task-card-list .task-card-title-input {
+    min-height: 22px !important;
+    margin: 0 !important;
+    line-height: 22px !important;
+  }
+
+  html .task-card-list .task-card-meta {
+    min-height: 20px;
+    align-items: center !important;
+    margin: 0 !important;
+    line-height: 20px !important;
+  }
+
+  html .task-card-list .task-card-meta > svg {
+    flex: 0 0 auto;
+  }
+
+  html .task-card-list .apple-swipe-divider {
+    right: var(--space-4) !important;
+    left: calc(44px + var(--space-3) + var(--space-4)) !important;
+  }
+
+  /* Task and shopping lists share the same transient reveal geometry. The
+     fixed rail is transparent; only the two compact action pills carry tone. */
+  html .task-card-list .task-card-swipe-row,
+  html .page-shopping .shopping-row-swipe {
+    isolation: isolate;
+    overflow: hidden !important;
+    border: 0 !important;
+    background: transparent !important;
+  }
+
+  html .task-card-list .task-card-swipe-row > .apple-swipe-actions,
+  html .page-shopping .shopping-row-swipe > .apple-swipe-actions {
+    inset: 0 0 0 auto !important;
+    height: 100% !important;
+    align-items: center !important;
+    background: transparent !important;
+  }
+
+  html .task-card-list .task-card-swipe-row[data-swipe-open] .task-card-swipe-content,
+  html .page-shopping .shopping-row-swipe[data-swipe-open] > .shopping-swipe-foreground {
+    overflow: hidden !important;
+    border: 0 !important;
+    border-radius: var(--radius-card-medium) !important;
+    background: var(--color-surface-primary) !important;
+    box-shadow: 0 8px 22px rgb(20 21 20 / 0.1) !important;
+  }
+
+  /* Secondary pages use a symmetrical 48 / flexible / 48 header. This keeps
+     the native-style back control on the same horizontal axis as the action. */
+  .page-top-chrome-secondary > .mobile-page-header.has-leading {
+    grid-template-columns: var(--icon-button-size) minmax(0, 1fr) var(--icon-button-size) !important;
+  }
+
+  .page-top-chrome-secondary .mobile-page-avatar,
+  .page-top-chrome-secondary .mobile-page-actions {
+    align-self: center;
+  }
+
+  .page-top-chrome-secondary .mobile-page-actions {
+    width: var(--icon-button-size);
+    min-width: var(--icon-button-size);
+  }
+
+  .page-settings > .page-top-chrome,
+  .page-browse > .page-top-chrome {
+    margin-bottom: var(--space-3);
+  }
+
+  .page-overview > .page-top-chrome > .mobile-page-header {
+    position: static !important;
+    background: transparent !important;
+  }
+
+  /* The toolbar has no placeholder sentence when there is no live feedback. */
+  .finance-ledger-toolbar:not(:has(> span)) {
+    justify-content: flex-end !important;
+  }
+}
+
+/* The task editor owns a fixed shell and one independently scrolling body.
+   This prevents Safari's visual viewport and keyboard from locking the outer
+   sheet while preserving a stable Cancel / title / Save bar. */
+.editor-sheet.editor-sheet-task {
+  overflow: hidden !important;
+  display: grid !important;
+  width: min(100%, 32rem);
+  height: min(86dvh, calc(var(--visual-viewport-height, 100dvh) - 10px));
+  max-height: calc(var(--visual-viewport-height, 100dvh) - 10px) !important;
+  grid-template-rows: auto minmax(0, 1fr);
+  padding: 4px 0 0 !important;
+}
+
+.editor-sheet.editor-sheet-task .editor-sheet-header {
+  position: relative !important;
+  top: auto !important;
+  z-index: 3;
+  min-height: 56px;
+  margin: 0 !important;
+  border-bottom: 1px solid var(--color-divider);
+  padding: 6px var(--space-4) 8px !important;
+  background: var(--material-toolbar-fallback) !important;
+  background: var(--material-toolbar-fill) !important;
+  backdrop-filter: blur(var(--material-toolbar-blur)) saturate(108%);
+  -webkit-backdrop-filter: blur(var(--material-toolbar-blur)) saturate(108%);
+}
+
+.editor-sheet.editor-sheet-task .task-editor-scroll {
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: var(--space-3) var(--space-4)
+    calc(env(safe-area-inset-bottom, 0px) + var(--space-6));
+  scroll-padding-block: var(--space-4)
+    calc(env(safe-area-inset-bottom, 0px) + var(--space-8));
+}
+
+.editor-sheet.editor-sheet-task .task-editor-danger-zone {
+  margin-top: var(--space-4);
+  border-top: 1px solid var(--color-divider);
+  padding-top: var(--space-3);
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .editor-sheet.editor-sheet-task .editor-sheet-header {
+    background: var(--material-toolbar-fallback) !important;
+  }
+}
+
 /* Final specificity pass for legacy mobile selectors that load before this
    system file but still carry older decorative defaults. */
 .category-delete {

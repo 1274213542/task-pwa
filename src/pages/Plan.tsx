@@ -691,13 +691,6 @@ export default function Plan() {
           <strong>{itemTitle(item)}</strong>
           {subtitle && <span>{subtitle}</span>}
         </button>
-        <button
-          onClick={() => openItem(item)}
-          className="calendar-item-edit hit-target"
-          aria-label={`编辑${item.kind === 'event' ? '计划' : '任务'}：${itemTitle(item)}`}
-        >
-          <AppIcon name="edit" size={18} />
-        </button>
       </SwipeActionRow>
     )
   }

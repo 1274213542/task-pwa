@@ -998,7 +998,6 @@ export default function Shopping() {
           <div className="shopping-empty-state mt-6">
             <MarkerIcon symbol="flower" color="green" size={52} />
             <strong>清单是空的</strong>
-            <span>添加商品后会按地点和状态清楚归类</span>
           </div>
         ) : grouped ? (
           <div className="shopping-group-stack">
