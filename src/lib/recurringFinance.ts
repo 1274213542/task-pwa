@@ -68,7 +68,7 @@ export async function saveRecurringRule(input: {
     throw new Error('资金池分摊金额必须等于固定扣款金额')
   }
   const pools = await db.fundPools.bulkGet(input.fundAllocations.map((row) => row.fundPoolId))
-  if (pools.some((pool) => !pool || pool.lifecycleStatus !== 'active' || pool.currency !== input.currency)) {
+  if (pools.some((pool) => !pool || pool.lifecycleStatus !== 'active' || pool.isArchived || pool.currency !== input.currency)) {
     throw new Error('固定扣款包含无效或不同币种的资金池')
   }
   const existing = input.id ? await db.recurringTransactionRules.get(input.id) : undefined

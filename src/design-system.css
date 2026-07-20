@@ -217,6 +217,354 @@
   --gutter-desktop: var(--ds-gutter-desktop);
 }
 
+/* --------------------------------------------------------------------------
+   Boundary ownership pass · one shell, one divider, one selected surface
+
+   These late rules intentionally replace legacy page experiments. Group shells
+   own clipping and outer radius; moving foregrounds own the only live divider;
+   transient rows gain elevation only while a gesture is active.
+   -------------------------------------------------------------------------- */
+
+:root {
+  --list-divider-inset-leading: 60px;
+  --list-divider-inset-trailing: 16px;
+  --list-divider-color: color-mix(in srgb, var(--color-text-primary) 9%, transparent);
+}
+
+@media (max-width: 1023px) {
+  /* Task toolbar: two circles plus one segmented pill. There is no second
+     container outline around those three independent controls. */
+  .task-toolbar {
+    padding: 6px 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  .task-toolbar-sticky[data-stuck] {
+    background: var(--material-toolbar-fill);
+    backdrop-filter: blur(var(--material-toolbar-blur)) saturate(108%);
+    -webkit-backdrop-filter: blur(var(--material-toolbar-blur)) saturate(108%);
+  }
+
+  .task-toolbar-sticky[data-stuck] .task-toolbar {
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  .task-toolbar-action {
+    border: 1px solid var(--color-border-subtle) !important;
+    border-radius: var(--radius-circle) !important;
+    background: var(--color-surface-primary) !important;
+  }
+
+  .task-scope-control {
+    box-sizing: border-box;
+    height: var(--ds-task-toolbar-action) !important;
+    border: 1px solid var(--color-border-subtle) !important;
+    border-radius: var(--radius-pill) !important;
+    padding: var(--segment-inset) !important;
+    background: var(--color-surface-secondary) !important;
+  }
+
+  .task-scope-indicator {
+    top: calc(var(--segment-inset) - 1px) !important;
+    bottom: calc(var(--segment-inset) - 1px) !important;
+    left: calc(var(--segment-inset) - 1px) !important;
+    height: auto !important;
+    border: 0 !important;
+    border-radius: var(--radius-pill) !important;
+    background: var(--color-surface-primary) !important;
+  }
+
+  /* One real divider element travels with the foreground. Legacy before/after
+     lines are suppressed so two adjacent rows can never double the boundary. */
+  html .apple-swipe-foreground::before,
+  html .apple-swipe-foreground::after,
+  html .task-card-swipe-content::before,
+  html .task-card-swipe-content::after,
+  html .shopping-swipe-foreground::before,
+  html .shopping-swipe-foreground::after {
+    content: none !important;
+  }
+
+  .apple-swipe-divider {
+    position: absolute;
+    z-index: 4;
+    top: 0;
+    right: var(--list-divider-inset-trailing);
+    left: var(--list-divider-inset-leading);
+    height: 1px;
+    background: var(--list-divider-color);
+    opacity: max(0, calc(1 - var(--swipe-progress) * 1.12));
+    pointer-events: none;
+    transform: scaleX(calc(1 - var(--swipe-progress) * 0.42));
+    transform-origin: left center;
+    will-change: transform, opacity;
+  }
+
+  /* Shopping group owns the one outer card. Rows inside are flat until the
+     exact row being swiped or dragged becomes a temporary independent surface. */
+  .page-shopping .shopping-group-section,
+  .page-shopping .shopping-flat-list,
+  .page-shopping .shopping-card-list.is-history {
+    overflow: hidden;
+    border: 1px solid var(--color-border-subtle) !important;
+    border-radius: var(--radius-card-large) !important;
+    background: var(--color-surface-primary) !important;
+    box-shadow: var(--shadow-card) !important;
+  }
+
+  .page-shopping .shopping-group-section > .shopping-group-title {
+    border: 0 !important;
+    border-bottom: 1px solid var(--list-divider-color) !important;
+    box-shadow: none !important;
+  }
+
+  .page-shopping .shopping-card-list {
+    overflow: visible;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  html .page-shopping .shopping-swipe-row,
+  html .page-shopping .shopping-row-swipe,
+  html .page-shopping .shopping-card {
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: var(--color-surface-primary) !important;
+    box-shadow: none !important;
+  }
+
+  html .page-shopping .shopping-row-swipe {
+    overflow: visible !important;
+  }
+
+  html .page-shopping .shopping-swipe-row[data-dragging] .shopping-card,
+  html .page-shopping .shopping-row-swipe[data-swipe-open] .shopping-card {
+    border-radius: var(--radius-card-medium) !important;
+    box-shadow: 0 8px 22px rgb(20 21 20 / 0.1) !important;
+  }
+
+  .page-shopping .shopping-item-actions,
+  .page-shopping .shopping-item-more {
+    display: none !important;
+  }
+
+  .page-shopping .shopping-item-more-sr {
+    position: absolute;
+    top: 50%;
+    right: 8px;
+    width: 44px;
+    height: 44px;
+    overflow: hidden;
+    border: 0;
+    opacity: 0;
+    pointer-events: auto;
+    transform: translateY(-50%);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  /* Full swipe keeps the rail fixed. Only the danger pill expands from the
+     trailing edge while the foreground continues following the finger. */
+  .apple-swipe-row[data-full-swipe-enabled] > .apple-swipe-actions {
+    display: flex !important;
+    width: 100% !important;
+    justify-content: flex-end !important;
+    overflow: visible !important;
+  }
+
+  .apple-swipe-row[data-full-swipe-enabled] .apple-swipe-action.is-danger {
+    z-index: calc(2 + round(var(--swipe-full-progress)));
+  }
+
+  .apple-swipe-row[data-full-swipe-enabled] .apple-swipe-action.is-danger .apple-swipe-action__pill {
+    width: calc(
+      var(--action-button-width) +
+      (var(--swipe-row-width) - var(--apple-swipe-width)) * var(--swipe-full-progress)
+    ) !important;
+    transform: translate3d(0, calc((1 - var(--action-progress)) * 6px), 0)
+      scale(calc(0.86 + var(--action-progress) * 0.14)) !important;
+    transform-origin: right center !important;
+  }
+
+  .apple-swipe-row[data-full-swipe-enabled] .apple-swipe-action.is-danger .apple-swipe-action__label {
+    opacity: calc(var(--action-progress) * (1 - var(--swipe-full-progress))) !important;
+  }
+
+  .apple-swipe-row[data-full-swipe-committing] .apple-swipe-action.is-danger .apple-swipe-action__pill {
+    border-radius: var(--radius-card-medium) !important;
+  }
+
+  /* Time view: the panel is the card; its scheduled items are plain grouped
+     rows. Dragging alone restores radius/elevation to the lifted item. */
+  .page-plan[data-mode='week'] .mobile-timeline-unscheduled {
+    display: block !important;
+    overflow: hidden;
+    border: 1px solid var(--color-border-subtle) !important;
+    border-radius: var(--radius-card-large) !important;
+    background: var(--color-surface-primary) !important;
+    box-shadow: var(--shadow-card);
+    padding: 0 !important;
+  }
+
+  .page-plan[data-mode='week'] .mobile-timeline-unscheduled > header {
+    min-height: 52px;
+    align-items: center;
+    border-bottom: 1px solid var(--list-divider-color);
+    padding: 0 var(--space-4);
+  }
+
+  .mobile-timeline-unscheduled .timeline-schedule-row,
+  .mobile-timeline-unscheduled .mobile-timeline-row,
+  .mobile-timeline-unscheduled .mobile-timeline-swipe,
+  .mobile-timeline-unscheduled .mobile-timeline-event {
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: var(--color-surface-primary) !important;
+    box-shadow: none !important;
+  }
+
+  .mobile-timeline-unscheduled .mobile-timeline-row[data-unscheduled] {
+    display: block !important;
+  }
+
+  .mobile-timeline-unscheduled .mobile-timeline-row[data-unscheduled] > time {
+    display: none !important;
+  }
+
+  .mobile-timeline-unscheduled .mobile-timeline-swipe {
+    overflow: visible !important;
+  }
+
+  .mobile-timeline-unscheduled .mobile-timeline-event {
+    min-height: var(--grouped-row-height-two-line) !important;
+  }
+
+  .mobile-timeline-unscheduled .timeline-schedule-row[data-dragging] {
+    overflow: visible;
+  }
+
+  .mobile-timeline-unscheduled .timeline-schedule-row[data-dragging] .mobile-timeline-row,
+  .mobile-timeline-unscheduled .timeline-schedule-row[data-dragging] .mobile-timeline-event {
+    border-radius: var(--radius-card-medium) !important;
+    box-shadow: 0 12px 28px rgb(20 21 20 / 0.15) !important;
+  }
+
+  .timeline-schedule-row {
+    touch-action: pan-y;
+  }
+
+  /* Week paging is one horizontal relationship, never a large containing
+     capsule. Circle / pill / circle keep equal optical height and spacing. */
+  .page-plan .calendar-toolbar {
+    align-items: center !important;
+    margin: var(--space-5) 0 var(--space-4) !important;
+    gap: var(--space-4) !important;
+  }
+
+  .page-plan .calendar-panel-action {
+    display: grid !important;
+    grid-template-columns: 44px auto 44px;
+    align-items: center;
+    gap: var(--space-2) !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+  }
+
+  .page-plan .calendar-panel-action > button:first-child,
+  .page-plan .calendar-panel-action > button:last-child {
+    width: 44px !important;
+    min-width: 44px !important;
+    height: 44px !important;
+    border: 1px solid var(--color-border-subtle) !important;
+    border-radius: var(--radius-circle) !important;
+    background: var(--color-surface-primary) !important;
+  }
+
+  .page-plan .calendar-panel-action > button:nth-child(2) {
+    min-width: 68px;
+    height: 44px !important;
+    border: 0 !important;
+    border-radius: var(--radius-pill) !important;
+    background: var(--color-text-primary) !important;
+    color: var(--color-surface-primary) !important;
+    padding: 0 var(--space-4) !important;
+  }
+
+  /* Fund pool content is one grouped surface. Child records use one inset
+     separator and no extra card border, shadow or independent radius. */
+  .finance-fund-list > ul,
+  .finance-archived-pools > ul,
+  .finance-fund-transfer-list {
+    overflow: hidden;
+    border: 1px solid var(--color-border-subtle) !important;
+    border-radius: var(--radius-card-medium) !important;
+    background: var(--color-surface-primary) !important;
+    box-shadow: none !important;
+  }
+
+  .finance-fund-list > ul > li,
+  .finance-archived-pools > ul > li,
+  .finance-fund-transfer-list > li {
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  .finance-fund-list > ul > li + li,
+  .finance-archived-pools > ul > li + li,
+  .finance-fund-transfer-list > li + li {
+    border-top: 1px solid var(--list-divider-color) !important;
+  }
+
+  .finance-impact-preview dl {
+    display: grid;
+    gap: 0;
+    margin: var(--space-2) 0;
+  }
+
+  .finance-impact-preview dl > div {
+    display: flex;
+    min-height: 36px;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    border-top: 1px solid var(--list-divider-color);
+  }
+
+  .finance-impact-preview dt {
+    color: var(--color-text-secondary);
+    font-weight: var(--font-weight-medium);
+  }
+
+  .finance-impact-preview dd {
+    margin: 0;
+    color: var(--color-text-primary);
+    font-variant-numeric: tabular-nums;
+    font-weight: var(--font-weight-semibold);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) and (max-width: 1023px) {
+  .apple-swipe-divider,
+  .apple-swipe-action__pill,
+  .timeline-schedule-row > .mobile-timeline-row {
+    transition-duration: 1ms !important;
+  }
+}
+
 
 :root[data-appearance='dark'] {
   --ds-border: rgb(255 255 255 / 0.11);
@@ -10388,5 +10736,67 @@ html[lang='zh-CN'] body {
   .mobile-tab-label {
     color: var(--color-text-secondary) !important;
     font-weight: var(--font-weight-medium) !important;
+  }
+}
+
+/* Final grouped-list boundary normalization. Structural dividers are rendered
+   inside SwipeActionRow foregrounds, so no stationary list pseudo-element may
+   compete with the moving row during a gesture. */
+@media (max-width: 1023px) {
+  html .finance-shell .finance-transaction-list li + li::before,
+  html .finance-shell .finance-work-records-v2 li + li::before,
+  html .page-browse .category-row + .category-row::before,
+  html .task-card-list .task-card-shell + .task-card-shell::before,
+  html .task-card-list .task-card-shell + .task-card-shell::after {
+    content: none !important;
+  }
+
+  html .finance-shell .finance-transaction-list > ul,
+  html .finance-shell .finance-work-records-v2 > ul,
+  html .page-browse .browse-category-card > ul,
+  html .task-card-list.task-compact-list,
+  html .task-card-list.completed-card-list {
+    overflow: hidden;
+    border: 1px solid var(--color-border-subtle) !important;
+    border-radius: var(--radius-card-large) !important;
+    background: var(--color-surface-primary) !important;
+    box-shadow: var(--shadow-card) !important;
+  }
+
+  html .finance-shell .finance-transaction-swipe-row,
+  html .finance-shell .finance-work-entry-swipe,
+  html .page-browse .category-swipe-row,
+  html .task-card-list .task-card-shell,
+  html .task-card-list .task-card-swipe-row,
+  html .task-card-list .task-card,
+  html .task-card-list .task-card-swipe-content {
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: var(--color-surface-primary) !important;
+    box-shadow: none !important;
+  }
+
+  html .finance-shell .finance-transaction-swipe-row[data-swipe-open] .finance-transaction-row,
+  html .finance-shell .finance-work-entry-swipe[data-swipe-open] .finance-work-entry-row,
+  html .page-browse .category-swipe-row[data-swipe-open] .category-row,
+  html .task-card-list .task-card-swipe-row[data-swipe-open] .task-card-swipe-content,
+  html .task-card-list .task-card-shell[data-dragging] .task-card {
+    border-radius: var(--radius-card-medium) !important;
+    box-shadow: 0 8px 22px rgb(20 21 20 / 0.1) !important;
+  }
+
+  html .page-plan[data-mode='week'] .calendar-panel-action > button:first-child,
+  html .page-plan[data-mode='week'] .calendar-panel-action > button:last-child {
+    width: 44px !important;
+    min-width: 44px !important;
+    height: 44px !important;
+    min-height: 44px !important;
+    border-radius: var(--radius-circle) !important;
+  }
+
+  html .page-plan[data-mode='week'] .calendar-panel-action > button:nth-child(2) {
+    height: 44px !important;
+    min-height: 44px !important;
+    border-radius: var(--radius-pill) !important;
   }
 }

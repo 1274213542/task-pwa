@@ -519,7 +519,7 @@ export async function saveSpending(input: {
     const states = calculateFundPoolStates({ pools, allocations, transfers, reservations })
     for (const allocation of requested) {
       const pool = poolMap.get(allocation.fundPoolId)
-      if (!pool || pool.currency !== input.currency) throw new Error('资金池不存在、已停用或币种不一致')
+      if (!pool || pool.isArchived || pool.currency !== input.currency) throw new Error('资金池不存在、已停用或币种不一致')
       const available = states.get(pool.id)?.availableMinor ?? 0
       if (allocation.amountMinor > available) {
         throw new Error(`${pool.name}可用金额不足，差额 ${fromMinor(allocation.amountMinor - available, pool.currency)}`)

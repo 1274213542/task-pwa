@@ -118,6 +118,9 @@ export interface FundPool {
   restricted: boolean
   colorToken?: string
   icon?: string
+  /** Archived pools remain part of allocation totals but cannot fund new spending. */
+  isArchived?: boolean
+  archivedAt?: string
   rank: string
   lifecycleStatus: 'active' | 'deleted'
   deletedAt?: string

@@ -105,6 +105,7 @@ type TaskRowProjectionExtra = {
   featureTone?: 'charcoal' | 'lime' | 'purple' | 'custom'
   selected?: boolean
   onMetaClick?: () => void
+  divider?: boolean
 }
 
 function buildItems(
@@ -262,11 +263,13 @@ function SortablePendingRow({
   row,
   selected,
   onMetaClick,
+  divider,
 }: {
   item: TodayItem
   row: (item: TodayItem, extra?: TaskRowProjectionExtra) => React.ReactNode
   selected: boolean
   onMetaClick: () => void
+  divider: boolean
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: item.task.id })
@@ -282,6 +285,7 @@ function SortablePendingRow({
     featureTone: 'custom',
     selected,
     onMetaClick,
+    divider,
   })
 }
 
@@ -1078,13 +1082,14 @@ export default function Today() {
               >
                 <ul className="task-card-list task-compact-list">
                   <AnimatePresence initial={false}>
-                  {pending.map((item) => (
+                  {pending.map((item, index) => (
                     <SortablePendingRow
                       key={`${item.task.id}:${item.occurrenceKey}`}
                       item={item}
                       row={rowFor}
                       selected={selectedIds.has(item.task.id)}
                       onMetaClick={() => toggleSelect(item.task.id)}
+                      divider={index > 0}
                     />
                   ))}
                   </AnimatePresence>
@@ -1106,7 +1111,7 @@ export default function Today() {
           {pending.length > 0 && viewSettings.sort !== 'manual' && (
             <ul className="task-card-list task-compact-list">
               <AnimatePresence initial={false}>
-                {pending.map((item) => rowFor(item))}
+                {pending.map((item, index) => rowFor(item, { divider: index > 0 }))}
               </AnimatePresence>
             </ul>
           )}
@@ -1148,7 +1153,7 @@ export default function Today() {
           {done.length > 0 && completedDisplayPolicy === 'keep' && (
             <ul className="task-card-list completed-card-list mt-3">
               <AnimatePresence initial={false}>
-                {done.map((i) => rowFor(i))}
+                {done.map((i, index) => rowFor(i, { divider: index > 0 }))}
               </AnimatePresence>
             </ul>
           )}
@@ -1168,7 +1173,7 @@ export default function Today() {
               {showDone && (
                 <ul className="task-card-list completed-card-list mt-2">
                   <AnimatePresence initial={false}>
-                    {done.map((i) => rowFor(i))}
+                    {done.map((i, index) => rowFor(i, { divider: index > 0 }))}
                   </AnimatePresence>
                 </ul>
               )}

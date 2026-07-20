@@ -87,6 +87,7 @@ function TimelineScheduleRow({
     startX: number
     startY: number
     active: boolean
+    startScrollY: number
     targetDate: string
     targetMinutes: number
   } | null>(null)
@@ -121,6 +122,7 @@ function TimelineScheduleRow({
       startX: event.clientX,
       startY: event.clientY,
       active: false,
+      startScrollY: window.scrollY,
       targetDate: date,
       targetMinutes: minutesFromTime(time),
     }
@@ -152,10 +154,14 @@ function TimelineScheduleRow({
     event.preventDefault()
     const dayOffset = Math.max(-3, Math.min(3, Math.round(dx / 76)))
     const targetDate = Temporal.PlainDate.from(date).add({ days: dayOffset }).toString()
-    const targetMinutes = minutesFromTime(time) + Math.round(dy / 12) * 15
+    const scrollDelta = window.scrollY - gesture.startScrollY
+    const targetMinutes = minutesFromTime(time) + Math.round((dy + scrollDelta) / 12) * 15
     gesture.targetDate = targetDate
     gesture.targetMinutes = targetMinutes
     setDragState({ dx, dy, date: targetDate, time: timeFromMinutes(targetMinutes) })
+    const edge = 92
+    if (event.clientY < edge) window.scrollBy({ top: -12, behavior: 'auto' })
+    else if (event.clientY > window.innerHeight - edge) window.scrollBy({ top: 12, behavior: 'auto' })
   }
 
   function finish(event: ReactPointerEvent<HTMLDivElement>, cancelled = false) {
@@ -726,7 +732,7 @@ export default function Plan() {
         disabled={dragDisabled}
         onCommit={(targetDate, targetTime) => rescheduleItem(item, targetDate, targetTime)}
       >
-        <div className="mobile-timeline-row">
+        <div className="mobile-timeline-row" data-unscheduled={!time || undefined}>
           <time>{item.kind === 'event' && item.event.allDay ? '全天' : time ?? '未排定'}</time>
           <SwipeActionRow
             as="div"
@@ -734,6 +740,7 @@ export default function Plan() {
             label={itemTitle(item)}
             className="mobile-timeline-swipe"
             contentClassName="mobile-timeline-event"
+            divider={index > 0}
             resetKey={`${selected}:${mode}`}
             contentProps={{
               role: 'button',
@@ -1045,7 +1052,7 @@ export default function Plan() {
                       )}
                       {selectedUnscheduledItems.length > 0 && (
                         <section className="mobile-timeline-unscheduled" aria-label="未排定时间">
-                          <header><span>未排定时间</span><small>长按后拖动可安排具体时间</small></header>
+                          <header><span>未排定时间</span><small>{selectedUnscheduledItems.length} 项</small></header>
                           {selectedUnscheduledItems.map(timelineItemRow)}
                         </section>
                       )}

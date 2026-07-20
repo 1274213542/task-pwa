@@ -68,8 +68,8 @@ describe('资金池余额、锁定与调拨', () => {
     }]
     const states = calculateFundPoolStates({ pools, allocations, transfers: [], reservations })
 
-    expect(states.get('rent')).toMatchObject({ grossMinor: 200_000, reservedMinor: 0, availableMinor: 200_000 })
-    expect(states.get('free')).toMatchObject({ grossMinor: 65_000, reservedMinor: 10_000, availableMinor: 55_000 })
+    expect(states.get('rent')).toMatchObject({ grossMinor: 200_000, reservedMinor: 0, availableMinor: 200_000, usedMinor: 100_000 })
+    expect(states.get('free')).toMatchObject({ grossMinor: 65_000, reservedMinor: 10_000, availableMinor: 55_000, usedMinor: 5_000 })
   })
 
   it('资金池调拨只改变用途分配，不改变所有资金池合计', () => {

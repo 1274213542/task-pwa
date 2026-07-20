@@ -10,6 +10,7 @@ export interface FundPoolState {
   grossMinor: number
   reservedMinor: number
   availableMinor: number
+  usedMinor: number
 }
 
 export function calculateFundPoolStates(input: {
@@ -25,6 +26,7 @@ export function calculateFundPoolStates(input: {
       grossMinor: pool.openingBalanceMinor,
       reservedMinor: 0,
       availableMinor: pool.openingBalanceMinor,
+      usedMinor: 0,
     })
   }
   const addGross = (id: string | undefined, delta: number) => {
@@ -39,8 +41,16 @@ export function calculateFundPoolStates(input: {
   }
   for (const allocation of input.allocations) {
     if (allocation.lifecycleStatus !== 'active') continue
-    if (allocation.effect === 'debit') addGross(allocation.fundPoolId, -allocation.amountMinor)
-    if (allocation.effect === 'credit') addGross(allocation.fundPoolId, allocation.amountMinor)
+    if (allocation.effect === 'debit') {
+      addGross(allocation.fundPoolId, -allocation.amountMinor)
+      const current = states.get(allocation.fundPoolId)
+      if (current) current.usedMinor += allocation.amountMinor
+    }
+    if (allocation.effect === 'credit') {
+      addGross(allocation.fundPoolId, allocation.amountMinor)
+      const current = states.get(allocation.fundPoolId)
+      if (current) current.usedMinor = Math.max(0, current.usedMinor - allocation.amountMinor)
+    }
   }
   for (const reservation of input.reservations) {
     if (reservation.status === 'voided') continue

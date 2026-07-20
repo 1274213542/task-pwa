@@ -22,7 +22,7 @@ import MobilePageHeader from '../components/MobilePageHeader'
 import { voidRecord } from '../lib/tasks'
 import SwipeActionRow from '../components/SwipeActionRow'
 
-function CategoryRow({ cat, taskCount }: { cat: Category; taskCount: number }) {
+function CategoryRow({ cat, taskCount, divider }: { cat: Category; taskCount: number; divider: boolean }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(cat.name)
   const [confirming, setConfirming] = useState(false)
@@ -44,6 +44,7 @@ function CategoryRow({ cat, taskCount }: { cat: Category; taskCount: number }) {
       label={cat.name}
       className="category-swipe-row"
       contentClassName="category-row"
+      divider={divider}
       actions={[
         {
           label: '更多',
@@ -191,8 +192,8 @@ export default function Browse() {
           </div>
           <div className="list-card browse-category-card bg-white dark:bg-neutral-800">
             <ul>
-              {(categories ?? []).map((c) => (
-                <CategoryRow key={c.id} cat={c} taskCount={countByCat.get(c.id) ?? 0} />
+              {(categories ?? []).map((c, index) => (
+                <CategoryRow key={c.id} cat={c} taskCount={countByCat.get(c.id) ?? 0} divider={index > 0} />
               ))}
             </ul>
             <div className="category-composer">

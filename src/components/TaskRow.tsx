@@ -45,6 +45,7 @@ export default function TaskRow({
   onMenuToggle,
   onMenuClose,
   nestingLevel = 0,
+  divider = false,
 }: {
   title: string
   subtitle?: string
@@ -66,6 +67,7 @@ export default function TaskRow({
   onMenuToggle?: () => void
   onMenuClose?: () => void
   nestingLevel?: number
+  divider?: boolean
 }) {
   const reduceMotion = useReducedMotion()
   const [editing, setEditing] = useState(false)
@@ -205,6 +207,7 @@ export default function TaskRow({
         label={title}
         className="task-card-swipe-row"
         contentClassName="task-card-swipe-content"
+        divider={divider}
         resetKey={`${menuId ?? title}:${dragging ? 'dragging' : 'idle'}`}
         actions={[
           {

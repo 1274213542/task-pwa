@@ -37,7 +37,7 @@ export async function saveExpenseCategory(input: {
   }
   if (defaultFundPoolId) {
     const pool = await db.fundPools.get(defaultFundPoolId)
-    if (!pool || pool.lifecycleStatus !== 'active') throw new Error('默认资金池无效')
+    if (!pool || pool.lifecycleStatus !== 'active' || pool.isArchived) throw new Error('默认资金池无效')
   }
   const timestamp = now()
   const id = input.id ?? crypto.randomUUID()

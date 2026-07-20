@@ -18,15 +18,22 @@ export function applySwipePresentation(
   element: HTMLElement | null,
   value: number,
   reveal: number,
+  rowWidth = reveal,
 ) {
   if (!element) return
   const distance = Math.abs(Math.min(0, value))
   const progress = clamp01(distance / Math.max(1, reveal))
   const overshoot = clamp01((distance - reveal) / 18)
+  const fullSwipeStart = Math.max(reveal, rowWidth * 0.34)
+  const fullSwipeProgress = clamp01(
+    (distance - fullSwipeStart) / Math.max(1, rowWidth - fullSwipeStart),
+  )
 
   element.style.setProperty('--swipe-progress', progress.toFixed(4))
   element.style.setProperty('--swipe-delete-progress', stagedProgress(progress, 0.04, 0.34).toFixed(4))
   element.style.setProperty('--swipe-secondary-progress', stagedProgress(progress, 0.28, 0.66).toFixed(4))
   element.style.setProperty('--swipe-leading-progress', stagedProgress(progress, 0.56, 0.92).toFixed(4))
   element.style.setProperty('--swipe-overshoot', overshoot.toFixed(4))
+  element.style.setProperty('--swipe-full-progress', fullSwipeProgress.toFixed(4))
+  element.style.setProperty('--swipe-row-width', `${Math.max(reveal, rowWidth)}px`)
 }

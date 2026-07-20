@@ -16,6 +16,9 @@ import {
 
 const COMMIT_DISTANCE = 52
 const DIRECTION_LOCK = 10
+const FULL_SWIPE_DISTANCE_RATIO = 0.62
+const FULL_SWIPE_FLING_RATIO = 0.28
+const FULL_SWIPE_VELOCITY = 900
 const OPEN_EVENT = 'task-pwa:apple-swipe-open'
 const SETTLE_EASING = 'cubic-bezier(0.22, 1, 0.36, 1)'
 
@@ -37,6 +40,8 @@ export default function SwipeActionRow({
   contentProps,
   as = 'li',
   resetKey,
+  divider = false,
+  fullSwipe = false,
 }: {
   id: string
   label: string
@@ -48,6 +53,10 @@ export default function SwipeActionRow({
   as?: 'li' | 'div'
   /** Changing list mode, group or date closes an in-flight transient action. */
   resetKey?: string
+  /** One structural divider owned by the moving foreground, never the row shell. */
+  divider?: boolean
+  /** Enables a proportional full-swipe commit using the last danger action. */
+  fullSwipe?: boolean
 }) {
   const rootRef = useRef<HTMLElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
@@ -61,6 +70,8 @@ export default function SwipeActionRow({
   const railAnimation = useRef<Animation | null>(null)
   const presentationFrame = useRef<number | null>(null)
   const presentation = useRef(0)
+  const rowWidth = useRef(reveal)
+  const committingFullSwipe = useRef(false)
   const suppressNextClick = useRef(false)
   const [open, setOpen] = useState(false)
   const gesture = useRef<{
@@ -81,7 +92,7 @@ export default function SwipeActionRow({
 
   function applyPresentation(value: number) {
     presentation.current = value
-    applySwipePresentation(rootRef.current, value, reveal)
+    applySwipePresentation(rootRef.current, value, reveal, rowWidth.current)
     if (contentRef.current) {
       contentRef.current.style.transform = `translate3d(${value}px, 0, 0)`
     }
@@ -105,7 +116,7 @@ export default function SwipeActionRow({
         presentationFrame.current = null
         return
       }
-      applySwipePresentation(rootRef.current, liveOffset(), reveal)
+      applySwipePresentation(rootRef.current, liveOffset(), reveal, rowWidth.current)
       presentationFrame.current = requestAnimationFrame(update)
     }
     presentationFrame.current = requestAnimationFrame(update)
@@ -137,12 +148,13 @@ export default function SwipeActionRow({
     return current
   }
 
-  function settle(target: number, velocity = 0) {
+  function settle(target: number, velocity = 0, onFinish?: () => void) {
     const content = contentRef.current
     const railElement = railRef.current
     const current = stopAtCurrentPosition()
     if (!content || reduceMotion || Math.abs(target - current) < 0.5) {
       applyPresentation(target)
+      onFinish?.()
       return
     }
 
@@ -178,10 +190,12 @@ export default function SwipeActionRow({
       railAnimation.current = null
       applyPresentation(target)
       animation.cancel()
+      onFinish?.()
     }
   }
 
   function close() {
+    if (committingFullSwipe.current) return
     setOpen(false)
     settle(0)
   }
@@ -253,6 +267,7 @@ export default function SwipeActionRow({
     const explicitHandle = target.closest('[data-row-swipe-handle]')
     if (!explicitHandle && target.closest('button, input, textarea, select, a, [role="menu"], [data-no-row-swipe]')) return
     const startOffset = stopAtCurrentPosition()
+    rowWidth.current = Math.max(reveal, rootRef.current?.getBoundingClientRect().width ?? reveal)
     gesture.current = {
       pointerId: event.pointerId,
       startX: event.clientX,
@@ -283,8 +298,11 @@ export default function SwipeActionRow({
     if (state.axis !== 'horizontal') return
     event.preventDefault()
     const raw = state.startOffset + dx
+    const maxTravel = fullSwipe ? rowWidth.current : reveal + 18
     const next = raw < -reveal
-      ? -reveal - Math.min(18, Math.abs(raw + reveal) * 0.22)
+      ? Math.max(-maxTravel, fullSwipe
+        ? raw
+        : -reveal - Math.min(18, Math.abs(raw + reveal) * 0.22))
       : raw > 0
         ? Math.min(12, raw * 0.18)
         : raw
@@ -304,6 +322,27 @@ export default function SwipeActionRow({
     const velocity = ((recent.x - older.x) / elapsed) * 1000
     const current = liveOffset()
     const projected = current + velocity * 0.06
+    const distance = Math.abs(Math.min(0, current))
+    const shouldFullSwipe = fullSwipe && !cancelled && actions.at(-1)?.tone === 'danger' && (
+      distance >= rowWidth.current * FULL_SWIPE_DISTANCE_RATIO ||
+      (velocity <= -FULL_SWIPE_VELOCITY && distance >= rowWidth.current * FULL_SWIPE_FLING_RATIO)
+    )
+    if (shouldFullSwipe) {
+      committingFullSwipe.current = true
+      setOpen(false)
+      rootRef.current?.setAttribute('data-full-swipe-committing', 'true')
+      settle(-rowWidth.current - 8, velocity, () => {
+        actions.at(-1)?.onSelect()
+        committingFullSwipe.current = false
+        window.setTimeout(() => {
+          rootRef.current?.removeAttribute('data-full-swipe-committing')
+          if (!rootRef.current?.isConnected) return
+          setOpen(false)
+          applyPresentation(0)
+        }, 280)
+      })
+      return
+    }
     const shouldOpen = !cancelled && (
       current <= -COMMIT_DISTANCE ||
       (current < -18 && projected <= -COMMIT_DISTANCE)
@@ -325,6 +364,8 @@ export default function SwipeActionRow({
       data-no-route-swipe
       data-apple-swipe-id={id}
       data-swipe-open={open || undefined}
+      data-divider={divider || undefined}
+      data-full-swipe-enabled={fullSwipe || undefined}
       className={`apple-swipe-row ${className}`.trim()}
       style={{
         '--apple-swipe-width': `${reveal}px`,
@@ -333,6 +374,8 @@ export default function SwipeActionRow({
         '--swipe-secondary-progress': 0,
         '--swipe-leading-progress': 0,
         '--swipe-overshoot': 0,
+        '--swipe-full-progress': 0,
+        '--swipe-row-width': `${reveal}px`,
       } as CSSProperties}
     >
       <div
@@ -378,6 +421,7 @@ export default function SwipeActionRow({
           event.stopPropagation()
         }}
       >
+        {divider && <span className="apple-swipe-divider" aria-hidden="true" />}
         {children}
       </div>
     </Root>

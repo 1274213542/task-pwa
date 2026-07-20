@@ -3,7 +3,7 @@ import { APPLE_SWIPE_ACTION_GAP, APPLE_SWIPE_ACTION_WIDTH, applySwipePresentatio
 
 const reveal = APPLE_SWIPE_ACTION_WIDTH * 2 + APPLE_SWIPE_ACTION_GAP
 
-function presentationAt(value: number, revealDistance = reveal) {
+function presentationAt(value: number, revealDistance = reveal, rowWidth = revealDistance) {
   const values = new Map<string, string>()
   const element = {
     style: {
@@ -11,7 +11,7 @@ function presentationAt(value: number, revealDistance = reveal) {
     },
   } as unknown as HTMLElement
 
-  applySwipePresentation(element, value, revealDistance)
+  applySwipePresentation(element, value, revealDistance, rowWidth)
   return values
 }
 
@@ -43,5 +43,14 @@ describe('applySwipePresentation', () => {
 
     expect(values.get('--swipe-progress')).toBe('1.0000')
     expect(values.get('--swipe-overshoot')).toBe('1.0000')
+  })
+
+  it('keeps full-delete progress proportional to the current row width', () => {
+    const early = presentationAt(-reveal, reveal, 360)
+    const committed = presentationAt(-360, reveal, 360)
+
+    expect(early.get('--swipe-full-progress')).toBe('0.0000')
+    expect(committed.get('--swipe-full-progress')).toBe('1.0000')
+    expect(committed.get('--swipe-row-width')).toBe('360px')
   })
 })

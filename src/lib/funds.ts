@@ -84,6 +84,9 @@ export async function saveFundPool(input: {
   if (!name) throw new Error('请输入资金池名称')
   if (!/^[A-Z]{3}$/.test(input.currency)) throw new Error('币种必须使用 ISO 三字代码')
   const existing = input.id ? await db.fundPools.get(input.id) : undefined
+  if (existing && existing.currency !== input.currency) {
+    throw new Error('已有资金池不能直接修改币种，请新建资金池后重新分配')
+  }
   const active = await db.fundPools.where('lifecycleStatus').equals('active').sortBy('rank')
   const duplicate = active.find((pool) =>
     pool.id !== input.id && pool.name.localeCompare(name, undefined, { sensitivity: 'base' }) === 0,
@@ -117,6 +120,8 @@ export async function saveFundPool(input: {
     restricted: input.restricted ?? existing?.restricted ?? input.purpose !== 'free',
     ...(input.colorToken && { colorToken: input.colorToken }),
     ...(input.icon && { icon: input.icon }),
+    isArchived: existing?.isArchived ?? false,
+    ...(existing?.archivedAt && { archivedAt: existing.archivedAt }),
     rank: existing?.rank ?? appendRank(active.at(-1)?.rank),
     lifecycleStatus: 'active',
     createdAt: existing?.createdAt ?? timestamp,
@@ -125,11 +130,32 @@ export async function saveFundPool(input: {
   return id
 }
 
-export async function setFundPoolArchived(id: string): Promise<void> {
-  const { states } = await loadFundPoolStates()
+export async function setFundPoolArchived(id: string, archived = true): Promise<void> {
+  const pool = await db.fundPools.get(id)
+  if (!pool || pool.lifecycleStatus !== 'active') throw new Error('资金池不存在')
+  const timestamp = now()
+  await db.fundPools.update(id, {
+    isArchived: archived,
+    archivedAt: archived ? timestamp : undefined,
+    updatedAt: timestamp,
+  })
+}
+
+export async function softDeleteFundPool(id: string): Promise<void> {
+  const [{ states }, goals, rules] = await Promise.all([
+    loadFundPoolStates(),
+    db.savingsGoals.where('lifecycleStatus').equals('active').toArray(),
+    db.recurringTransactionRules.where('lifecycleStatus').equals('active').toArray(),
+  ])
   const state = states.get(id)
   if (state && (state.grossMinor !== 0 || state.reservedMinor !== 0)) {
-    throw new Error('请先将余额和锁定金额转出，再停用资金池')
+    throw new Error('请先把余额和锁定金额转回未分配资金，再删除资金池')
+  }
+  if (
+    goals.some((goal) => goal.fundPoolId === id) ||
+    rules.some((rule) => rule.fundAllocations.some((allocation) => allocation.fundPoolId === id))
+  ) {
+    throw new Error('该资金池仍被储蓄目标或固定扣款使用，请先更换关联')
   }
   const timestamp = now()
   await db.fundPools.update(id, {
@@ -161,6 +187,7 @@ export async function saveFundPoolTransfer(input: {
       throw new Error('资金池不存在、已停用或币种不一致')
     }
   }
+  if (destination?.isArchived) throw new Error('目标资金池已停用，请先恢复')
   const { states } = await loadFundPoolStates(undefined, existing?.id)
   if (source && input.amountMinor > (states.get(source.id)?.availableMinor ?? 0)) {
     throw new Error('原资金池可用金额不足')
@@ -203,7 +230,7 @@ export async function saveSavingsGoal(input: {
   targetDate?: string
 }) {
   const pool = await db.fundPools.get(input.fundPoolId)
-  if (!pool || pool.lifecycleStatus !== 'active' || !pool.includeInSavings) throw new Error('请选择储蓄类资金池')
+  if (!pool || pool.lifecycleStatus !== 'active' || pool.isArchived || !pool.includeInSavings) throw new Error('请选择储蓄类资金池')
   positiveMinor(input.targetAmountMinor)
   const existing = input.id ? await db.savingsGoals.get(input.id) : undefined
   const active = await db.savingsGoals.where('lifecycleStatus').equals('active').sortBy('rank')

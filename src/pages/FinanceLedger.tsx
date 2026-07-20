@@ -515,7 +515,7 @@ export default function FinanceLedger() {
           accounts={accounts}
           transactions={transactions}
           categories={categories}
-          fundPools={fundPools}
+          fundPools={fundPools.filter((pool) => !pool.isArchived)}
           transactionFundAllocations={transactionFundAllocations}
           reportingCurrency={reportingCurrency}
           onSaved={(message) => {
@@ -533,7 +533,7 @@ export default function FinanceLedger() {
         <ExpenseCategoryManagerSheet
           categories={categories}
           accounts={accounts}
-          fundPools={fundPools}
+          fundPools={fundPools.filter((pool) => !pool.isArchived)}
           onClose={() => setCategoryManagerOpen(false)}
           onFeedback={setFeedback}
         />
@@ -897,7 +897,7 @@ function TransactionList({
   return (
     <section className="finance-section-card finance-transaction-list">
       <header><div><span>按发生时间排序</span><h2>{title}</h2></div>{onSeeAll && <button onClick={onSeeAll}>查看全部</button>}</header>
-      {transactions.length ? <ul>{transactions.map((transaction) => {
+      {transactions.length ? <ul>{transactions.map((transaction, index) => {
         const account = accountMap.get(transaction.accountId)
         const positive = transaction.type === 'income' || transaction.type === 'refund'
         const external = transaction.type === 'external_payment' || transaction.fundingParty === 'external' || accountOwnership(account) === 'external'
@@ -907,6 +907,7 @@ function TransactionList({
           label={transaction.merchantNameSnapshot || transaction.note || TRANSACTION_LABEL[transaction.type]}
           className="finance-transaction-swipe-row"
           contentClassName="finance-transaction-row"
+          divider={index > 0}
           actions={[
             ...(onEdit && ['expense', 'credit_purchase', 'external_payment'].includes(transaction.type)
               ? [{ label: '更多', icon: 'more' as const, tone: 'neutral' as const, onSelect: () => onEdit(transaction) }]
@@ -1139,12 +1140,13 @@ function WorkView({
       </form>
       <section className="finance-section-card finance-work-records-v2">
         <header><div><span>按日期查看</span><h2>工作记录</h2></div><strong>{activeEntries.length} 条</strong></header>
-        {activeEntries.length ? <ul>{activeEntries.map((entry) => <SwipeActionRow
+        {activeEntries.length ? <ul>{activeEntries.map((entry, index) => <SwipeActionRow
           key={entry.id}
           id={`work-entry:${entry.id}`}
           label={entry.workContent || entry.employer || '工作'}
           className="finance-work-entry-swipe"
           contentClassName="finance-work-entry-row"
+          divider={index > 0}
           actions={[
             { label: '更多', icon: 'more', tone: 'neutral', onSelect: () => beginWorkEdit(entry) },
             { label: '删除', icon: 'trash', tone: 'danger', disabled: entry.settlementStatus === 'settled', onSelect: () => void removeWorkEntry(entry) },
@@ -1536,7 +1538,7 @@ function FinanceEntrySheet({
           amount: String(fromMinor(row.amountMinor, row.currency)),
         }))
       }
-      return entryDefaults.fundPoolId && fundPools.some((pool) => pool.id === entryDefaults.fundPoolId)
+      return entryDefaults.fundPoolId && fundPools.some((pool) => pool.id === entryDefaults.fundPoolId && !pool.isArchived)
         ? [{ fundPoolId: entryDefaults.fundPoolId, amount: '' }]
         : []
     })(),
@@ -1641,7 +1643,7 @@ function FinanceEntrySheet({
   )
   const selectedCategory = categories.find((category) => category.id === categoryId)
   const eligibleFundPools = fundPools.filter((pool) =>
-    pool.lifecycleStatus === 'active' && pool.currency === currency,
+    pool.lifecycleStatus === 'active' && !pool.isArchived && pool.currency === currency,
   )
   const fundPoolStates = useMemo(
     () => calculateFundPoolStates({
@@ -1720,7 +1722,7 @@ function FinanceEntrySheet({
   useEffect(() => {
     if (kind !== 'expense') return
     setFundAllocationDrafts((current) => current.filter((row) =>
-      fundPools.some((pool) => pool.id === row.fundPoolId && pool.currency === currency),
+      fundPools.some((pool) => pool.id === row.fundPoolId && !pool.isArchived && pool.currency === currency),
     ))
   }, [currency, fundPools, kind])
 
@@ -1730,7 +1732,7 @@ function FinanceEntrySheet({
     if (category?.defaultAccountId && accounts.some((account) => account.id === category.defaultAccountId)) {
       setAccountId(category.defaultAccountId)
     }
-    if (category?.defaultFundPoolId && fundPools.some((pool) => pool.id === category.defaultFundPoolId)) {
+    if (category?.defaultFundPoolId && fundPools.some((pool) => pool.id === category.defaultFundPoolId && !pool.isArchived)) {
       setFundAllocationDrafts([{ fundPoolId: category.defaultFundPoolId, amount }])
       setAllocationsTouched(false)
     }
@@ -1884,6 +1886,14 @@ function FinanceEntrySheet({
 
   const selectedAccount = accounts.find((account) => account.id === accountId)
   const selectedDestination = accounts.find((account) => account.id === destinationId)
+  const previewAmountMinor = amountValid ? toMinor(amountNumber, currency) : 0
+  const previewOwnership = accountOwnership(source)
+  const disposableImpactMinor = fundAllocationDrafts.reduce((sum, row) => {
+    const pool = fundPools.find((item) => item.id === row.fundPoolId)
+    if (!pool?.includeInDisposable) return sum
+    const value = Number(row.amount)
+    return Number.isFinite(value) && value > 0 ? sum + toMinor(value, currency) : sum
+  }, 0)
   const pickerItems: SelectionPickerItem[] = !pickerTarget
     ? []
     : pickerTarget.kind === 'category'
@@ -2055,16 +2065,25 @@ function FinanceEntrySheet({
                         }}>＋ {fundAllocationDrafts.length ? '拆分到另一个资金池' : '选择用途资金池'}</button>}
                       </fieldset>
                     )}
-                    {source && <section className="finance-money-path" aria-label="资金路径确认">
-                      <span>保存后会记录</span>
-                      <strong>{source.name} → {accountOwnership(source) === 'external'
-                        ? '外部代付'
-                        : fundAllocationDrafts.length
-                          ? fundAllocationDrafts.map((row) => fundPools.find((pool) => pool.id === row.fundPoolId)?.name ?? '待选择用途').join(' + ')
-                          : '待选择用途资金池'}</strong>
-                      <small>{accountOwnership(source) === 'external'
-                        ? '计入消费行为，但不减少本人资产或资金池。'
-                        : '现实账户只扣款一次；资金池只记录用途归属，不会重复扣款。'}</small>
+                    {source && <section className="finance-money-path finance-impact-preview" aria-label="保存后的金额变化预览">
+                      <span>保存后的变化</span>
+                      <dl>
+                        <div><dt>实际支付账户</dt><dd>{previewOwnership === 'external'
+                          ? '本人账户不变'
+                          : source.kind === 'credit'
+                            ? `待还 +${formatMoney(previewAmountMinor, currency)}`
+                            : `−${formatMoney(previewAmountMinor, currency)}`}</dd></div>
+                        {previewOwnership === 'self' && fundAllocationDrafts.map((row, index) => {
+                          const pool = fundPools.find((item) => item.id === row.fundPoolId)
+                          const rowAmount = Number(row.amount)
+                          return <div key={`${row.fundPoolId}:${index}`}><dt>{pool?.name ?? '承担资金池'}</dt><dd>{Number.isFinite(rowAmount) && rowAmount > 0 ? `−${formatMoney(toMinor(rowAmount, currency), currency)}` : '待填写'}</dd></div>
+                        })}
+                        <div><dt>消费统计</dt><dd>{includeInSpending ? '计入本月消费' : '不计入'}</dd></div>
+                        <div><dt>可自由支配</dt><dd>{previewOwnership === 'external' || disposableImpactMinor === 0 ? '不变' : `−${formatMoney(disposableImpactMinor, currency)}`}</dd></div>
+                      </dl>
+                      <small>{previewOwnership === 'external'
+                        ? '外部代付只记录消费行为，不减少本人资产或资金池。'
+                        : '现实账户只变化一次；资金池变化只表示同一笔钱的用途归属。'}</small>
                     </section>}
                     <label>商家 / 地点<input value={merchant} onChange={(event) => setMerchant(event.target.value)} placeholder="例如 Rakuten Ichiba" /></label>
                   </>

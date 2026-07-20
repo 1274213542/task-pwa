@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useMemo, useState, type FormEvent } from 'react'
+import { useMemo, useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import AppIcon from '../components/AppIcon'
 import { PrivateAmount } from '../components/AmountPrivacy'
@@ -7,12 +7,15 @@ import { db, type ExpenseCategory } from '../lib/db'
 import { calculateFundPoolStates } from '../lib/fundMath'
 import {
   calculateFinancialProjection,
+  actualAssetBalanceByCurrency,
   saveBudgetPlan,
   saveFundPool,
   saveFundPoolTransfer,
   saveSavingsGoal,
   setFundPoolArchived,
+  softDeleteFundPool,
   softDeleteFundPoolTransfer,
+  unallocatedByCurrency,
 } from '../lib/funds'
 import { fromMinor, ledgerSummary, toMinor } from '../lib/ledger'
 import {
@@ -85,9 +88,13 @@ export function FinanceFundsView({ accounts, onFeedback }: {
     [],
   ) ?? []
   const pools = useMemo(() => poolsLive ?? [], [poolsLive])
+  const activePools = useMemo(() => pools.filter((pool) => !pool.isArchived), [pools])
+  const archivedPools = useMemo(() => pools.filter((pool) => pool.isArchived), [pools])
   const allocations = useMemo(() => allocationsLive ?? [], [allocationsLive])
   const transfers = useMemo(() => transfersLive ?? [], [transfersLive])
   const reservations = useMemo(() => reservationsLive ?? [], [reservationsLive])
+  const actualBalances = useLiveQuery(() => actualAssetBalanceByCurrency(), [], new Map<CurrencyCode, number>())
+  const unallocatedBalances = useLiveQuery(() => unallocatedByCurrency(), [], new Map<CurrencyCode, number>())
   const states = useMemo(
     () => calculateFundPoolStates({ pools, allocations, transfers, reservations }),
     [pools, allocations, transfers, reservations],
@@ -107,6 +114,34 @@ export function FinanceFundsView({ accounts, onFeedback }: {
   const [goalPoolId, setGoalPoolId] = useState('')
   const [goalAmount, setGoalAmount] = useState('')
   const [saving, setSaving] = useState(false)
+  const poolEditorRef = useRef<HTMLDetailsElement>(null)
+  const reallocationRef = useRef<HTMLDetailsElement>(null)
+
+  function beginEditPool(pool: (typeof pools)[number]) {
+    setEditingPoolId(pool.id)
+    setName(pool.name)
+    setPurpose(pool.purpose)
+    setCurrency(pool.currency)
+    setOpening(fromMinor(pool.openingBalanceMinor, pool.currency).toString())
+    setAccountId(pool.accountId ?? '')
+    if (poolEditorRef.current) {
+      poolEditorRef.current.open = true
+      poolEditorRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  }
+
+  function beginPoolAdjustment(poolId: string) {
+    const pool = pools.find((item) => item.id === poolId)
+    if (!pool) return
+    setSourcePoolId(pool.id)
+    setDestinationPoolId('')
+    setTransferAmount('')
+    setTransferNote('')
+    if (reallocationRef.current) {
+      reallocationRef.current.open = true
+      reallocationRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  }
 
   async function createPool(event: FormEvent) {
     event.preventDefault()
@@ -179,11 +214,13 @@ export function FinanceFundsView({ accounts, onFeedback }: {
   }
 
   const byCurrency = useMemo(() => {
-    const map = new Map<CurrencyCode, { disposable: number; restricted: number; savings: number; reserved: number }>()
+    const map = new Map<CurrencyCode, { disposable: number; restricted: number; savings: number; reserved: number; allocated: number; archived: number }>()
     for (const pool of pools) {
       const state = states.get(pool.id)
-      const summary = map.get(pool.currency) ?? { disposable: 0, restricted: 0, savings: 0, reserved: 0 }
-      if (pool.includeInDisposable) summary.disposable += state?.availableMinor ?? 0
+      const summary = map.get(pool.currency) ?? { disposable: 0, restricted: 0, savings: 0, reserved: 0, allocated: 0, archived: 0 }
+      summary.allocated += state?.grossMinor ?? 0
+      if (pool.isArchived) summary.archived += state?.grossMinor ?? 0
+      if (pool.includeInDisposable && !pool.isArchived) summary.disposable += state?.availableMinor ?? 0
       if (pool.includeInSavings) summary.savings += state?.grossMinor ?? 0
       if (pool.restricted && !pool.includeInSavings) summary.restricted += state?.grossMinor ?? 0
       summary.reserved += state?.reservedMinor ?? 0
@@ -192,28 +229,38 @@ export function FinanceFundsView({ accounts, onFeedback }: {
     return map
   }, [pools, states])
 
+  const currencySummaries = useMemo(() => {
+    const currencies = new Set<CurrencyCode>([
+      ...actualBalances.keys(),
+      ...unallocatedBalances.keys(),
+      ...byCurrency.keys(),
+    ])
+    return [...currencies].sort().map((code) => ({
+      code,
+      actual: actualBalances.get(code) ?? 0,
+      unallocated: unallocatedBalances.get(code) ?? 0,
+      ...(byCurrency.get(code) ?? { disposable: 0, restricted: 0, savings: 0, reserved: 0, allocated: 0, archived: 0 }),
+    }))
+  }, [actualBalances, byCurrency, unallocatedBalances])
+
   return (
     <div className="finance-funds-view">
       <div className="finance-ledger-metrics finance-fund-metrics">
-        {[...byCurrency].flatMap(([code, summary]) => [
-          <article key={`${code}:free`}><span>可自由支配 · {code}</span><strong><PrivateAmount>{formatMoney(summary.disposable, code)}</PrivateAmount></strong><small>已扣除信用卡锁定 <PrivateAmount>{formatMoney(summary.reserved, code)}</PrivateAmount></small></article>,
-          <article key={`${code}:restricted`}><span>不可自由支配 · {code}</span><strong><PrivateAmount>{formatMoney(summary.restricted, code)}</PrivateAmount></strong><small>父亲专项、学费及税费等</small></article>,
-          <article key={`${code}:savings`}><span>个人储蓄 · {code}</span><strong><PrivateAmount>{formatMoney(summary.savings, code)}</PrivateAmount></strong><small>不包含父亲专项</small></article>,
+        {currencySummaries.flatMap((summary) => [
+          <article key={`${summary.code}:actual`}><span>实际账户总余额 · {summary.code}</span><strong><PrivateAmount>{formatMoney(summary.actual, summary.code)}</PrivateAmount></strong><small>现实银行、现金及本人钱包合计</small></article>,
+          <article key={`${summary.code}:unallocated`}><span>未分配余额 · {summary.code}</span><strong><PrivateAmount>{formatMoney(summary.unallocated, summary.code)}</PrivateAmount></strong><small>尚未划入任何资金池</small></article>,
+          <article key={`${summary.code}:allocated`}><span>已分配资金 · {summary.code}</span><strong><PrivateAmount>{formatMoney(summary.allocated, summary.code)}</PrivateAmount></strong><small>当前各资金池归属金额合计</small></article>,
+          <article key={`${summary.code}:free`}><span>可自由支配 · {summary.code}</span><strong><PrivateAmount>{formatMoney(summary.disposable, summary.code)}</PrivateAmount></strong><small>已扣除信用卡锁定 <PrivateAmount>{formatMoney(summary.reserved, summary.code)}</PrivateAmount></small></article>,
+          <article key={`${summary.code}:restricted`}><span>不可自由支配 · {summary.code}</span><strong><PrivateAmount>{formatMoney(summary.restricted, summary.code)}</PrivateAmount></strong><small>父亲专项、学费及税费等</small></article>,
+          <article key={`${summary.code}:savings`}><span>个人储蓄 · {summary.code}</span><strong><PrivateAmount>{formatMoney(summary.savings, summary.code)}</PrivateAmount></strong><small>不包含父亲专项</small></article>,
         ])}
       </div>
 
       <section className="finance-section-card finance-fund-list">
-        <header><div><span>用途分配不产生收入或支出</span><h2>资金池</h2></div><strong>{pools.length} 个</strong></header>
-        {pools.length ? <ul>{pools.map((pool) => {
+        <header><div><span>用途分配不产生收入或支出</span><h2>资金池</h2></div><strong>{activePools.length} 个</strong></header>
+        {activePools.length ? <ul>{activePools.map((pool) => {
           const state = states.get(pool.id)
-          return <li key={pool.id}><div><strong>{pool.name}</strong><span>{purposeLabels[pool.purpose]} · {pool.currency}</span></div><div className="finance-fund-row-value"><b><PrivateAmount>{formatMoney(state?.availableMinor ?? 0, pool.currency)}</PrivateAmount></b>{(state?.reservedMinor ?? 0) > 0 && <small>锁定 <PrivateAmount>{formatMoney(state?.reservedMinor ?? 0, pool.currency)}</PrivateAmount></small>}<span className="finance-inline-actions"><button type="button" onClick={() => {
-            setEditingPoolId(pool.id)
-            setName(pool.name)
-            setPurpose(pool.purpose)
-            setCurrency(pool.currency)
-            setOpening(fromMinor(pool.openingBalanceMinor, pool.currency).toString())
-            setAccountId(pool.accountId ?? '')
-          }}>编辑</button><button type="button" onClick={() => void setFundPoolArchived(pool.id).then(() => onFeedback('资金池已停用')).catch((error: unknown) => onFeedback(error instanceof Error ? error.message : '停用失败'))}>停用</button></span></div></li>
+          return <li key={pool.id}><div><strong>{pool.name}</strong><span>{purposeLabels[pool.purpose]} · {pool.currency} · 已使用 <PrivateAmount>{formatMoney(state?.usedMinor ?? 0, pool.currency)}</PrivateAmount></span></div><div className="finance-fund-row-value"><b><PrivateAmount>{formatMoney(state?.availableMinor ?? 0, pool.currency)}</PrivateAmount></b>{(state?.reservedMinor ?? 0) > 0 && <small>锁定 <PrivateAmount>{formatMoney(state?.reservedMinor ?? 0, pool.currency)}</PrivateAmount></small>}<span className="finance-inline-actions"><button type="button" onClick={() => beginPoolAdjustment(pool.id)}>调整金额</button><button type="button" onClick={() => beginEditPool(pool)}>编辑</button><button type="button" onClick={() => void setFundPoolArchived(pool.id).then(() => onFeedback('资金池已停用；余额仍计入已分配资金')).catch((error: unknown) => onFeedback(error instanceof Error ? error.message : '停用失败'))}>停用</button></span></div></li>
         })}</ul> : (
           <div className="finance-fund-onboarding">
             <div>
@@ -232,12 +279,20 @@ export function FinanceFundsView({ accounts, onFeedback }: {
         )}
       </section>
 
-      <details className="finance-section-card finance-inline-details">
+      {archivedPools.length > 0 && <details className="finance-section-card finance-inline-details finance-archived-pools">
+        <summary><span><small>余额仍属于已分配资金</small><strong>已停用资金池 · {archivedPools.length}</strong></span><AppIcon name="chevronDown" size={18} /></summary>
+        <ul>{archivedPools.map((pool) => {
+          const state = states.get(pool.id)
+          return <li key={pool.id}><div><strong>{pool.name}</strong><span>剩余 <PrivateAmount>{formatMoney(state?.grossMinor ?? 0, pool.currency)}</PrivateAmount></span></div><span className="finance-inline-actions"><button type="button" onClick={() => void setFundPoolArchived(pool.id, false).then(() => onFeedback('资金池已恢复')).catch((error: unknown) => onFeedback(error instanceof Error ? error.message : '恢复失败'))}>恢复</button><button type="button" disabled={Boolean(state?.grossMinor || state?.reservedMinor)} onClick={() => void softDeleteFundPool(pool.id).then(() => onFeedback('资金池已删除')).catch((error: unknown) => onFeedback(error instanceof Error ? error.message : '删除失败'))}>删除</button></span></li>
+        })}</ul>
+      </details>}
+
+      <details ref={poolEditorRef} className="finance-section-card finance-inline-details">
         <summary><span><small>不改变账户余额，只分配用途</small><strong>新建资金池</strong></span><AppIcon name="chevronDown" size={18} /></summary>
         <form className="finance-form-grid-v2" onSubmit={createPool}>
           <label>名称<input value={name} onChange={(event) => setName(event.target.value)} placeholder="例如 父亲房租专项" /></label>
           <label>用途<select value={purpose} onChange={(event) => setPurpose(event.target.value as FundPoolPurpose)}>{Object.entries(purposeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-          <label>币种<select value={currency} onChange={(event) => setCurrency(event.target.value as CurrencyCode)}><option>JPY</option><option>CNY</option></select></label>
+          <label>币种<select value={currency} disabled={Boolean(editingPoolId)} onChange={(event) => setCurrency(event.target.value as CurrencyCode)}><option>JPY</option><option>CNY</option></select></label>
           <label>初始分配<input inputMode="decimal" value={opening} disabled={Boolean(editingPoolId)} onChange={(event) => setOpening(event.target.value)} placeholder="0" /></label>
           <label className="wide">主要存放账户（可选）<select value={accountId} onChange={(event) => setAccountId(event.target.value)}><option value="">不绑定</option>{accounts.filter((account) => account.kind === 'asset' && account.currency === currency).map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>
           <button className="primary wide" disabled={saving || !name.trim()}>{saving ? '保存中…' : editingPoolId ? '保存资金池' : '创建资金池'}</button>
@@ -245,11 +300,11 @@ export function FinanceFundsView({ accounts, onFeedback }: {
         </form>
       </details>
 
-      <details className="finance-section-card finance-inline-details">
+      <details ref={reallocationRef} className="finance-section-card finance-inline-details">
         <summary><span><small>只改变资金用途</small><strong>重新分配</strong></span><AppIcon name="chevronDown" size={18} /></summary>
         <form className="finance-form-grid-v2" onSubmit={reallocate}>
-          <label>原资金池<select value={sourcePoolId} onChange={(event) => setSourcePoolId(event.target.value)}><option value="">未分配资金</option>{pools.map((pool) => <option key={pool.id} value={pool.id}>{pool.name} · {pool.currency}</option>)}</select></label>
-          <label>目标资金池<select value={destinationPoolId} onChange={(event) => setDestinationPoolId(event.target.value)}><option value="">转回未分配</option>{pools.filter((pool) => pool.id !== sourcePoolId).map((pool) => <option key={pool.id} value={pool.id}>{pool.name} · {pool.currency}</option>)}</select></label>
+          <label>原资金池<select value={sourcePoolId} onChange={(event) => setSourcePoolId(event.target.value)}><option value="">未分配资金</option>{pools.map((pool) => <option key={pool.id} value={pool.id}>{pool.name} · {pool.currency}{pool.isArchived ? ' · 已停用' : ''}</option>)}</select></label>
+          <label>目标资金池<select value={destinationPoolId} onChange={(event) => setDestinationPoolId(event.target.value)}><option value="">转回未分配</option>{activePools.filter((pool) => pool.id !== sourcePoolId).map((pool) => <option key={pool.id} value={pool.id}>{pool.name} · {pool.currency}</option>)}</select></label>
           <label className="wide">金额<input inputMode="decimal" value={transferAmount} onChange={(event) => setTransferAmount(event.target.value)} /></label>
           <label className="wide">备注（可选）<input value={transferNote} onChange={(event) => setTransferNote(event.target.value)} /></label>
           <button className="primary wide" disabled={!transferAmount}>{editingTransferId ? '保存调整' : '确认调整'}</button>
@@ -278,7 +333,7 @@ export function FinanceFundsView({ accounts, onFeedback }: {
         })}</ul>}
         <form className="finance-form-grid-v2" onSubmit={createGoal}>
           <label>目标名称<input value={goalName} onChange={(event) => setGoalName(event.target.value)} placeholder="例如 应急金" /></label>
-          <label>储蓄资金池<select value={goalPoolId} onChange={(event) => setGoalPoolId(event.target.value)}><option value="">请选择</option>{pools.filter((pool) => pool.includeInSavings).map((pool) => <option key={pool.id} value={pool.id}>{pool.name}</option>)}</select></label>
+          <label>储蓄资金池<select value={goalPoolId} onChange={(event) => setGoalPoolId(event.target.value)}><option value="">请选择</option>{activePools.filter((pool) => pool.includeInSavings).map((pool) => <option key={pool.id} value={pool.id}>{pool.name}</option>)}</select></label>
           <label className="wide">目标金额<input inputMode="decimal" value={goalAmount} onChange={(event) => setGoalAmount(event.target.value)} /></label>
           <button className="primary wide" disabled={!goalPoolId || !goalAmount}>保存目标</button>
         </form>
@@ -307,7 +362,7 @@ export function FinancePlanningPanel({
   const pools = useLiveQuery(
     () => db.fundPools.where('lifecycleStatus').equals('active').sortBy('rank'),
     [],
-  ) ?? []
+  )?.filter((pool) => !pool.isArchived) ?? []
   const rules = useLiveQuery(
     () => db.recurringTransactionRules.where('lifecycleStatus').equals('active').sortBy('rank'),
     [],

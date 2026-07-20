@@ -24,6 +24,7 @@ vi.mock('./db', async () => {
     fundReservations: 'id, status, transactionId, creditAccountId, [creditAccountId+status]',
     recurringTransactionRules: 'id, lifecycleStatus, rank',
     recurringTransactionInstances: 'id, ruleId, billingPeriod, status, scheduledDate',
+    savingsGoals: 'id, fundPoolId, lifecycleStatus',
   })
   testState.db = db
   return { db }
@@ -486,5 +487,46 @@ describe('财务账本持久化约束', () => {
     expect(states.get('savings')?.grossMinor).toBe(0)
     expect((await funds.actualAssetBalanceByCurrency()).get('JPY')).toBe(100_000)
     expect(await db.table('financeTransactions').count()).toBe(0)
+  })
+
+  it('停用资金池不会删除余额，恢复后原 ID 与归属金额保持不变', async () => {
+    const db = testState.db as Dexie
+    await db.table('fundPools').add({
+      id: 'rent', name: '父亲房租专项', purpose: 'restricted_rent', currency: 'JPY',
+      openingBalanceMinor: 80_000, includeInDisposable: false, includeInSavings: false,
+      restricted: true, rank: 'a0', lifecycleStatus: 'active',
+      createdAt: '2026-07-19T00:00:00.000Z', updatedAt: '2026-07-19T00:00:00.000Z',
+    })
+
+    await funds.setFundPoolArchived('rent')
+    expect(await db.table('fundPools').get('rent')).toMatchObject({
+      id: 'rent', lifecycleStatus: 'active', isArchived: true, openingBalanceMinor: 80_000,
+    })
+    expect((await funds.loadFundPoolStates()).states.get('rent')?.grossMinor).toBe(80_000)
+
+    await funds.setFundPoolArchived('rent', false)
+    expect(await db.table('fundPools').get('rent')).toMatchObject({
+      id: 'rent', lifecycleStatus: 'active', isArchived: false, openingBalanceMinor: 80_000,
+    })
+  })
+
+  it('已有资金池不能改币种，带余额的停用资金池也不能直接删除', async () => {
+    const db = testState.db as Dexie
+    await db.table('fundPools').add({
+      id: 'free', name: '个人自由资金', purpose: 'free', currency: 'JPY',
+      openingBalanceMinor: 30_000, includeInDisposable: true, includeInSavings: false,
+      restricted: false, rank: 'a0', lifecycleStatus: 'active',
+      createdAt: '2026-07-19T00:00:00.000Z', updatedAt: '2026-07-19T00:00:00.000Z',
+    })
+
+    await expect(funds.saveFundPool({
+      id: 'free', name: '个人自由资金', purpose: 'free', currency: 'CNY',
+    })).rejects.toThrow('不能直接修改币种')
+
+    await funds.setFundPoolArchived('free')
+    await expect(funds.softDeleteFundPool('free')).rejects.toThrow('请先把余额和锁定金额转回未分配资金')
+    expect(await db.table('fundPools').get('free')).toMatchObject({
+      id: 'free', lifecycleStatus: 'active', isArchived: true, openingBalanceMinor: 30_000,
+    })
   })
 })

@@ -90,6 +90,7 @@ function ItemRow({
   rowDragProps,
   dragHandleProps,
   dragging = false,
+  divider = false,
 }: {
   item: ShoppingItem
   locationLabel?: string
@@ -104,6 +105,7 @@ function ItemRow({
   rowDragProps?: ShoppingRowDragProps
   dragHandleProps?: ShoppingDragHandleProps
   dragging?: boolean
+  divider?: boolean
 }) {
   const reduceMotion = useReducedMotion()
   const [confirming, setConfirming] = useState(false)
@@ -186,6 +188,8 @@ function ItemRow({
         className="shopping-row-swipe"
         contentClassName="shopping-card shopping-swipe-foreground relative flex min-w-0 items-center gap-3"
         resetKey={`${item.locationId ?? 'unassigned'}:${dragging ? 'dragging' : 'idle'}`}
+        divider={divider}
+        fullSwipe={!purchased}
         actions={purchased ? [] : [
           {
             label: '更多',
@@ -247,25 +251,19 @@ function ItemRow({
         )}
       </div>
 
-      {!purchased && (
-        <div
-          className="shopping-item-actions"
-          onPointerDown={stopDragActivation}
-          onMouseDown={stopDragActivation}
-          onTouchStart={stopDragActivation}
-        >
-          <button
-            type="button"
-            ref={triggerRef}
-            aria-label={`移动或整理 ${item.name}`}
-            aria-expanded={menuOpen}
-            onClick={onMenuToggle}
-            data-shopping-menu-trigger
-            className="shopping-item-more hit-target"
-          >
-            <AppIcon name="more" size={19} />
-          </button>
-          {menuOpen && menuPosition && createPortal(
+      {!purchased && <button
+        type="button"
+        ref={triggerRef}
+        aria-label={`更多操作：${item.name}`}
+        aria-expanded={menuOpen}
+        onClick={onMenuToggle}
+        onPointerDown={stopDragActivation}
+        data-no-row-swipe
+        className="shopping-item-more-sr"
+      >
+        更多操作
+      </button>}
+      {menuOpen && menuPosition && createPortal(
             <motion.div
               ref={menuRef}
               className="shopping-move-menu"
@@ -323,8 +321,6 @@ function ItemRow({
             </motion.div>,
             document.body,
           )}
-        </div>
-      )}
       </SwipeActionRow>
     </motion.li>
   )
@@ -1040,6 +1036,7 @@ export default function Shopping() {
                         onMove={(nextLocationId) => void moveTo(item, nextLocationId)}
                         onDelete={() => void deleteItem(item)}
                         tone={SHOPPING_TONES[index % SHOPPING_TONES.length]}
+                        divider={index > 0}
                       />
                     ))}
                     </AnimatePresence>
@@ -1092,6 +1089,7 @@ export default function Shopping() {
                   onMove={(nextLocationId) => void moveTo(item, nextLocationId)}
                   onDelete={() => void deleteItem(item)}
                   tone={SHOPPING_TONES[index % SHOPPING_TONES.length]}
+                  divider={index > 0}
                 />
               ))}
               </AnimatePresence>
@@ -1126,6 +1124,7 @@ export default function Shopping() {
                   item={i}
                   locationLabel={locName(i.locationId, i.locationNameSnapshot)}
                   tone={SHOPPING_TONES[index % SHOPPING_TONES.length]}
+                  divider={index > 0}
                 />
               ))}
               </AnimatePresence>
