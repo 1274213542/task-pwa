@@ -1,6 +1,23 @@
 import { useEffect, useState } from 'react'
 import { useRegisterSW } from 'virtual:pwa-register/react'
 
+const BUILD_ID = __APP_VERSION__.split(' · ')[0]
+const RELOAD_KEY = `task-pwa:controller-reload:${BUILD_ID}`
+
+function reloadIntoCurrentBuild() {
+  try {
+    if (window.sessionStorage.getItem(RELOAD_KEY)) return
+    window.sessionStorage.setItem(RELOAD_KEY, '1')
+  } catch {
+    // Some standalone/private Safari sessions can deny sessionStorage. The
+    // versioned URL below still prevents a stale GitHub Pages navigation hit.
+  }
+
+  const url = new URL(window.location.href)
+  url.searchParams.set('app-version', BUILD_ID)
+  window.location.replace(url.toString())
+}
+
 /**
  * SW 更新策略：构建产物自动接管；保留此提示作为不支持自动接管浏览器
  * 的安全回退。数据全在 IndexedDB，SW 切换不触及用户数据。
@@ -12,18 +29,32 @@ export default function UpdateToast() {
     updateServiceWorker,
   } = useRegisterSW({
     immediate: true,
+    onNeedReload: reloadIntoCurrentBuild,
     onRegisteredSW(_swUrl, nextRegistration) {
       setRegistration(nextRegistration)
+      void nextRegistration?.update().catch(() => undefined)
     },
   })
 
   useEffect(() => {
+    if (!('serviceWorker' in navigator)) return
+    let hadController = Boolean(navigator.serviceWorker.controller)
+    const onControllerChange = () => {
+      if (hadController) reloadIntoCurrentBuild()
+      hadController = true
+    }
+    navigator.serviceWorker.addEventListener('controllerchange', onControllerChange)
+    return () => navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange)
+  }, [])
+
+  useEffect(() => {
     if (!registration) return
     const check = () => void registration.update().catch(() => undefined)
+    check()
     const onVisibilityChange = () => {
       if (document.visibilityState === 'visible') check()
     }
-    const timer = window.setInterval(check, 60 * 60 * 1000)
+    const timer = window.setInterval(check, 5 * 60 * 1000)
     window.addEventListener('online', check)
     document.addEventListener('visibilitychange', onVisibilityChange)
     return () => {
