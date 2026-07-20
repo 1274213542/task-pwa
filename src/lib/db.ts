@@ -1,33 +1,24 @@
 import Dexie, { type EntityTable } from 'dexie'
 import dexieCloud from 'dexie-cloud-addon'
-import { DEXIE_CLOUD_URL, cloudEnabled, financeFundsV3Enabled, financeLedgerV2Enabled } from '../config'
+import { DEXIE_CLOUD_URL, cloudEnabled, financeLedgerV2Enabled } from '../config'
 import type { Recurrence } from './recurrence'
 import { ensureTaskScope } from './migrations'
 import type {
   Account,
   CreditCardSettlement,
   ExchangeRate,
-  FinanceFundsMigrationState,
   FinanceMigrationState,
   FinanceTransaction,
   FinanceTransfer,
-  FinancialProjection,
-  FundPool,
-  FundPoolTransfer,
-  FundReservation,
   Merchant,
   Paycheck,
   RecurringTransactionInstance,
   RecurringTransactionRule,
-  SavingsGoal,
-  BudgetPlan,
-  TransactionFundAllocation,
   WorkEntry,
   WorkTemplate,
 } from './ledgerTypes'
 import { migrateLegacyFinanceData } from './financeMigration'
 import { ensureFinanceOwnershipMigration } from './financeOwnershipMigration'
-import { ensureFinanceFundsMigration } from './financeFundsMigration'
 import { ensureTaskScheduleMigration } from './taskScheduleMigration'
 
 /**
@@ -133,6 +124,38 @@ export interface CalendarEvent {
   updatedAt: string
 }
 
+export interface DateTypeDefinition {
+  id: string
+  name: string
+  colorToken: ColorToken
+  rank: string
+  lifecycleStatus: LifecycleStatus
+  deletedAt?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface DateTypeMarker {
+  /** Deterministic `${date}:${typeId}` key keeps offline and multi-device writes idempotent. */
+  id: string
+  date: string
+  typeId: string
+  lifecycleStatus: LifecycleStatus
+  deletedAt?: string
+  createdAt: string
+  updatedAt: string
+}
+
+/**
+ * The removed fund-allocation feature shipped IndexedDB stores in v11. Keep
+ * those records opaque and backed up so an upgrade never deletes user data;
+ * current screens and finance calculations do not read or write them.
+ */
+interface LegacyFinanceCompatibilityRow {
+  id: string
+  [key: string]: unknown
+}
+
 export type PurchaseStatus = 'pending' | 'purchased'
 
 export interface ShoppingLocation {
@@ -202,7 +225,6 @@ export interface ExpenseCategory {
   sortOrder?: number
   archived?: boolean
   defaultAccountId?: string
-  defaultFundPoolId?: string
   lifecycleStatus: LifecycleStatus
   deletedAt?: string
   createdAt: string
@@ -254,6 +276,8 @@ export const db = new Dexie('task-pwa', { addons: [dexieCloud] }) as Dexie & {
   syncedPreferences: EntityTable<SyncedPreferences, 'id'>
   categories: EntityTable<Category, 'id'>
   calendarEvents: EntityTable<CalendarEvent, 'id'>
+  dateTypeDefinitions: EntityTable<DateTypeDefinition, 'id'>
+  dateTypeMarkers: EntityTable<DateTypeMarker, 'id'>
   shoppingItems: EntityTable<ShoppingItem, 'id'>
   shoppingLocations: EntityTable<ShoppingLocation, 'id'>
   workRecords: EntityTable<WorkRecord, 'id'>
@@ -270,16 +294,16 @@ export const db = new Dexie('task-pwa', { addons: [dexieCloud] }) as Dexie & {
   paychecks: EntityTable<Paycheck, 'id'>
   merchants: EntityTable<Merchant, 'id'>
   financeMigrations: EntityTable<FinanceMigrationState, 'id'>
-  fundPools: EntityTable<FundPool, 'id'>
-  transactionFundAllocations: EntityTable<TransactionFundAllocation, 'id'>
-  fundPoolTransfers: EntityTable<FundPoolTransfer, 'id'>
-  fundReservations: EntityTable<FundReservation, 'id'>
+  fundPools: EntityTable<LegacyFinanceCompatibilityRow, 'id'>
+  transactionFundAllocations: EntityTable<LegacyFinanceCompatibilityRow, 'id'>
+  fundPoolTransfers: EntityTable<LegacyFinanceCompatibilityRow, 'id'>
+  fundReservations: EntityTable<LegacyFinanceCompatibilityRow, 'id'>
   recurringTransactionRules: EntityTable<RecurringTransactionRule, 'id'>
   recurringTransactionInstances: EntityTable<RecurringTransactionInstance, 'id'>
-  savingsGoals: EntityTable<SavingsGoal, 'id'>
-  budgetPlans: EntityTable<BudgetPlan, 'id'>
-  financialProjections: EntityTable<FinancialProjection, 'id'>
-  financeFundsMigrations: EntityTable<FinanceFundsMigrationState, 'id'>
+  savingsGoals: EntityTable<LegacyFinanceCompatibilityRow, 'id'>
+  budgetPlans: EntityTable<LegacyFinanceCompatibilityRow, 'id'>
+  financialProjections: EntityTable<LegacyFinanceCompatibilityRow, 'id'>
+  financeFundsMigrations: EntityTable<LegacyFinanceCompatibilityRow, 'id'>
   taskScheduleMigrations: EntityTable<TaskScheduleMigrationState, 'id'>
 }
 
@@ -418,6 +442,15 @@ db.version(12).stores({
   taskScheduleMigrations: 'id, status, version',
 })
 
+// v13: lightweight date labels used by the plan calendar. The two new tables
+// are additive and use deterministic marker ids, so offline and cloud replays
+// cannot create duplicates. Legacy fund tables remain untouched as inert
+// compatibility stores; removing a Dexie store would destroy existing data.
+db.version(13).stores({
+  dateTypeDefinitions: 'id, lifecycleStatus, rank, [lifecycleStatus+rank]',
+  dateTypeMarkers: 'id, lifecycleStatus, date, typeId, [date+typeId]',
+})
+
 if (cloudEnabled) {
   db.cloud.configure({
     databaseUrl: DEXIE_CLOUD_URL,
@@ -474,6 +507,13 @@ db.on('ready', async () => {
     await migrateLegacyFinanceData(db)
     await ensureFinanceOwnershipMigration(db)
   }
-  if (financeFundsV3Enabled) await ensureFinanceFundsMigration(db)
+  if ((await db.dateTypeDefinitions.count()) === 0) {
+    const timestamp = new Date().toISOString()
+    await db.dateTypeDefinitions.bulkPut([
+      { id: 'date-type-work', name: '上班', colorToken: 'blue', rank: '0001', lifecycleStatus: 'active', createdAt: timestamp, updatedAt: timestamp },
+      { id: 'date-type-school', name: '上学', colorToken: 'green', rank: '0002', lifecycleStatus: 'active', createdAt: timestamp, updatedAt: timestamp },
+      { id: 'date-type-other', name: '其他', colorToken: 'purple', rank: '0003', lifecycleStatus: 'active', createdAt: timestamp, updatedAt: timestamp },
+    ])
+  }
   await ensureTaskScheduleMigration(db)
 })

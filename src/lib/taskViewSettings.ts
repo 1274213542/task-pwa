@@ -134,7 +134,15 @@ export function applyTaskViewSettings<T extends TaskViewCandidate>(
     if (!item.task.parentTaskId || !visibleIds.has(item.task.parentTaskId)) append(item)
   }
   for (const item of sorted) append(item)
-  return output
+
+  // Completion is a display state, not a new manual rank. A stable partition
+  // keeps every item's relative/manual order while ensuring resolved rows do
+  // not remain between pending work. Undoing completion restores the item to
+  // the pending partition without rewriting rank or recurrence data.
+  return [
+    ...output.filter((item) => !item.completed),
+    ...output.filter((item) => item.completed),
+  ]
 }
 
 export function activeTaskViewSettingCount(settings: TaskViewSettings): number {

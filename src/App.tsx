@@ -35,10 +35,10 @@ import {
 } from './lib/motion'
 import { CLOSE_TASK_MENU_EVENT, FOCUS_QUICK_ADD_EVENT } from './lib/appEvents'
 import { applyVisualPreferences, storeVisualPreferences } from './lib/visualPreferences'
-import { financeFundsV3Enabled, financeLedgerV2Enabled } from './config'
+import { financeLedgerV2Enabled } from './config'
+import { AmountPrivacyProvider } from './components/AmountPrivacy'
 import { processDueRecurringRules } from './lib/recurringFinance'
 import { todayLocalISO } from './lib/dates'
-import { AmountPrivacyProvider } from './components/AmountPrivacy'
 
 const Overview = lazy(() => import('./pages/Overview'))
 const Today = lazy(() => import('./pages/Today'))
@@ -164,7 +164,6 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    if (!financeFundsV3Enabled) return
     const run = async () => {
       if (financeRecurringCheckRunning.current) return
       financeRecurringCheckRunning.current = true
@@ -189,13 +188,11 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    if (financeFundsV3Enabled && financeSyncState?.phase === 'in-sync') {
-      if (!financeRecurringCheckRunning.current) {
-        financeRecurringCheckRunning.current = true
-        void processDueRecurringRules(todayLocalISO())
-          .catch((error) => console.warn('同步后的固定扣款检查失败', error))
-          .finally(() => { financeRecurringCheckRunning.current = false })
-      }
+    if (financeSyncState?.phase === 'in-sync' && !financeRecurringCheckRunning.current) {
+      financeRecurringCheckRunning.current = true
+      void processDueRecurringRules(todayLocalISO())
+        .catch((error) => console.warn('同步后的固定扣款检查失败', error))
+        .finally(() => { financeRecurringCheckRunning.current = false })
     }
   }, [financeSyncState?.phase])
 

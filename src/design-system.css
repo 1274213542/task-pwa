@@ -217,6 +217,232 @@
   --gutter-desktop: var(--ds-gutter-desktop);
 }
 
+/* 2026-07-21: one-shell list and sheet geometry. These rules intentionally
+   own each visible boundary once; older page-specific overrides are neutralized. */
+.editor-sheet-event {
+  display: flex !important;
+  flex-direction: column !important;
+  width: min(100%, 560px) !important;
+  height: min(86dvh, 760px) !important;
+  max-height: calc(100dvh - env(safe-area-inset-top) - 10px) !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  border-radius: var(--radius-sheet, 32px) var(--radius-sheet, 32px) 0 0 !important;
+  background: var(--color-surface-primary, #fff) !important;
+}
+
+.editor-sheet-event .event-editor-header {
+  position: relative !important;
+  z-index: 2;
+  display: grid !important;
+  grid-template-columns: minmax(72px, 1fr) auto minmax(72px, 1fr);
+  flex: 0 0 auto;
+  align-items: center;
+  min-height: 68px;
+  padding: 18px 20px 8px !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--color-divider) !important;
+  border-radius: 0 !important;
+  background: color-mix(in srgb, var(--color-surface-primary, #fff) 94%, transparent) !important;
+  box-shadow: none !important;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.editor-sheet-event .event-editor-header::before {
+  content: '';
+  position: absolute;
+  top: 7px;
+  left: 50%;
+  width: 42px;
+  height: 5px;
+  border-radius: var(--radius-pill);
+  background: var(--color-text-disabled);
+  transform: translateX(-50%);
+}
+
+.editor-sheet-event .event-editor-header h2 {
+  margin: 0;
+  font-size: 17px;
+  line-height: 22px;
+  font-weight: 600;
+}
+
+.editor-sheet-event .event-editor-header button:first-child { justify-self: start; }
+.editor-sheet-event .event-editor-header button:last-child { justify-self: end; }
+.editor-sheet-event .event-editor-header .editor-save {
+  min-width: 64px;
+  min-height: 44px;
+  border-radius: var(--radius-pill) !important;
+  background: var(--color-text-primary) !important;
+  color: #fff !important;
+}
+
+.editor-sheet-event .event-editor-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 18px 20px calc(28px + env(safe-area-inset-bottom));
+  scroll-padding-bottom: calc(120px + env(safe-area-inset-bottom));
+}
+
+.editor-sheet-event .event-editor-fields {
+  display: grid;
+  gap: 16px;
+}
+
+.editor-sheet-event .event-editor-error { margin-bottom: 0; }
+
+html .page-shopping .location-manager {
+  overflow: hidden !important;
+  margin-top: 12px !important;
+  border: 1px solid var(--color-border-subtle) !important;
+  border-radius: var(--radius-card) !important;
+  background: var(--color-surface-primary) !important;
+  box-shadow: var(--shadow-card) !important;
+}
+
+html .page-shopping .location-manager-list {
+  display: block !important;
+  margin: 0 !important;
+  padding: 0 16px !important;
+  list-style: none !important;
+  background: transparent !important;
+}
+
+html .page-shopping .location-manager-row {
+  display: grid !important;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  align-items: center !important;
+  min-height: 58px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+html .page-shopping .location-manager-row + .location-manager-row {
+  border-top: 1px solid var(--color-divider) !important;
+}
+
+html .page-shopping .location-manager-row::before,
+html .page-shopping .location-manager-row::after { content: none !important; }
+html .page-shopping .location-manager-row > button:not([aria-label]) { width: 100%; }
+html .page-shopping .location-manager-row .location-type-icon {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  background: transparent !important;
+}
+
+html .page-shopping .location-manager-composer {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px !important;
+  align-items: center;
+  min-height: 64px;
+  margin: 0 !important;
+  padding: 10px 16px !important;
+  border: 0 !important;
+  border-top: 1px solid var(--color-divider) !important;
+  border-radius: 0 !important;
+  background: var(--color-surface-secondary) !important;
+  box-shadow: none !important;
+}
+
+.calendar-date-type-dots,
+.date-marker-grid button > i {
+  display: flex;
+  justify-content: center;
+  gap: 3px;
+}
+
+.calendar-date-type-dots i,
+.calendar-date-type-dots b,
+.date-marker-grid button > i b {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--marker-color, var(--color-text-tertiary));
+}
+
+[data-color-token='blue'] { --marker-color: #5b8def; }
+[data-color-token='green'] { --marker-color: #55a676; }
+[data-color-token='purple'] { --marker-color: #8d76c9; }
+[data-color-token='orange'] { --marker-color: #d58b48; }
+.calendar-date-type-dots i,
+.calendar-date-type-dots b { background: var(--marker-color); }
+
+.calendar-marker-button {
+  min-height: 44px;
+  padding-inline: 15px !important;
+  border-radius: var(--radius-pill) !important;
+  background: var(--color-surface-secondary) !important;
+  color: var(--color-text-primary) !important;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.calendar-toolbar-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 8px;
+}
+.calendar-toolbar-heading > span { grid-column: 1 / -1; }
+.calendar-toolbar-heading > h2 { min-width: 0; }
+.calendar-toolbar-heading > .calendar-marker-button { grid-column: 2; grid-row: 2; }
+
+.date-marker-sheet {
+  height: min(84dvh, 720px) !important;
+  max-height: calc(100dvh - env(safe-area-inset-top) - 12px) !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+.date-marker-sheet-layout { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.date-marker-sheet-header {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  min-height: 64px;
+  padding: 12px 20px 8px;
+  border-bottom: 1px solid var(--color-divider);
+}
+.date-marker-sheet-header h2 { margin: 0; font-size: 17px; line-height: 22px; font-weight: 600; }
+.date-marker-sheet-header button:first-child { justify-self: start; }
+.date-marker-sheet-header button:last-child { justify-self: end; }
+.date-marker-sheet-header .primary { min-height: 40px; padding-inline: 16px; border-radius: var(--radius-pill); background: var(--color-text-primary); color: #fff; }
+.date-marker-sheet-body {
+  overflow-y: auto;
+  min-height: 0;
+  padding: 16px 20px calc(24px + env(safe-area-inset-bottom));
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.date-marker-type-tabs { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
+.date-marker-type-tabs button { display: flex; align-items: center; min-height: 42px; padding: 0 15px; border-radius: var(--radius-pill); background: var(--color-surface-secondary); white-space: nowrap; }
+.date-marker-type-tabs button[aria-checked='true'] { color: #fff; background: var(--marker-color, var(--color-text-primary)); }
+.date-marker-type-tabs button > span { width: 8px; height: 8px; margin-right: 7px; border-radius: 50%; background: var(--marker-color); }
+.date-marker-month-label { margin: 18px 0 10px; color: var(--color-text-secondary); font-size: 15px; font-weight: 500; }
+.date-marker-week-labels,
+.date-marker-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); text-align: center; }
+.date-marker-week-labels { color: var(--color-text-secondary); font-size: 13px; }
+.date-marker-grid button { display: grid; min-height: 48px; place-content: center; gap: 4px; border-radius: 50%; }
+.date-marker-grid button[aria-pressed='true'] { color: #fff; background: var(--color-text-primary); }
+.date-marker-grid button:disabled { opacity: .28; }
+.date-marker-custom-type { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-top: 18px; }
+.date-marker-custom-type input { min-height: 46px; padding-inline: 16px; border-radius: var(--radius-pill); background: var(--color-surface-secondary); }
+.date-marker-custom-type button,
+.date-marker-clear { min-height: 44px; padding-inline: 16px; border-radius: var(--radius-pill); }
+.date-marker-clear { width: 100%; margin-top: 12px; color: var(--color-danger); background: var(--color-danger-soft); }
+
 /* --------------------------------------------------------------------------
    Boundary ownership pass · one shell, one divider, one selected surface
 
@@ -11855,5 +12081,46 @@ html[lang='zh-CN'] body {
     margin: 0 !important;
     border-radius: 0 !important;
     padding: var(--space-3) var(--space-4) var(--space-4) !important;
+  }
+}
+
+/* Final mobile ownership for the month toolbar. Keep the month on one line
+   while the three paging controls retain circle / pill / circle geometry. */
+@media (max-width: 1023px) {
+  .page-plan[data-mode='month'] .calendar-toolbar {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center !important;
+    gap: 8px 12px !important;
+  }
+
+  .page-plan .calendar-toolbar-heading {
+    display: contents !important;
+  }
+
+  .page-plan .calendar-toolbar-heading > h2 {
+    grid-column: 1;
+    grid-row: 1;
+    margin: 0 !important;
+    white-space: nowrap;
+  }
+
+  .page-plan .calendar-toolbar-heading > .calendar-marker-button {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-self: end;
+    width: auto !important;
+    min-width: 78px !important;
+    min-height: 36px !important;
+    padding-inline: 10px !important;
+    border: 0 !important;
+    border-radius: var(--radius-pill) !important;
+    background: var(--color-surface-secondary) !important;
+    font-size: 12px !important;
+  }
+
+  .page-plan[data-mode='month'] .calendar-panel-action {
+    grid-column: 2;
+    grid-row: 1;
   }
 }

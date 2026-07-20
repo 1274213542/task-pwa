@@ -10,7 +10,6 @@ export async function saveExpenseCategory(input: {
   colorToken?: ColorToken
   /** null explicitly clears a saved default; undefined preserves it while editing. */
   defaultAccountId?: string | null
-  defaultFundPoolId?: string | null
 }): Promise<string> {
   const name = input.name.trim()
   if (!name) throw new Error('请输入分类名称')
@@ -28,16 +27,9 @@ export async function saveExpenseCategory(input: {
   const defaultAccountId = input.defaultAccountId === null
     ? undefined
     : input.defaultAccountId ?? existing?.defaultAccountId
-  const defaultFundPoolId = input.defaultFundPoolId === null
-    ? undefined
-    : input.defaultFundPoolId ?? existing?.defaultFundPoolId
   if (defaultAccountId) {
     const account = await db.accounts.get(defaultAccountId)
     if (!account || account.lifecycleStatus !== 'active' || account.isArchived) throw new Error('默认账户无效')
-  }
-  if (defaultFundPoolId) {
-    const pool = await db.fundPools.get(defaultFundPoolId)
-    if (!pool || pool.lifecycleStatus !== 'active' || pool.isArchived) throw new Error('默认资金池无效')
   }
   const timestamp = now()
   const id = input.id ?? crypto.randomUUID()
@@ -50,7 +42,6 @@ export async function saveExpenseCategory(input: {
     sortOrder: existing?.sortOrder ?? active.length,
     archived: false,
     ...(defaultAccountId && { defaultAccountId }),
-    ...(defaultFundPoolId && { defaultFundPoolId }),
     lifecycleStatus: 'active',
     createdAt: existing?.createdAt ?? timestamp,
     updatedAt: timestamp,

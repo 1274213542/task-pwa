@@ -35,6 +35,7 @@ import { MOTION } from '../lib/motion'
 import MobilePageHeader from '../components/MobilePageHeader'
 import SegmentedIndicator from '../components/SegmentedIndicator'
 import SwipeActionRow from '../components/SwipeActionRow'
+import DateMarkerSheet from '../components/DateMarkerSheet'
 
 const WEEK_LABELS_MON = ['一', '二', '三', '四', '五', '六', '日']
 const WEEK_LABELS_SUN = ['日', '一', '二', '三', '四', '五', '六']
@@ -236,6 +237,7 @@ export default function Plan() {
   const [draftTime, setDraftTime] = useState('')
   const [draftScope, setDraftScope] = useState<TaskScope>('daily')
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null)
+  const [dateMarkerOpen, setDateMarkerOpen] = useState(false)
   const [editingTask, setEditingTask] = useState<
     Extract<CalItem, { kind: 'task' }> | null
   >(null)
@@ -267,6 +269,14 @@ export default function Plan() {
     () => db.calendarEvents.where('lifecycleStatus').equals('active').toArray(),
     [],
   )
+  const dateTypeDefinitions = useLiveQuery(
+    () => db.dateTypeDefinitions.where('lifecycleStatus').equals('active').sortBy('rank'),
+    [],
+  ) ?? []
+  const dateTypeMarkers = useLiveQuery(
+    () => db.dateTypeMarkers.where('lifecycleStatus').equals('active').toArray(),
+    [],
+  ) ?? []
   const categories = useLiveQuery(
     () => db.categories.where('lifecycleStatus').equals('active').toArray(),
     [],
@@ -396,12 +406,26 @@ export default function Plan() {
   }
 
   function itemsForDate(dateISO: string) {
-    return (byDay?.get(dateISO) ?? []).filter((item) => itemTitle(item).trim().length > 0)
+    const items = (byDay?.get(dateISO) ?? []).filter((item) => itemTitle(item).trim().length > 0)
+    return items
+      .map((item, index) => ({ item, index }))
+      .sort((a, b) => {
+        const aDone = a.item.kind === 'task' ? a.item.completed || a.item.skipped : a.item.completed
+        const bDone = b.item.kind === 'task' ? b.item.completed || b.item.skipped : b.item.completed
+        return Number(aDone) - Number(bDone) || a.index - b.index
+      })
+      .map(({ item }) => item)
   }
 
   function itemTime(item: CalItem) {
     const value = item.kind === 'event' ? item.event.startAt : item.task.startAt
     if (!value?.includes('T')) return null
+    if (item.kind === 'event') {
+      return Temporal.Instant.from(value)
+        .toZonedDateTimeISO(item.event.timezone ?? Temporal.Now.timeZoneId())
+        .toPlainTime()
+        .toString({ smallestUnit: 'minute' })
+    }
     const direct = value.match(/T(\d{2}:\d{2})/)
     if (direct) return direct[1]
     return new Date(value).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
@@ -410,7 +434,7 @@ export default function Plan() {
   function eventEndTime(item: CalItem) {
     if (item.kind !== 'event' || !item.event.endAt) return undefined
     return Temporal.Instant.from(item.event.endAt)
-      .toZonedDateTimeISO(Temporal.Now.timeZoneId())
+      .toZonedDateTimeISO(item.event.timezone ?? Temporal.Now.timeZoneId())
       .toPlainTime()
       .toString({ smallestUnit: 'minute' })
   }
@@ -450,6 +474,7 @@ export default function Plan() {
           categoryId: item.event.categoryId,
           visualToken: item.event.visualToken,
           markerSymbol: item.event.markerSymbol,
+          timezone: item.event.timezone,
         })
       } else {
         const task = item.task
@@ -589,6 +614,10 @@ export default function Plan() {
     const dayWork = (workRecords ?? []).filter((record) => record.date === dateISO && record.worked)
     const totalCount = items.length + dayWork.length
     const firstVisual = items[0] ? itemVisual(items[0]) : undefined
+    const markerTypes = dateTypeMarkers
+      .filter((marker) => marker.date === dateISO)
+      .map((marker) => dateTypeDefinitions.find((definition) => definition.id === marker.typeId))
+      .filter((definition): definition is NonNullable<typeof definition> => Boolean(definition))
     return (
       <button
         key={dateISO}
@@ -631,6 +660,11 @@ export default function Plan() {
           ))}
           {totalCount > 3 && <span className="calendar-more">+{totalCount - 3}</span>}
         </span>
+        {markerTypes.length > 0 && (
+          <span className="calendar-date-type-dots" aria-label={markerTypes.map((item) => item.name).join('、')}>
+            {markerTypes.slice(0, 3).map((item) => <i key={item.id} data-color-token={item.colorToken} />)}
+          </span>
+        )}
       </button>
     )
   }
@@ -977,9 +1011,14 @@ export default function Plan() {
         <div className="plan-workspace">
           <div className="plan-calendar-column">
             <div className="calendar-toolbar">
-              <div>
+              <div className="calendar-toolbar-heading">
                 <span>{mode === 'month' ? '月视图' : '周视图'}</span>
                 <h2>{mode === 'month' ? monthLabel : weekLabel}</h2>
+                {mode === 'month' && (
+                  <button type="button" className="calendar-marker-button" onClick={() => setDateMarkerOpen(true)}>
+                    批量标记
+                  </button>
+                )}
               </div>
               <div className="calendar-panel-action">
                 <button aria-label={mode === 'month' ? '上个月' : '上一周'} onClick={() => changePeriod(-1)}>
@@ -1226,6 +1265,18 @@ export default function Plan() {
           categories={categories ?? []}
           onStatusChange={(status) => setTaskStatus(editingTask, status)}
           onClose={() => setEditingTask(null)}
+        />
+      )}
+      {dateMarkerOpen && (
+        <DateMarkerSheet
+          month={cursor}
+          definitions={dateTypeDefinitions}
+          markers={dateTypeMarkers.filter((marker) => marker.date.startsWith(cursor.toString().slice(0, 7)))}
+          onFeedback={(message) => {
+            setFeedback(message)
+            window.setTimeout(() => setFeedback(''), 2200)
+          }}
+          onClose={() => setDateMarkerOpen(false)}
         />
       )}
     </section>

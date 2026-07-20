@@ -13,7 +13,7 @@ import GestureSheet, { type GestureSheetHandle } from './GestureSheet'
 function localTime(event: CalendarEvent): string {
   if (!event.startAt) return ''
   return Temporal.Instant.from(event.startAt)
-    .toZonedDateTimeISO(Temporal.Now.timeZoneId())
+    .toZonedDateTimeISO(event.timezone ?? Temporal.Now.timeZoneId())
     .toPlainTime()
     .toString({ smallestUnit: 'minute' })
 }
@@ -21,7 +21,7 @@ function localTime(event: CalendarEvent): string {
 function localEndTime(event: CalendarEvent): string {
   if (!event.endAt) return ''
   return Temporal.Instant.from(event.endAt)
-    .toZonedDateTimeISO(Temporal.Now.timeZoneId())
+    .toZonedDateTimeISO(event.timezone ?? Temporal.Now.timeZoneId())
     .toPlainTime()
     .toString({ smallestUnit: 'minute' })
 }
@@ -81,6 +81,7 @@ export default function EventEditor({
         categoryId: categoryId || undefined,
         visualToken,
         markerSymbol,
+        timezone: event.timezone,
       })
       sheetRef.current?.close()
     } catch (reason) {
@@ -100,7 +101,7 @@ export default function EventEditor({
       className="safe-bottom editor-sheet editor-sheet-event w-full max-w-lg rounded-t-[26px] bg-white px-5 pb-5
         pt-1 shadow-2xl outline-none lg:rounded-[24px] lg:pt-4 dark:bg-neutral-800"
     >
-        <div className="editor-sheet-header flex items-center justify-between">
+        <div className="editor-sheet-header event-editor-header flex items-center justify-between" data-sheet-drag-handle>
           <button onClick={() => sheetRef.current?.close()} className="hit-target text-[15px] text-neutral-500">
             取消
           </button>
@@ -116,7 +117,8 @@ export default function EventEditor({
           </button>
         </div>
 
-        <div className="mt-3 space-y-3">
+        <div className="event-editor-scroll">
+        <div className="event-editor-fields space-y-3">
           <label className="block text-[12px] font-medium text-neutral-500">
             标题
             <input
@@ -205,9 +207,10 @@ export default function EventEditor({
             onMarkerChange={setMarkerSymbol}
           />
         </div>
-        <p role="status" className="mt-2 min-h-5 text-[13px] text-red-500">
+        <p role="status" className="event-editor-error mt-2 min-h-5 text-[13px] text-red-500">
           {error}
         </p>
+        </div>
     </GestureSheet>
   )
 }

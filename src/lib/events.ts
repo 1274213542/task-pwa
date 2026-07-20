@@ -78,11 +78,12 @@ export async function updateEvent(
     categoryId?: string
     visualToken?: ColorToken
     markerSymbol?: MarkerSymbol
+    timezone?: string
   },
 ): Promise<void> {
   const title = opts.title.trim()
   if (!title) throw new Error('标题不能为空')
-  const timezone = Temporal.Now.timeZoneId()
+  const timezone = opts.timezone || Temporal.Now.timeZoneId()
   const time = opts.time?.trim()
   const startAt = time
     ? Temporal.PlainDateTime.from(`${opts.date}T${time}`)

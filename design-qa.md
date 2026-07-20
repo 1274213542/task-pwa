@@ -1,32 +1,49 @@
-# Design QA — system UI structure pass 2
+# Design QA — fund removal, shopping locations, plan editing, date markers
 
-- viewport: 390 × 844 CSS pixels, DPR 3
-- browser: local Chrome CDP mobile viewport
-- reference: `/tmp/codex-remote-attachments/019f7905-c801-7d31-8fff-0cc15df5dd75/785738DB-F8B7-4D22-9E8D-7FB0848B3498/2-照片-2.jpg`
-- implementation: `/tmp/task-pwa-system-ui-pass2-task.png`
-- combined comparison: `/Users/zhangzirui/.codex/visualizations/2026/07/19/019f7905-c801-7d31-8fff-0cc15df5dd75/task-ui-reference-comparison.png`
+## Test frame
 
-## Visible checks
+- Viewport: 390 × 845 CSS px
+- Browser: local Chromium through the project browser harness
+- Source comparisons: the user's 588 × 1280 iPhone captures were normalized to the same 390 × 845 frame before comparison.
+- Combined comparisons:
+  - `/tmp/task-pwa-shopping-comparison.png`
+  - `/tmp/task-pwa-editor-comparison.png`
 
-- [x] Task header, toolbar controls, title weight, and mobile page margins match the established reference proportions.
-- [x] Task rows share an identical 44px check column, title origin, metadata origin, row height, and divider inset.
-- [x] The grouped card owns the outside boundary; static rows do not add individual rounded cards or duplicate borders.
-- [x] A real swipe gesture exposes two equal 56px actions; More and Delete remain fixed, centered, complete, and non-overlapping.
-- [x] The moving foreground owns the divider, so the line translates and fades with the row.
-- [x] The task editor has a stable header and an independently scrollable body; the last destructive action remains reachable.
-- [x] Schedule choices use one compact three-part pill and all date/time inputs remain inside the sheet padding.
-- [x] Shopping location management uses one shell, flat rows, one composer boundary, and no latent rounded empty-state edge.
-- [x] Finance transactions use one title divider, one row divider, one external-payment label, and a stable right-aligned amount column.
-- [x] Account and fund rows defer secondary controls to one disclosure instead of a permanent button wall.
-- [x] Bottom safe-area compensation leaves the final content above the floating navigation.
-- [x] No new console errors were observed in the exercised task, editor, shopping, and finance routes.
+## Shopping location manager
 
-## Interaction checks
+- Before: a gray band sat behind each location, the outer card and inner blocks repeated the same boundary, and the composer was visually mixed into the list.
+- After: one 24px-radius shell owns the boundary; each 58px location row is transparent; only adjacent rows draw one inset divider; the composer is a separate final section with one top divider.
+- Checked with three realistic locations: 杉药局、肉のハナマサ、Amazon.
+- Empty shopping state remains a separate compact card and the floating tab bar does not cover it.
 
-- [x] Task list row alignment measured equal across both test rows.
-- [x] Task editor scroll range measured from 0 to 553.8px; Delete Task is visible at the lower limit.
-- [x] Background scrolling is locked while the editor sheet is open.
-- [x] Swipe actions measured 55.99px × 55.99px each with a stable 4px rail gap.
-- [x] Navigation, finance tabs, shopping mode selector, and edit actions remain functional.
+## Plan event editor
+
+- Before: the header appeared as a separate white rectangle and the body relied on the sheet's outer overflow, so long forms could lock or be clipped.
+- After: header and body share one sheet surface; `.event-editor-scroll` is the only vertical scroll owner; 633px viewport / 884px content produced a verified 251px scroll range and reached the final style controls.
+- Start time display and persistence are timezone-aware. An event changed from 12:00 to 13:00, saved, closed, and immediately rendered as 13:00 in the calendar summary.
+
+## Calendar date types
+
+- Month view exposes one compact “批量标记” action.
+- Batch sheet supports multi-date selection, 上班 / 上学 / 其他, custom types, apply and clear.
+- Calendar cells show up to three small colored dots; date selection remains the dominant state.
+- Verified two selected dates updating immediately without a page reload.
+
+## Finance removal and compatibility
+
+- Current finance navigation contains 总览、账户、流水、工资与工时、统计 only.
+- No visible or interactive 资金池、新建资金池、重新分配、储蓄目标 or fund-allocation picker remains.
+- Fund feature modules and active types were removed.
+- Previously shipped v11 IndexedDB stores remain opaque compatibility stores and stay in backup/export coverage so an upgrade does not destructively drop historical user data.
+
+## Regression checks
+
+- TypeScript production build: passed.
+- Lint: passed.
+- Automated tests: 22 files / 119 tests passed.
+- PWA service worker: registered and controlling the production preview.
+- Offline reload: app shell and overview content loaded while network requests were disabled.
+- Completed-last ordering: stable partition verified; pending relative order and completed relative order are preserved.
+- Date markers: deterministic IDs, idempotent reapply, tombstone clear, and same-key restore verified.
 
 final result: passed

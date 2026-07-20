@@ -19,6 +19,7 @@ const item = (
   id,
   completed,
   task: {
+    id,
     createdAt,
     updatedAt,
     ...(recurring && {
@@ -53,8 +54,27 @@ describe('task view settings', () => {
       ...DEFAULT_TASK_VIEW_SETTINGS,
       sort: 'updated',
     })
-    expect(result.map((row) => row.id)).toEqual(['c', 'b', 'a'])
+    expect(result.map((row) => row.id)).toEqual(['c', 'a', 'b'])
     expect(rows.map((row) => row.id)).toEqual(['a', 'b', 'c'])
+  })
+
+  it('stably moves completed rows below pending rows without rewriting manual order', () => {
+    const result = applyTaskViewSettings([
+      item('completed-first', true, false, '2026-07-01', '2026-07-01'),
+      item('pending-first', false, false, '2026-07-02', '2026-07-02'),
+      item('completed-second', true, false, '2026-07-03', '2026-07-03'),
+      item('pending-second', false, false, '2026-07-04', '2026-07-04'),
+    ], {
+      ...DEFAULT_TASK_VIEW_SETTINGS,
+      sort: 'manual',
+    })
+
+    expect(result.map((row) => row.id)).toEqual([
+      'pending-first',
+      'pending-second',
+      'completed-first',
+      'completed-second',
+    ])
   })
 
   it('completed-only remains useful even when completed rows are globally hidden', () => {

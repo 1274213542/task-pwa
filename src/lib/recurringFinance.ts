@@ -43,7 +43,6 @@ export async function saveRecurringRule(input: {
   currency: CurrencyCode
   categoryId?: string
   accountId: string
-  fundAllocations: Array<{ fundPoolId: string; amountMinor: number }>
   merchantName?: string
   billingDay: number
   startDate: string
@@ -63,14 +62,7 @@ export async function saveRecurringRule(input: {
   if (!account || account.lifecycleStatus !== 'active' || account.isArchived || account.currency !== input.currency) {
     throw new Error('默认支付账户无效或币种不一致')
   }
-  const total = input.fundAllocations.reduce((sum, row) => sum + row.amountMinor, 0)
-  if (accountOwnership(account) !== 'external' && total !== input.amountMinor) {
-    throw new Error('资金池分摊金额必须等于固定扣款金额')
-  }
-  const pools = await db.fundPools.bulkGet(input.fundAllocations.map((row) => row.fundPoolId))
-  if (pools.some((pool) => !pool || pool.lifecycleStatus !== 'active' || pool.isArchived || pool.currency !== input.currency)) {
-    throw new Error('固定扣款包含无效或不同币种的资金池')
-  }
+  if (accountOwnership(account) === 'external') throw new Error('固定扣款需要本人资产或信用账户')
   const existing = input.id ? await db.recurringTransactionRules.get(input.id) : undefined
   const active = await db.recurringTransactionRules.where('lifecycleStatus').equals('active').sortBy('rank')
   const timestamp = now()
@@ -82,7 +74,6 @@ export async function saveRecurringRule(input: {
     currency: input.currency,
     ...(input.categoryId && { categoryId: input.categoryId }),
     accountId: input.accountId,
-    fundAllocations: input.fundAllocations,
     ...(input.merchantName?.trim() && { merchantName: input.merchantName.trim() }),
     billingDay: input.billingDay,
     startDate: input.startDate,
@@ -110,13 +101,6 @@ async function postInstance(
   instance: RecurringTransactionInstance,
   amountMinor = instance.amountMinor,
 ) {
-  const scale = amountMinor / rule.amountMinor
-  const allocations = rule.fundAllocations.map((allocation, index, rows) => ({
-    fundPoolId: allocation.fundPoolId,
-    amountMinor: index === rows.length - 1
-      ? amountMinor - rows.slice(0, -1).reduce((sum, row) => sum + Math.round(row.amountMinor * scale), 0)
-      : Math.round(allocation.amountMinor * scale),
-  }))
   const transactionId = recurringTransactionId(rule.id, instance.billingPeriod)
   await saveSpending({
     id: transactionId,
@@ -127,7 +111,6 @@ async function postInstance(
     categoryId: rule.categoryId,
     merchantName: rule.merchantName,
     note: rule.note ?? `固定扣款：${rule.name}`,
-    fundAllocations: allocations,
   })
   await db.transaction('rw', db.financeTransactions, db.recurringTransactionInstances, async () => {
     await db.financeTransactions.update(transactionId, {

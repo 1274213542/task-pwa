@@ -93,91 +93,9 @@ export interface FinanceTransaction {
   exchangeRate?: number
   exchangeRateDate?: string
   exchangeRateSource?: string
-  /** v3：现实支付账户与内部资金归属分离；分摊明细存独立表。 */
-  fundAllocationVersion?: 1
   recurringInstanceId?: string
   lifecycleStatus: 'active' | 'deleted'
   deletedAt?: string
-  createdAt: string
-  updatedAt: string
-}
-
-export type FundPoolPurpose =
-  | 'free'
-  | 'restricted_rent'
-  | 'restricted_living'
-  | 'restricted_tuition'
-  | 'restricted_tax'
-  | 'credit_reserve'
-  | 'savings'
-  | 'emergency'
-  | 'travel'
-  | 'unspecified'
-  | 'other'
-
-export interface FundPool {
-  id: string
-  name: string
-  purpose: FundPoolPurpose
-  currency: CurrencyCode
-  /** 可选：说明这笔用途资金主要存放在哪个现实账户，不限制支付账户。 */
-  accountId?: string
-  openingBalanceMinor: number
-  includeInDisposable: boolean
-  includeInSavings: boolean
-  restricted: boolean
-  colorToken?: string
-  icon?: string
-  /** Archived pools remain part of allocation totals but cannot fund new spending. */
-  isArchived?: boolean
-  archivedAt?: string
-  rank: string
-  lifecycleStatus: 'active' | 'deleted'
-  deletedAt?: string
-  createdAt: string
-  updatedAt: string
-}
-
-export type FundAllocationEffect = 'debit' | 'credit' | 'reserve' | 'release'
-
-export interface TransactionFundAllocation {
-  id: string
-  transactionId: string
-  fundPoolId: string
-  amountMinor: number
-  currency: CurrencyCode
-  effect: FundAllocationEffect
-  reservationId?: string
-  lifecycleStatus: 'active' | 'deleted'
-  deletedAt?: string
-  createdAt: string
-  updatedAt: string
-}
-
-export interface FundPoolTransfer {
-  id: string
-  sourcePoolId?: string
-  destinationPoolId?: string
-  amountMinor: number
-  currency: CurrencyCode
-  localDate: string
-  note?: string
-  lifecycleStatus: 'active' | 'deleted'
-  deletedAt?: string
-  createdAt: string
-  updatedAt: string
-}
-
-export interface FundReservation {
-  id: string
-  transactionId: string
-  creditAccountId: string
-  fundPoolId: string
-  amountMinor: number
-  settledAmountMinor: number
-  releasedAmountMinor: number
-  currency: CurrencyCode
-  status: 'active' | 'settled' | 'released' | 'voided'
   createdAt: string
   updatedAt: string
 }
@@ -191,7 +109,6 @@ export interface RecurringTransactionRule {
   currency: CurrencyCode
   categoryId?: string
   accountId: string
-  fundAllocations: Array<{ fundPoolId: string; amountMinor: number }>
   merchantName?: string
   billingDay: number
   startDate: string
@@ -219,57 +136,6 @@ export interface RecurringTransactionInstance {
   confirmedAmountMinor?: number
   createdAt: string
   updatedAt: string
-}
-
-export interface SavingsGoal {
-  id: string
-  name: string
-  fundPoolId: string
-  targetAmountMinor: number
-  currency: CurrencyCode
-  targetDate?: string
-  rank: string
-  lifecycleStatus: 'active' | 'deleted'
-  deletedAt?: string
-  createdAt: string
-  updatedAt: string
-}
-
-export interface BudgetPlan {
-  id: string
-  month: string
-  currency: CurrencyCode
-  expectedIncomeMinor: number
-  remainingLivingBudgetMinor: number
-  plannedExpenseMinor: number
-  note?: string
-  createdAt: string
-  updatedAt: string
-}
-
-export interface FinancialProjection {
-  id: string
-  month: string
-  currency: CurrencyCode
-  expectedIncomeMinor: number
-  recurringExpenseMinor: number
-  occurredExpenseMinor: number
-  plannedExpenseMinor: number
-  remainingLivingBudgetMinor: number
-  projectedSavingsMinor: number
-  calculatedAt: string
-  assumptionsVersion: 1
-}
-
-export interface FinanceFundsMigrationState {
-  id: 'finance-funds-v3'
-  version: 3
-  status: 'pending' | 'complete' | 'rolled_back' | 'failed'
-  snapshotId?: string
-  migratedTransactionCount: number
-  startedAt: string
-  completedAt?: string
-  error?: string
 }
 
 export interface FinanceTransfer {
