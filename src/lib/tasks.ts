@@ -343,6 +343,58 @@ export async function completeTask(task: Task): Promise<void> {
   })
 }
 
+/** 每日普通任务按本地民用日期完成；同一天重复点击仍命中同一条记录。 */
+export async function completeDailyTask(task: Task, date = today()): Promise<void> {
+  await upsertRecord(task, `daily:${date}`, date, 'completed')
+}
+
+/**
+ * Upgrade legacy daily `single` completions without losing their snapshots.
+ * The old deterministic row becomes voided; current daily state then reads the
+ * date-scoped row and no longer leaks into the next day.
+ */
+export async function migrateDailyCompletionHistory(tasks: Task[]): Promise<void> {
+  const dailyTaskIds = new Set(tasks.filter((task) => (task.taskScope ?? 'daily') === 'daily').map((task) => task.id))
+  if (dailyTaskIds.size === 0) return
+  const legacy = (await db.completionRecords.toArray()).filter((record) =>
+    dailyTaskIds.has(record.taskId) &&
+    record.occurrenceKey === 'single' &&
+    record.resolution === 'completed',
+  )
+  if (legacy.length === 0) return
+  await db.transaction('rw', db.tasks, db.completionRecords, async () => {
+    for (const record of legacy) {
+      const completedDate = record.completedDate ?? record.occurrenceDate
+      const id = `${record.taskId}:daily:${completedDate}`
+      if (!(await db.completionRecords.get(id))) {
+        await db.completionRecords.put({
+          ...record,
+          id,
+          occurrenceKey: `daily:${completedDate}`,
+          occurrenceDate: completedDate,
+          completedDate,
+        })
+      }
+      await db.completionRecords.update(record.id, { resolution: 'voided', updatedAt: now() })
+      await db.tasks.update(record.taskId, { completedAt: undefined, updatedAt: now() })
+    }
+  })
+}
+
+/** Keep only the rolling seven-day daily history, including while offline. */
+export async function pruneDailyCompletionHistory(tasks: Task[], oldestDateToKeep: string): Promise<void> {
+  const dailyTaskIds = new Set(tasks.filter((task) => (task.taskScope ?? 'daily') === 'daily').map((task) => task.id))
+  if (dailyTaskIds.size === 0) return
+  const expiredIds = (await db.completionRecords.toArray())
+    .filter((record) =>
+      dailyTaskIds.has(record.taskId) &&
+      !record.occurrenceKey.startsWith('ac:') &&
+      record.occurrenceDate < oldestDateToKeep,
+    )
+    .map((record) => record.id)
+  if (expiredIds.length > 0) await db.completionRecords.bulkDelete(expiredIds)
+}
+
 /** fixed 周期某一期完成（occurrenceDate = 原计划日期，改期不改 key） */
 export async function completeFixedOccurrence(
   task: Task,

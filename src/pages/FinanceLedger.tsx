@@ -49,6 +49,7 @@ import type {
   WorkEntry,
   WorkTemplate,
 } from '../lib/ledgerTypes'
+import { todayLocalISO } from '../lib/dates'
 
 type FinanceView = 'overview' | 'accounts' | 'transactions' | 'work' | 'stats'
 type EntryKind = 'expense' | 'income' | 'transfer' | 'credit_payment' | 'topup' | 'refund'
@@ -95,7 +96,7 @@ const TRANSACTION_LABEL: Record<FinanceTransactionType, string> = {
 }
 
 function todayISO() {
-  return new Date().toISOString().slice(0, 10)
+  return todayLocalISO()
 }
 
 function monthStartISO() {

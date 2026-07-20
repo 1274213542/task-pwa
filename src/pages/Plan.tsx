@@ -36,6 +36,9 @@ import MobilePageHeader from '../components/MobilePageHeader'
 import SegmentedIndicator from '../components/SegmentedIndicator'
 import SwipeActionRow from '../components/SwipeActionRow'
 import DateMarkerSheet from '../components/DateMarkerSheet'
+import CalendarMarkerTrack from '../components/CalendarMarkerTrack'
+import { calendarMarkerSummary } from '../lib/calendarMarkers'
+import { formatDurationMinutes } from '../lib/duration'
 
 const WEEK_LABELS_MON = ['一', '二', '三', '四', '五', '六', '日']
 const WEEK_LABELS_SUN = ['日', '一', '二', '三', '四', '五', '六']
@@ -612,17 +615,23 @@ export default function Plan() {
     const isSelected = dateISO === selected
     const items = itemsForDate(dateISO)
     const dayWork = (workRecords ?? []).filter((record) => record.date === dateISO && record.worked)
-    const totalCount = items.length + dayWork.length
-    const firstVisual = items[0] ? itemVisual(items[0]) : undefined
-    const markerTypes = dateTypeMarkers
+    const markerTypeIds = new Set(dateTypeMarkers
       .filter((marker) => marker.date === dateISO)
-      .map((marker) => dateTypeDefinitions.find((definition) => definition.id === marker.typeId))
-      .filter((definition): definition is NonNullable<typeof definition> => Boolean(definition))
+      .map((marker) => marker.typeId))
+    const markerTypes = dateTypeDefinitions.filter((definition) => markerTypeIds.has(definition.id))
+    const totalCount = items.length + dayWork.length + markerTypes.length
+    const firstVisual = items[0] ? itemVisual(items[0]) : undefined
+    const markers = calendarMarkerSummary({
+      date: dateISO,
+      definitions: dateTypeDefinitions,
+      markers: dateTypeMarkers,
+      hasCalendarItems: items.length + dayWork.length > 0,
+    })
     return (
       <button
         key={dateISO}
         role="gridcell"
-        aria-label={`${dateISO}${totalCount ? `：${items.map(itemTitle).join('、')}${dayWork.length ? `、工作 ${dayWork.reduce((sum, record) => sum + record.durationMinutes, 0) / 60} 小时` : ''}` : '：无安排'}`}
+        aria-label={`${dateISO}${totalCount ? `：${[...markerTypes.map((item) => item.name), ...items.map(itemTitle), ...(dayWork.length ? [`工作 ${formatDurationMinutes(dayWork.reduce((sum, record) => sum + record.durationMinutes, 0))}`] : [])].join('、')}` : '：无安排'}`}
         aria-selected={isSelected}
         tabIndex={isSelected ? 0 : -1}
         onClick={() => selectDay(dateISO)}
@@ -655,16 +664,12 @@ export default function Plan() {
           {items.length < 3 && dayWork.slice(0, 1).map((record) => (
             <span key={record.id} className="calendar-summary calendar-work-summary">
               <AppIcon name="work" size={11} />
-              <span>工作 {record.durationMinutes / 60}h</span>
+              <span>工作 {formatDurationMinutes(record.durationMinutes)}</span>
             </span>
           ))}
           {totalCount > 3 && <span className="calendar-more">+{totalCount - 3}</span>}
         </span>
-        {markerTypes.length > 0 && (
-          <span className="calendar-date-type-dots" aria-label={markerTypes.map((item) => item.name).join('、')}>
-            {markerTypes.slice(0, 3).map((item) => <i key={item.id} data-color-token={item.colorToken} />)}
-          </span>
-        )}
+        <CalendarMarkerTrack summary={markers} />
       </button>
     )
   }
@@ -730,6 +735,10 @@ export default function Plan() {
   }
 
   const selectedItems = itemsForDate(selected)
+  const selectedDateTypeIds = new Set(dateTypeMarkers
+    .filter((marker) => marker.date === selected)
+    .map((marker) => marker.typeId))
+  const selectedDateTypes = dateTypeDefinitions.filter((definition) => selectedDateTypeIds.has(definition.id))
   const selectedAllDayItems = selectedItems.filter(
     (item) => item.kind === 'event' && item.event.allDay && !itemTime(item),
   )
@@ -809,6 +818,7 @@ export default function Plan() {
     .filter((group) => group.date !== selected && group.items.length > 0)
   const futureAgendaCount = futureAgendaGroups.reduce((sum, group) => sum + group.items.length, 0)
   const selectedWork = (workRecords ?? []).filter((record) => record.date === selected)
+  const selectedSummaryCount = selectedItems.length + selectedDateTypes.length
   const monthLabel = `${cursor.year} 年 ${cursor.month} 月`
   const weekLabel = `${dateLabel(weekDates[0], { month: 'short', day: 'numeric' })} – ${dateLabel(weekDates[6], { month: 'short', day: 'numeric' })}`
   const weekLabels = weekStartsOn === 0 ? WEEK_LABELS_SUN : WEEK_LABELS_MON
@@ -828,7 +838,7 @@ export default function Plan() {
             <h2>{dateLabel(selected, { month: 'long', day: 'numeric', weekday: 'long' })}</h2>
           </div>
           <div className="day-panel-heading-actions">
-            <span>{selectedItems.length} 项</span>
+            <span>{selectedSummaryCount} 项</span>
             <button
               type="button"
               aria-label={composerOpen ? '收起新增' : '在选中日期新增'}
@@ -842,7 +852,7 @@ export default function Plan() {
 
         <section className="calendar-work-panel">
           <header>
-            <div><span>工作记录</span><strong>{selectedWork.filter((record) => record.worked).reduce((sum, record) => sum + record.durationMinutes, 0) / 60} 小时</strong></div>
+            <div><span>今日累计工时</span><strong>{formatDurationMinutes(selectedWork.filter((record) => record.worked).reduce((sum, record) => sum + record.durationMinutes, 0))}</strong></div>
             <button onClick={() => navigate(`/finance?mode=work&date=${selected}&new=1`)}>
               <AppIcon name="plus" size={17} /> 记录工时
             </button>
@@ -851,12 +861,23 @@ export default function Plan() {
             <ul>{selectedWork.map((record) => (
               <li key={record.id}>
                 <AppIcon name="work" size={17} />
-                <span>{record.worked ? `${record.durationMinutes / 60} 小时` : '休息日'}</span>
+                <span>{record.worked ? formatDurationMinutes(record.durationMinutes) : '休息日'}</span>
                 <small>{record.workLocation || record.workContent || record.note || '未填写备注'}</small>
               </li>
             ))}</ul>
           )}
         </section>
+
+        {selectedDateTypes.length > 0 && (
+          <ul className="calendar-date-type-list" aria-label="日期类型标记">
+            {selectedDateTypes.map((definition) => (
+              <li key={definition.id} data-color-token={definition.colorToken}>
+                <i aria-hidden />
+                <div><strong>{definition.name}</strong><small>批量日期标记</small></div>
+              </li>
+            ))}
+          </ul>
+        )}
 
         {composerOpen && <div className="calendar-composer quick-card">
           <textarea
@@ -918,7 +939,7 @@ export default function Plan() {
         <p role="status" className="calendar-feedback">{feedback}</p>
         {selectedItems.length > 0 ? (
           <ul className="calendar-item-list">{selectedItems.map(itemRow)}</ul>
-        ) : composerOpen ? null : (
+        ) : selectedDateTypes.length > 0 || composerOpen ? null : (
           <div className="calendar-empty-day">
             <MarkerIcon symbol="flower" color="green" size={42} />
             <span>这一天暂无安排</span>
@@ -1182,7 +1203,7 @@ export default function Plan() {
                 <header>
                   <div>
                     <strong>{dateLabel(selected, { month: 'long', day: 'numeric', weekday: 'long' })}</strong>
-                    <span>{selectedItems.length ? `${selectedItems.length} 项安排` : '暂无安排'}</span>
+                    <span>{selectedSummaryCount ? `${selectedSummaryCount} 项安排` : '暂无安排'}</span>
                   </div>
                   <button
                     type="button"
@@ -1194,8 +1215,17 @@ export default function Plan() {
                     <AppIcon name="plus" size={17} /> 添加计划
                   </button>
                 </header>
-                {selectedItems.length > 0 && (
+                {selectedSummaryCount > 0 && (
                   <ul>
+                    {selectedDateTypes.map((definition) => (
+                      <li key={`month-marker:${definition.id}`} data-color-token={definition.colorToken}>
+                        <div className="calendar-month-marker-summary">
+                          <i aria-hidden />
+                          <span>{definition.name}</span>
+                          <small>日期标记</small>
+                        </div>
+                      </li>
+                    ))}
                     {selectedItems.slice(0, 3).map((item, index) => (
                       <li key={`month-summary:${item.kind}:${index}`}>
                         <button type="button" onClick={() => openItem(item)}>

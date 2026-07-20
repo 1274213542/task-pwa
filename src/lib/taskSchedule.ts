@@ -71,6 +71,29 @@ export function effectiveTaskSchedule(
   }
 }
 
+/**
+ * A real user-authored deadline, excluding the synthetic end-of-day date used
+ * to keep ordinary "today" tasks on today's agenda.
+ */
+export function explicitTaskDueAt(
+  task: Task,
+  tasks: Task[] | Map<string, Task> = [],
+): string | undefined {
+  const map = tasks instanceof Map ? tasks : new Map(tasks.map((item) => [item.id, item]))
+  const visited = new Set<string>()
+  let source = task
+  while (source.parentTaskId && source.inheritsParentSchedule !== false) {
+    if (visited.has(source.id)) break
+    visited.add(source.id)
+    const parent = map.get(source.parentTaskId)
+    if (!parent) break
+    source = parent
+  }
+  const inherited = task.inheritsParentSchedule !== false && source.id !== task.id
+  const target = inherited ? source : task
+  return target.dueAt ?? (taskScheduleTypeOf(target) === 'longTerm' ? target.endDate : undefined)
+}
+
 export function legacyTaskSchedulePatch(task: Task): Partial<Task> {
   const type = taskScheduleTypeOf(task)
   return {

@@ -2,6 +2,7 @@ import 'fake-indexeddb/auto'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { db, type Task } from './db'
 import {
+  explicitTaskDueAt,
   childProgress,
   effectiveTaskSchedule,
   isTaskExecutable,
@@ -12,7 +13,13 @@ import {
   ensureTaskScheduleMigration,
   rollbackTaskScheduleMigration,
 } from './taskScheduleMigration'
-import { updateTask } from './tasks'
+import {
+  completeDailyTask,
+  migrateDailyCompletionHistory,
+  pruneDailyCompletionHistory,
+  updateTask,
+  voidRecord,
+} from './tasks'
 
 const timestamp = '2026-07-19T00:00:00.000Z'
 
@@ -47,6 +54,15 @@ describe('task schedules and DDL', () => {
     expect(taskDueStatus(task('today', { scheduleType: 'today', dueAt: '2026-07-19T00:01' }), '2026-07-19').label).toBe('今天截止')
     expect(taskDueStatus(task('tomorrow', { scheduleType: 'longTerm', dueAt: '2026-07-20T23:59' }), '2026-07-19').label).toBe('明天截止')
     expect(taskDueStatus(task('late', { scheduleType: 'longTerm', dueAt: '2026-07-17T23:59' }), '2026-07-19').label).toBe('已逾期 2 天')
+  })
+
+  it('distinguishes an authored DDL from the synthetic date of an ordinary today task', () => {
+    const ordinary = task('ordinary', { scheduleType: 'today', startAt: '2026-07-21' })
+    const deadline = task('deadline', { scheduleType: 'today', startAt: '2026-07-21', dueAt: '2026-07-21T18:00' })
+    const longTerm = task('long-term', { scheduleType: 'longTerm', startAt: '2026-07-21', endDate: '2026-07-31' })
+    expect(explicitTaskDueAt(ordinary)).toBeUndefined()
+    expect(explicitTaskDueAt(deadline)).toBe('2026-07-21T18:00')
+    expect(explicitTaskDueAt(longTerm)).toBe('2026-07-31')
   })
 
   it('surfaces a long-term task at its start or within its configured due window', () => {
@@ -129,5 +145,41 @@ describe('task schedules and DDL', () => {
     await updateTask(child.id, { ...update, extendParentDue: true })
     expect((await db.tasks.get(parent.id))?.dueAt).toBe('2026-08-02T18:00')
     expect((await db.tasks.get(child.id))?.dueAt).toBe('2026-08-02T18:00')
+  })
+
+  it('migrates daily history to date-scoped deterministic ids and prunes beyond seven days', async () => {
+    const daily = task('daily-history', { taskScope: 'daily', completedAt: timestamp })
+    await db.tasks.add(daily)
+    await db.completionRecords.put({
+      id: `${daily.id}:single`,
+      taskId: daily.id,
+      occurrenceKey: 'single',
+      occurrenceDate: '2026-07-14',
+      completedDate: '2026-07-14',
+      resolution: 'completed',
+      resolvedAt: timestamp,
+      titleSnapshot: daily.title,
+      templateVersion: 1,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })
+
+    await migrateDailyCompletionHistory([daily])
+    expect(await db.completionRecords.get(`${daily.id}:daily:2026-07-14`)).toMatchObject({
+      resolution: 'completed',
+      occurrenceDate: '2026-07-14',
+    })
+    expect(await db.completionRecords.get(`${daily.id}:single`)).toMatchObject({ resolution: 'voided' })
+
+    await completeDailyTask(daily, '2026-07-21')
+    await completeDailyTask(daily, '2026-07-21')
+    expect(await db.completionRecords.where('taskId').equals(daily.id).filter((record) => record.id === `${daily.id}:daily:2026-07-21`).count()).toBe(1)
+    await voidRecord(`${daily.id}:daily:2026-07-21`)
+    await completeDailyTask(daily, '2026-07-21')
+    expect(await db.completionRecords.get(`${daily.id}:daily:2026-07-21`)).toMatchObject({ resolution: 'completed' })
+
+    await pruneDailyCompletionHistory([daily], '2026-07-15')
+    expect(await db.completionRecords.get(`${daily.id}:daily:2026-07-14`)).toBeUndefined()
+    expect(await db.completionRecords.get(`${daily.id}:daily:2026-07-21`)).toBeDefined()
   })
 })

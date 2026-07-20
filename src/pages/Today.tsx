@@ -43,8 +43,11 @@ import { useCivilDate } from '../lib/useCivilDate'
 import {
   RecurrenceConflictError,
   addTasksDetailed,
+  completeDailyTask,
   completeFixedOccurrence,
   completeTask,
+  migrateDailyCompletionHistory,
+  pruneDailyCompletionHistory,
   reorderTask,
   repairAfterCompletionCache,
   resolveAfterCompletion,
@@ -151,21 +154,25 @@ function buildItems(
       continue
     }
     if (!r) {
-      const rec = recMap.get(`${task.id}:single`)
+      const occurrenceKey = taskScopeOf(task) === 'daily' ? `daily:${todayISO}` : 'single'
+      const rec = recMap.get(`${task.id}:${occurrenceKey}`)
+      const completedOn = rec?.resolution === 'completed'
+        ? `${rec.completedDate ?? rec.occurrenceDate}T12:00:00`
+        : undefined
       const schedule = effectiveTaskSchedule(task, taskMap)
-      const due = taskDueStatus(task, todayISO, taskMap, rec?.resolution === 'completed' ? rec.resolvedAt : undefined)
+      const due = taskDueStatus(task, todayISO, taskMap, completedOn)
       items.push({
         task,
         kind: 'single',
         occurrenceDate: task.startDate ?? todayISO,
-        occurrenceKey: 'single',
+        occurrenceKey,
         completed: rec?.resolution === 'completed',
         overdue: due.tone === 'overdue',
         subtitle: taskScheduleLabel(
           task,
           todayISO,
           tasks,
-          rec?.resolution === 'completed' ? rec.resolvedAt : undefined,
+          completedOn,
         ) + (schedule.inheritedFrom ? ' · 继承父任务日期' : ''),
       })
     } else if (r.mode === 'fixed_schedule') {
@@ -314,6 +321,7 @@ export default function Today() {
   const [toolbarStuck, setToolbarStuck] = useState(false)
   const [contentDirection, setContentDirection] = useState<1 | -1>(1)
   const [showDone, setShowDone] = useState(false)
+  const [showDailyHistory, setShowDailyHistory] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null)
   const [editingItem, setEditingItem] = useState<TodayItem | null>(null)
@@ -449,6 +457,32 @@ export default function Today() {
     viewSettings.showCompleted || viewSettings.status === 'completed'
       ? policy === 'hide' ? 'keep' : policy
       : 'hide'
+  const dailyHistory = useMemo(() => {
+    if (!tasks || !records || scope !== 'daily') return []
+    const oldestDate = addDaysISO(todayISO, -6)
+    const dailyTaskIds = new Set(tasks
+      .filter((task) => taskScopeOf(task) === 'daily')
+      .map((task) => task.id))
+    return records
+      .filter((record) =>
+        dailyTaskIds.has(record.taskId) &&
+        (record.occurrenceKey.startsWith('daily:') || record.occurrenceKey.startsWith('fixed:')) &&
+        record.occurrenceDate >= oldestDate &&
+        record.occurrenceDate <= todayISO &&
+        (record.resolution === 'completed' || record.resolution === 'voided'),
+      )
+      .sort((a, b) => b.resolvedAt.localeCompare(a.resolvedAt))
+  }, [tasks, records, scope, todayISO])
+
+  useEffect(() => {
+    if (!tasks || scope !== 'daily') return
+    let cancelled = false
+    void (async () => {
+      await migrateDailyCompletionHistory(tasks)
+      if (!cancelled) await pruneDailyCompletionHistory(tasks, addDaysISO(todayISO, -6))
+    })()
+    return () => { cancelled = true }
+  }, [tasks, scope, todayISO])
 
   const dateLabel = new Date().toLocaleDateString('zh-CN', {
     month: 'long',
@@ -604,7 +638,8 @@ export default function Today() {
         void guarded(async () => {
           if (!item.completed) holdInPlace(`${task.id}:${item.occurrenceKey}`)
           if (item.kind === 'single') {
-            if (item.completed) await voidRecord(`${task.id}:single`)
+            if (item.completed) await voidRecord(`${task.id}:${item.occurrenceKey}`)
+            else if (scope === 'daily') await completeDailyTask(task, todayISO)
             else await completeTask(task)
           } else if (item.kind === 'fixed') {
             if (item.completed) await voidRecord(`${task.id}:${item.occurrenceKey}`)
@@ -690,7 +725,10 @@ export default function Today() {
   }
 
   async function completeItem(item: TodayItem) {
-    if (item.kind === 'single') await completeTask(item.task)
+    if (item.kind === 'single') {
+      if (scope === 'daily') await completeDailyTask(item.task, todayISO)
+      else await completeTask(item.task)
+    }
     else if (item.kind === 'fixed')
       await completeFixedOccurrence(item.task, item.occurrenceDate)
     else await resolveAfterCompletion(item.task, 'completed')
@@ -1096,6 +1134,47 @@ export default function Today() {
           )}
           {/* hide：不渲染，已完成记录页可查 */}
         </LayoutGroup>
+      )}
+      {scope === 'daily' && (
+        <section className="daily-history-card" aria-labelledby="daily-history-title">
+          <button
+            type="button"
+            className="daily-history-toggle"
+            aria-expanded={showDailyHistory}
+            onClick={() => setShowDailyHistory((value) => !value)}
+            disabled={dailyHistory.length === 0}
+          >
+            <span id="daily-history-title">最近 7 天完成记录</span>
+            <span>{dailyHistory.length}</span>
+            <AppIcon name="chevronDown" size={16} className={showDailyHistory ? '' : '-rotate-90'} />
+          </button>
+          {showDailyHistory && dailyHistory.length > 0 && (
+            <ul className="daily-history-list">
+              {dailyHistory.map((record, index) => {
+                const restored = record.resolution === 'voided'
+                const completedAt = new Date(record.resolvedAt).toLocaleTimeString('zh-CN', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })
+                return (
+                  <li key={record.id} data-restored={restored || undefined} data-divider={index > 0 || undefined}>
+                    <div>
+                      <strong>{record.titleSnapshot}</strong>
+                      <small>{record.occurrenceDate} · {completedAt}{restored ? ' · 已恢复' : ''}</small>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={restored}
+                      onClick={() => void voidRecord(record.id)}
+                    >
+                      {restored ? '已恢复' : '恢复'}
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </section>
       )}
       </motion.div>
       {viewSettingsOpen && (

@@ -376,6 +376,8 @@ html .page-shopping .location-manager-composer {
 [data-color-token='green'] { --marker-color: #55a676; }
 [data-color-token='purple'] { --marker-color: #8d76c9; }
 [data-color-token='orange'] { --marker-color: #d58b48; }
+[data-color-token='pink'] { --marker-color: #bd7290; }
+[data-color-token='gray'] { --marker-color: var(--color-text-tertiary); }
 .calendar-date-type-dots i,
 .calendar-date-type-dots b { background: var(--marker-color); }
 
@@ -12123,4 +12125,228 @@ html[lang='zh-CN'] body {
     grid-column: 2;
     grid-row: 1;
   }
+}
+
+/* Overview / daily history / calendar markers / quick-entry hardening.
+   These are shared structural rules, not page-specific paint patches. */
+.calendar-marker-track {
+  position: absolute;
+  bottom: 1px;
+  left: 50%;
+  display: flex;
+  min-width: 0;
+  max-width: calc(100% - 6px);
+  height: 10px;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  color: var(--color-text-tertiary);
+  font-size: 8px;
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.calendar-marker-track i {
+  width: 5px;
+  height: 5px;
+  flex: 0 0 5px;
+  border-radius: var(--radius-circle);
+  background: var(--marker-color, var(--color-text-tertiary));
+}
+
+/* app-design.css previously painted every overview marker with one accent.
+   The shared track owns marker color so overview and month view stay in sync. */
+.overview-days .calendar-marker-track i[data-color-token] {
+  background: var(--marker-color, var(--color-text-tertiary));
+}
+
+.calendar-marker-track b {
+  min-width: 11px;
+  font-size: 8px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.calendar-day[data-has-items='true']::after { content: none !important; }
+
+.overview-days a { position: relative; }
+.overview-day-markers { bottom: 5px; }
+
+.daily-history-card {
+  overflow: hidden;
+  margin-top: var(--space-3);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-card-medium);
+  background: var(--color-surface-primary);
+}
+
+.daily-history-toggle {
+  display: grid;
+  width: 100%;
+  min-height: 52px;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-4);
+  color: var(--color-text-primary);
+  text-align: left;
+}
+
+.daily-history-toggle > span:first-child { font-size: 15px; font-weight: 600; }
+.daily-history-toggle > span:nth-child(2) { color: var(--color-text-secondary); font-size: 13px; }
+.daily-history-toggle:disabled { opacity: 0.72; }
+
+.daily-history-list { padding-inline: var(--space-4); }
+.daily-history-list li {
+  display: grid;
+  min-height: 62px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+}
+.daily-history-list li[data-divider='true'] { border-top: 1px solid var(--color-divider); }
+.daily-history-list li > div { display: grid; min-width: 0; gap: 2px; }
+.daily-history-list strong { overflow: hidden; font-size: 15px; font-weight: 560; text-overflow: ellipsis; white-space: nowrap; }
+.daily-history-list small { color: var(--color-text-secondary); font-size: 12px; font-weight: 500; }
+.daily-history-list li[data-restored='true'] > div { opacity: 0.62; }
+.daily-history-list li > button {
+  min-width: 58px;
+  min-height: 36px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-secondary);
+  color: var(--color-text-primary);
+  font-size: 13px;
+  font-weight: 600;
+}
+.daily-history-list li > button:disabled { color: var(--color-text-tertiary); }
+
+.calendar-date-type-list {
+  overflow: hidden;
+  margin-block: var(--space-2);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-card-small);
+  background: var(--color-surface-primary);
+}
+.calendar-date-type-list li {
+  display: grid;
+  min-height: 54px;
+  grid-template-columns: 8px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-3);
+  padding-inline: var(--space-4);
+}
+.calendar-date-type-list li + li { border-top: 1px solid var(--color-divider); }
+.calendar-date-type-list li > i,
+.calendar-month-marker-summary > i {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-circle);
+  background: var(--marker-color);
+}
+.calendar-date-type-list li > div { display: grid; gap: 2px; }
+.calendar-date-type-list strong { font-size: 15px; font-weight: 600; }
+.calendar-date-type-list small,
+.calendar-month-marker-summary small { color: var(--color-text-secondary); font-size: 12px; font-weight: 500; }
+.calendar-month-marker-summary {
+  display: grid;
+  min-height: 46px;
+  grid-template-columns: 7px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding-inline: var(--space-2);
+}
+
+.calendar-work-panel header {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+}
+.calendar-work-panel header > div { display: grid; min-width: 0; gap: 2px; }
+.calendar-work-panel header strong { overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.calendar-work-panel header button { white-space: nowrap; }
+.calendar-work-panel li { grid-template-columns: auto auto minmax(0, 1fr) !important; }
+.calendar-work-panel li > span { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.calendar-work-panel li > small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.gesture-sheet-stage { box-sizing: border-box; max-width: 100dvw; overflow: hidden; }
+.finance-ledger-sheet {
+  box-sizing: border-box;
+  width: min(680px, 100%) !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+}
+.finance-sheet-layout,
+.finance-sheet-body,
+.finance-sheet-form,
+.finance-sheet-grid,
+.finance-sheet-grid > *,
+.finance-amount-field {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+.finance-sheet-layout,
+.finance-sheet-body { overflow-x: hidden !important; }
+.finance-entry-kind-scroll { max-width: calc(100% - 32px); overscroll-behavior-inline: contain; }
+.finance-sheet-grid input,
+.finance-sheet-grid select,
+.finance-sheet-grid textarea,
+.finance-picker-row,
+.finance-amount-field input {
+  box-sizing: border-box;
+  max-width: 100%;
+  padding-inline: 16px !important;
+}
+.finance-amount-field input {
+  border-radius: var(--ds-radius-control);
+  background: var(--neutral-control);
+  letter-spacing: -0.035em;
+}
+.finance-sheet-grid input::placeholder,
+.finance-sheet-grid textarea::placeholder,
+.finance-amount-field input::placeholder {
+  color: var(--color-text-tertiary);
+  font-weight: 450;
+  opacity: 1;
+}
+.finance-impact-preview {
+  display: grid;
+  width: 100%;
+  gap: var(--space-2);
+  border-radius: var(--radius-card-small);
+  padding: var(--space-3) var(--space-4);
+}
+.finance-impact-preview > span { color: var(--color-text-primary); font-size: 13px; font-weight: 650; }
+.finance-impact-preview dl { display: grid; gap: 0; margin: 0; }
+.finance-impact-preview dl > div {
+  display: grid;
+  min-height: 42px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  border: 0;
+}
+.finance-impact-preview dl > div + div { border-top: 1px solid var(--color-divider); }
+.finance-impact-preview dt { color: var(--color-text-secondary); font-size: 13px; font-weight: 520; }
+.finance-impact-preview dd {
+  max-width: 58%;
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: 13px;
+  font-weight: 650;
+  text-align: right;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+.finance-impact-preview > small { margin-top: 2px; color: var(--color-text-secondary); font-size: 12px; line-height: 1.45; }
+
+@media (prefers-reduced-motion: reduce) {
+  .calendar-marker-track,
+  .daily-history-list { scroll-behavior: auto; }
 }

@@ -1,49 +1,54 @@
-# Design QA — fund removal, shopping locations, plan editing, date markers
+# Design QA — overview, daily history, quick entry and calendar markers
 
 ## Test frame
 
-- Viewport: 390 × 845 CSS px
-- Browser: local Chromium through the project browser harness
-- Source comparisons: the user's 588 × 1280 iPhone captures were normalized to the same 390 × 845 frame before comparison.
-- Combined comparisons:
-  - `/tmp/task-pwa-shopping-comparison.png`
-  - `/tmp/task-pwa-editor-comparison.png`
+- Viewport: 390 × 845 CSS px.
+- Browser: local Chromium controlled through Browser Harness.
+- Production shell: Vite preview with the generated Service Worker controlling the page.
+- User reference: the supplied 588 × 1280 iPhone month-calendar screenshot, normalized to the same frame.
+- Comparison artifacts:
+  - `qa/overview-daily-calendar/plan-month-comparison.png`
+  - `qa/overview-daily-calendar/plan-month-overlay.png`
 
-## Shopping location manager
+## Overview
 
-- Before: a gray band sat behind each location, the outer card and inner blocks repeated the same boundary, and the composer was visually mixed into the list.
-- After: one 24px-radius shell owns the boundary; each 58px location row is transparent; only adjacent rows draw one inset divider; the composer is a separate final section with one top divider.
-- Checked with three realistic locations: 杉药局、肉のハナマサ、Amazon.
-- Empty shopping state remains a separate compact card and the floating tab bar does not cover it.
+- A date-scoped daily completion remains in “今天需要处理”, uses a checked/struck-through state and sorts after pending items.
+- Restoring the completion returns the same task to pending; its deterministic record ID is reused.
+- Future-seven marker geometry and colors use the same shared marker model as the month calendar.
+- “下一步” rejects the synthetic date of an ordinary today task and only admits an authored DDL/end date within seven days.
+- Screenshot: `qa/overview-daily-calendar/overview-mobile.png`.
 
-## Plan event editor
+## Daily history
 
-- Before: the header appeared as a separate white rectangle and the body relied on the sheet's outer overflow, so long forms could lock or be clipped.
-- After: header and body share one sheet surface; `.event-editor-scroll` is the only vertical scroll owner; 633px viewport / 884px content produced a verified 251px scroll range and reached the final style controls.
-- Start time display and persistence are timezone-aware. An event changed from 12:00 to 13:00, saved, closed, and immediately rendered as 13:00 in the calendar summary.
+- The daily task page exposes a compact rolling seven-day history.
+- Completion date/time, restored state and restore action remain aligned at 390 px.
+- Date-scoped IDs prevent a second active history row after complete → restore → complete.
+- Screenshot: `qa/overview-daily-calendar/daily-history-mobile.png`.
 
-## Calendar date types
+## Quick entry
 
-- Month view exposes one compact “批量标记” action.
-- Batch sheet supports multi-date selection, 上班 / 上学 / 其他, custom types, apply and clear.
-- Calendar cells show up to three small colored dots; date selection remains the dominant state.
-- Verified two selected dates updating immediately without a page reload.
+- The 390 px viewport produced a 364 px Sheet with equal client/scroll widths; document and body both remained 390 px wide.
+- Amount, date, picker and textarea fields share 16 px inline padding and do not change width when populated.
+- The transaction-kind strip is the only intentional horizontal scroller.
+- Default transaction date uses the local civil date rather than UTC.
+- Screenshot: `qa/overview-daily-calendar/finance-quick-entry-mobile.png`.
 
-## Finance removal and compatibility
+## Plan and calendar
 
-- Current finance navigation contains 总览、账户、流水、工资与工时、统计 only.
-- No visible or interactive 资金池、新建资金池、重新分配、储蓄目标 or fund-allocation picker remains.
-- Fund feature modules and active types were removed.
-- Previously shipped v11 IndexedDB stores remain opaque compatibility stores and stay in backup/export coverage so an upgrade does not destructively drop historical user data.
+- Duration formatting renders `10小时44分` rather than a floating-point hour value, and zero renders `0 小时`.
+- Marker layout uses a centered fixed track: up to three explicit dots, followed by `+N` overflow. This remains bounded for one through five categories and does not alter the date hit target.
+- Selected-date summary reads the same date-type marker rows as the month cell and includes them in its count.
+- Screenshot: `qa/overview-daily-calendar/plan-month-mobile.png`.
 
 ## Regression checks
 
-- TypeScript production build: passed.
+- Automated tests: 24 files / 124 tests passed.
 - Lint: passed.
-- Automated tests: 22 files / 119 tests passed.
-- PWA service worker: registered and controlling the production preview.
-- Offline reload: app shell and overview content loaded while network requests were disabled.
-- Completed-last ordering: stable partition verified; pending relative order and completed relative order are preserved.
-- Date markers: deterministic IDs, idempotent reapply, tombstone clear, and same-key restore verified.
+- TypeScript production build: passed.
+- PWA precache: 46 entries generated; Service Worker registered and controlled the production preview.
+- Offline reload: the production overview loaded while network requests were disabled.
+- Reduced-motion emulation: enabled successfully without horizontal overflow.
+- Five primary routes switched without captured runtime or console errors.
+- Real iPhone Safari and installed Home Screen PWA remain a user-device verification step; no desktop capture is labeled as a real-device result.
 
 final result: passed
