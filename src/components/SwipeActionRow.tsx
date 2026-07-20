@@ -321,7 +321,8 @@ export default function SwipeActionRow({
     >
       <div
         ref={railRef}
-        className="apple-swipe-actions"
+        className="apple-swipe-actions apple-swipe-action-layer"
+        data-swipe-layer="actions"
         aria-label={`${label} 的滑动操作`}
         style={{ opacity: 0, transform: 'scale(1)' }}
       >
@@ -339,7 +340,7 @@ export default function SwipeActionRow({
             }}
           >
             <span className="apple-swipe-action__pill" aria-hidden="true">
-              <AppIcon name={action.icon} size={20} />
+              <AppIcon name={action.icon} size={24} />
             </span>
             <span className="apple-swipe-action__label">{action.label}</span>
           </button>
@@ -347,7 +348,8 @@ export default function SwipeActionRow({
       </div>
       <div
         ref={contentRef}
-        className={`apple-swipe-content ${contentClassName}`.trim()}
+        className={`apple-swipe-content apple-swipe-foreground ${contentClassName}`.trim()}
+        data-swipe-layer="foreground"
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={(event) => finish(event)}

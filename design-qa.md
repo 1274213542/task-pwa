@@ -6,6 +6,30 @@ Reference: supplied 1206 × 2622 iPhone recording
 
 Implementation viewport: 390 × 844 CSS px
 
+## Open-source implementation audit
+
+The following maintained MIT-licensed projects were inspected at source level before
+editing the app. No package or implementation was copied wholesale.
+
+- `motiondivision/motion`: `PanSession.ts` and `VisualElementDragControls.ts` — live
+  motion-value handoff, frame-throttled pointer history, velocity projection and
+  interruption from the current presentation value. The full drag engine is too broad
+  to transplant into one list row; the app keeps its existing `motion/react` spring.
+- `pmndrs/use-gesture`: `DragEngine.ts` and `dragConfigResolver.ts` — pointer capture,
+  pointer identity, directional intent and scroll arbitration. The additional gesture
+  engine dependency was unnecessary for the existing Pointer Events implementation.
+- `emilkowalski/vaul`: `src/index.tsx`, `helpers.ts` and `constants.ts` — once a gesture
+  wins axis arbitration it stays owned until release; direct `translate3d`, damped
+  overshoot and velocity/position release thresholds. Drawer body effects and keyboard
+  policy are intentionally not reused for a list row.
+- `sanddev-com/react-swipeable-list`: `SwipeableListItem.js` and its tests — explicit
+  fixed rear layer plus one moving foreground and tested direction locking. Its older
+  class/touch/mouse implementation and full-swipe trigger model were not adopted.
+- `Danilaa1/segmented-pill`: `src/react.js`, `src/index.js`, `src/style.css` and tests —
+  one persistent indicator, bounds-based placement, ResizeObserver, reduced-motion
+  support and cancellation of stale indicator animation. Its compact stock geometry
+  was replaced by the app's 48 px mobile token.
+
 ## Directly measured reference behavior
 
 - The gesture is progressive: Delete becomes visible first, Move second, More last.
@@ -25,10 +49,12 @@ Implementation viewport: 390 × 844 CSS px
 - Page title: 34/41, weight 700.
 - Navigation title: 17/22, weight 600.
 - Row title: 17/22, weight 600 on user content.
-- Secondary copy: 15/21, weight 500; time uses tabular numerals at weight 500.
+- Secondary copy: 15/21, weight 500; descriptions: 14/20, weight 500; time uses
+  tabular numerals at weight 500.
 - Shopping two-line row: 72 px.
 - Swipe action column: 72 px; open rail: 224 px.
-- Action pill: 72 × 46 px; icon: 22 px, 2 px round stroke.
+- Action button: 72 × 68 px; pill: 72 × 46 px; icon: 24 px with a 2.1 px round stroke;
+  label: 14/18 at weight 500; gap: 4 px.
 - Action group: 68 px high and centered inside the 72 px row.
 - Delete overscroll stretch: up to 1.46×, anchored to the right edge.
 - Top icon controls: 48 × 48 px, 22 px round-line icon.
@@ -36,6 +62,9 @@ Implementation viewport: 390 × 844 CSS px
 - Bottom dock: 334 × 66 px; shared selected surface remains one persistent pill.
 - Radius vocabulary: pill 999 px; small/medium/large cards 20/24/28 px; panels and
   sheets 32 px; circle 50%.
+- Shared segmented track: 48 px high with one persistent active pill, a 1 px track
+  border and exactly 4 px visual inset on every edge. Shopping and Task were measured
+  at 48/40 px outer/inner heights; Finance was normalized from 52/44 to the same scale.
 
 ## Gesture mapping
 
@@ -44,14 +73,17 @@ One live pointer distance is written to CSS custom properties without React rere
 - Delete progress: 0.04–0.34.
 - Secondary action progress: 0.28–0.66.
 - Leading action progress: 0.56–0.92.
-- Divider opacity: `1 - swipeProgress × 1.18`.
+- Divider opacity: `1 - swipeProgress × 1.12`; divider length scales down to 64%.
 - Delete overscroll: final 18 px rubber-band range mapped to horizontal pill stretch.
 
-At tested drag distances the divider opacity changed from 0.842 (30 px) to 0.568
-(82 px), 0.220 (148 px), then 0 at the full 224 px reveal. A 242 px drag stretched
-Delete from 72 px to 79.29 px while preserving its right coordinate. Reversing a
-142 px gesture back to 12 px closed to transform `none`, proving interruption does not
-leave a stale visual layer.
+The row now has two explicit layers: a fixed `ActionLayer` and one translated
+plain-DOM `ForegroundContent` layer. The foreground transform is written directly from
+the live motion value, so Reduced Motion cannot cause an animation wrapper to remove
+the essential gesture displacement. Both boundary dividers are pseudo-elements of that moving
+foreground, not the row root. At a 136 px drag (`progress = 0.6071`) both divider
+opacities measured `0.320048`; at the full 224 px reveal they measured `0`. A 242 px
+drag still stretches Delete while its right edge remains anchored. Reversing an open
+row closed to transform `none`, proving interruption does not leave a stale layer.
 
 ## Combined visual inspection
 
@@ -59,10 +91,12 @@ The 1206 × 2622 recording frame was downscaled to the same 390 px viewport widt
 placed beside the implementation. A 50% overlay and five-stage gesture contact sheet
 were also inspected:
 
-- `apple-voice-shopping-side-by-side.png`
-- `apple-voice-shopping-overlay.png`
-- `apple-swipe-final-sequence.png`
-- `final-route-radius-audit.png`
+- `apple-reference-final-side-by-side-390x844.png`
+- `apple-action-final-side-by-side.png`
+- `apple-action-final-overlay.png`
+- `shopping-swipe-mid-390x844.png`
+- `final-shopping-swipe-open-390x844.png`
+- `final-task-pill-390x844.png`
 
 The comparison confirmed that action controls now share the active row center, labels
 sit under their pills, the destructive action is visually dominant, row typography is
@@ -71,17 +105,26 @@ heavier, and the task toolbar/primary switches use complete pill geometry.
 ## Functional and stability checks
 
 - `npm run lint`: passed.
-- `npm test -- --run`: 22 files, 116 tests passed.
+- `npm test -- --run`: 23 files, 119 tests passed, including staged swipe progress.
 - `npm run build`: passed; PWA generated with 46 precache entries.
-- Direct gesture at five distances: passed.
-- Reverse/cancel gesture: passed; no open state or transform remained.
-- Reduced motion: direct manipulation remained available and the row settled without
-  the staged ornamental transition.
+- Slow direct gesture and staged action reveal: passed.
+- Two-row mutual exclusion: `[true,false]` then `[false,true]`.
+- Reverse gesture: `[false,false]`; no open state or transform remained.
+- Vertical 58 px gesture with only 4 px horizontal movement: both rows remained closed
+  at `--swipe-progress: 0.0000`.
+- Reduced motion: the foreground is now a plain DOM layer and the reduced branch writes
+  its target motion value synchronously rather than asking an animation wrapper to own
+  the transform. A browser session with the media query forced true retained the direct
+  96 px displacement (`matrix(..., -96, 0)`); physical WebKit remains a device check.
 - Shopping feedback no longer changes document flow: row top stayed exactly 282 px
   before and after opening the action rail. The existing undo callback is now displayed
   as a fixed pill above the bottom dock.
 - Six primary routes rendered at 390 × 844; icon controls, segmented controls, picker
   rows, inputs and dock surfaces use the shared circle/pill/card tokens.
+- Shopping's segmented indicator remained the same DOM node while moving to the other
+  segment. Shopping, Task, Plan and Finance measured a 4 px visual inset on every edge,
+  a 48/40 px outer/inner height pair, and `999px` outer/inner radii. No console error
+  was recorded.
 - Task, shopping and generic swipe callbacks were not changed.
 
 ## Remaining physical-device checks
@@ -94,3 +137,5 @@ heavier, and the task toolbar/primary switches use complete pill geometry.
   identical.
 - Content and page purpose differ from Voice Memos, so the full-page overlay is used to
   compare scale and visual hierarchy, not to claim identical content coordinates.
+
+final result: passed

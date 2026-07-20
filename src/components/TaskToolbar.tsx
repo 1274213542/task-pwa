@@ -53,7 +53,6 @@ export default function TaskToolbar({
             className="task-scope-indicator"
             count={2}
             index={scope === 'daily' ? 0 : 1}
-            inset={3}
             transition={MOTION.taskControl}
           />
           <button

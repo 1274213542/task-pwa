@@ -125,6 +125,7 @@ function ItemRow({
   const [confirming, setConfirming] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const swipeRootRef = useRef<HTMLLIElement | null>(null)
+  const swipeForegroundRef = useRef<HTMLDivElement | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const [menuPosition, setMenuPosition] = useState<CSSProperties | null>(null)
   const purchased = item.purchaseStatus === 'purchased'
@@ -142,6 +143,9 @@ function ItemRow({
 
   useMotionValueEvent(swipeX, 'change', (value) => {
     applySwipePresentation(swipeRootRef.current, value, SWIPE_REVEAL_PX)
+    if (swipeForegroundRef.current) {
+      swipeForegroundRef.current.style.transform = `translate3d(${value}px, 0, 0)`
+    }
   })
 
   function settleSwipe(target: number, velocity = 0) {
@@ -320,7 +324,8 @@ function ItemRow({
     >
       {!purchased && (
         <motion.div
-          className="shopping-swipe-actions"
+          className="shopping-swipe-actions shopping-swipe-action-layer apple-swipe-action-layer"
+          data-swipe-layer="actions"
           aria-label={`${item.name} 的滑动操作`}
           style={{ opacity: swipeActionOpacity }}
         >
@@ -332,7 +337,7 @@ function ItemRow({
             onClick={onMenuToggle}
           >
             <span className="apple-swipe-action__pill" aria-hidden="true">
-              <AppIcon name="more" size={20} />
+              <AppIcon name="more" size={24} />
             </span>
             <span className="apple-swipe-action__label">更多</span>
           </button>
@@ -344,7 +349,7 @@ function ItemRow({
             onClick={onMenuToggle}
           >
             <span className="apple-swipe-action__pill" aria-hidden="true">
-              <AppIcon name="folder" size={20} />
+              <AppIcon name="folder" size={24} />
             </span>
             <span className="apple-swipe-action__label">移动</span>
           </button>
@@ -356,15 +361,19 @@ function ItemRow({
             onClick={onDelete}
           >
             <span className="apple-swipe-action__pill" aria-hidden="true">
-              <AppIcon name="trash" size={20} />
+              <AppIcon name="trash" size={24} />
             </span>
             <span className="apple-swipe-action__label">删除</span>
           </button>
         </motion.div>
       )}
-      <motion.div
-        className="shopping-card relative flex min-w-0 items-center gap-3"
-        style={{ x: swipeX }}
+      <div
+        ref={(node) => {
+          swipeForegroundRef.current = node
+          if (node) node.style.transform = `translate3d(${swipeX.get()}px, 0, 0)`
+        }}
+        className="shopping-card shopping-swipe-foreground apple-swipe-foreground relative flex min-w-0 items-center gap-3"
+        data-swipe-layer="foreground"
         onPointerDown={onSwipePointerDown}
         onPointerMove={onSwipePointerMove}
         onPointerUp={(event) => finishSwipe(event)}
@@ -396,7 +405,7 @@ function ItemRow({
 
       <div className="min-w-0 flex-1">
         <p
-          className={`strike truncate text-[15px] ${
+          className={`shopping-item-title strike truncate text-[15px] ${
             purchased ? 'text-neutral-400' : ''
           }`}
           data-done={purchased}
@@ -410,7 +419,7 @@ function ItemRow({
           )}
         </p>
         {(item.note || locationLabel) && (
-          <p className="truncate text-[12px] text-neutral-400">
+          <p className="shopping-item-meta truncate text-[12px] text-neutral-400">
             {[locationLabel, item.note].filter(Boolean).join(' · ')}
           </p>
         )}
@@ -494,7 +503,7 @@ function ItemRow({
           )}
         </div>
       )}
-      </motion.div>
+      </div>
     </motion.li>
   )
 }

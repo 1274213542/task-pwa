@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react'
 import type { Transition } from 'motion/react'
 import { motion, useReducedMotion } from 'motion/react'
 import { MOTION } from '../lib/motion'
@@ -27,11 +28,13 @@ export default function SegmentedIndicator({
       animate={{ x: `${safeIndex * 100}%` }}
       transition={reduceMotion ? MOTION.reduced : transition}
       style={{
-        top: inset,
-        bottom: inset,
-        left: inset,
-        width: `calc((100% - ${inset * 2}px) / ${safeCount})`,
-      }}
+        '--segment-local-inset': `${inset}px`,
+        '--segment-position-inset': 'max(0px, calc(var(--segment-local-inset) - var(--segment-track-border-width, 0px)))',
+        top: 'var(--segment-position-inset)',
+        bottom: 'var(--segment-position-inset)',
+        left: 'var(--segment-position-inset)',
+        width: `calc((100% - (var(--segment-position-inset) * 2)) / ${safeCount})`,
+      } as CSSProperties}
     />
   )
 }

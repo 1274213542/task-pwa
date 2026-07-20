@@ -83,6 +83,7 @@ export default function TaskRow({
   const [confirming, setConfirming] = useState(false)
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
   const swipeRootRef = useRef<HTMLLIElement>(null)
+  const swipeForegroundRef = useRef<HTMLDivElement | null>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const [swipeOpen, setSwipeOpen] = useState(false)
@@ -105,6 +106,9 @@ export default function TaskRow({
 
   useMotionValueEvent(swipeX, 'change', (value) => {
     applySwipePresentation(swipeRootRef.current, value, TASK_SWIPE_REVEAL_PX)
+    if (swipeForegroundRef.current) {
+      swipeForegroundRef.current.style.transform = `translate3d(${value}px, 0, 0)`
+    }
   })
 
   useEffect(() => () => {
@@ -367,7 +371,8 @@ export default function TaskRow({
       className="task-card-shell"
     >
       <motion.div
-        className="task-swipe-actions"
+        className="task-swipe-actions apple-swipe-action-layer"
+        data-swipe-layer="actions"
         aria-label={`${title} 的滑动操作`}
         style={{ opacity: swipeActionOpacity }}
       >
@@ -382,7 +387,7 @@ export default function TaskRow({
           }}
         >
           <span className="apple-swipe-action__pill" aria-hidden="true">
-            <AppIcon name="more" size={20} />
+            <AppIcon name="more" size={24} />
           </span>
           <span className="apple-swipe-action__label">更多</span>
         </button>
@@ -398,7 +403,7 @@ export default function TaskRow({
           }}
         >
           <span className="apple-swipe-action__pill" aria-hidden="true">
-            <AppIcon name="edit" size={20} />
+            <AppIcon name="edit" size={24} />
           </span>
           <span className="apple-swipe-action__label">编辑</span>
         </button>
@@ -413,14 +418,18 @@ export default function TaskRow({
           }}
         >
           <span className="apple-swipe-action__pill" aria-hidden="true">
-            <AppIcon name="trash" size={20} />
+            <AppIcon name="trash" size={24} />
           </span>
           <span className="apple-swipe-action__label">删除</span>
         </button>
       </motion.div>
-      <motion.div
-        className="task-card-swipe-content"
-        style={{ x: swipeX }}
+      <div
+        ref={(node) => {
+          swipeForegroundRef.current = node
+          if (node) node.style.transform = `translate3d(${swipeX.get()}px, 0, 0)`
+        }}
+        className="task-card-swipe-content apple-swipe-foreground"
+        data-swipe-layer="foreground"
         onPointerDown={onSwipePointerDown}
         onPointerMove={onSwipePointerMove}
         onPointerUp={(event) => finishSwipe(event)}
@@ -599,7 +608,7 @@ export default function TaskRow({
         document.body,
       )}
       </div>
-      </motion.div>
+      </div>
     </motion.li>
   )
 }

@@ -25,6 +25,7 @@
   --color-text-primary: var(--ui-ink);
   --color-text-secondary: var(--ui-muted);
   --color-text-tertiary: var(--ui-faint);
+  --color-text-disabled: color-mix(in srgb, var(--ui-ink) 34%, var(--ui-bg));
   --color-border-subtle: var(--ui-line);
   --color-divider: color-mix(in srgb, var(--ui-ink) 8%, transparent);
   --color-control-selected: color-mix(in srgb, var(--ui-soft) 86%, var(--ui-surface));
@@ -32,6 +33,7 @@
   --color-icon-primary: #1c1c1e;
   --color-icon-secondary: #6e6e73;
   --color-icon-inactive: #8e8e93;
+  --color-icon-disabled: #aeaeb2;
   --color-action-neutral: #c7c7cc;
   --color-action-accent: #0a84ff;
   --color-action-danger: #ff3b30;
@@ -50,6 +52,7 @@
   --radius-card-small: 20px;
   --radius-card-medium: 24px;
   --radius-card-large: 28px;
+  --radius-card: var(--radius-card-large);
   --radius-panel: 32px;
   --radius-sheet: 32px;
   --radius-pill: 999px;
@@ -84,7 +87,9 @@
   --icon-button-compact: 44px;
   --icon-button-size-compact: var(--icon-button-compact);
   --control-height: 44px;
-  --segmented-control-height: 48px;
+  --segment-height: 48px;
+  --segment-inset: 4px;
+  --segmented-control-height: var(--segment-height);
   --grouped-row-height: 60px;
   --grouped-row-height-two-line: 72px;
   --bottom-tabbar-height: 68px;
@@ -193,13 +198,19 @@
   --ds-quick-sheet-actionbar: 68px;
   --ds-entry-tab-width: 92px;
 
+  /* Swipe geometry stays independent: increasing icon weight never inflates
+     the action rail or changes the business reveal distance. */
+  --action-button-width: 72px;
+  --action-button-height: 68px;
+  --action-pill-height: 46px;
+  --action-icon-size: 24px;
+  --action-button-gap: 4px;
+  --action-label-size: 14px;
+
   /* Compatibility aliases consumed by existing components. */
   --ui-radius-panel: var(--ds-radius-panel);
   --ui-radius-card: var(--ds-radius-card);
   --ui-radius-control: var(--ds-radius-control);
-  --radius-panel: var(--ds-radius-panel);
-  --radius-card: var(--ds-radius-card);
-  --radius-control: var(--ds-radius-control);
   --ui-shadow: var(--ds-shadow-card);
   --ui-shadow-float: var(--ds-shadow-float);
   --gutter-mobile: var(--ds-gutter-mobile);
@@ -1593,7 +1604,7 @@ select:focus {
   z-index: 0;
   display: block;
   border: 1px solid var(--color-border-subtle);
-  border-radius: calc(var(--radius-control) - 2px);
+  border-radius: var(--radius-pill);
   background: var(--color-control-selected);
   box-shadow: 0 1px 3px rgb(20 21 20 / 0.04);
   pointer-events: none;
@@ -9143,9 +9154,9 @@ select:focus {
   --apple-description-leading: 20px;
   --apple-tab-label-size: 10px;
   --apple-tab-label-leading: 13px;
-  --apple-swipe-action-width: 72px;
-  --apple-swipe-pill-height: 46px;
-  --apple-swipe-action-height: 68px;
+  --apple-swipe-action-width: var(--action-button-width);
+  --apple-swipe-pill-height: var(--action-pill-height);
+  --apple-swipe-action-height: var(--action-button-height);
   --apple-swipe-reveal: 224px;
 }
 
@@ -9450,9 +9461,26 @@ html[lang='zh-CN'] body {
   .task-swipe-actions,
   .page-shopping .shopping-swipe-actions {
     width: var(--apple-swipe-reveal) !important;
-    gap: var(--space-1) !important;
+    gap: var(--action-button-gap) !important;
     padding-right: 0 !important;
     transform: none !important;
+  }
+
+  .apple-swipe-action-layer,
+  .task-swipe-actions,
+  .page-shopping .shopping-swipe-actions {
+    top: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    left: auto !important;
+    align-items: center !important;
+    align-content: center !important;
+    justify-content: flex-end !important;
+    overflow: visible !important;
+  }
+
+  .page-shopping .shopping-swipe-actions {
+    grid-template-columns: repeat(3, var(--action-button-width)) !important;
   }
 
   .apple-swipe-action,
@@ -9465,8 +9493,8 @@ html[lang='zh-CN'] body {
     min-height: var(--apple-swipe-action-height) !important;
     flex-basis: var(--apple-swipe-action-width) !important;
     grid-template-rows: var(--apple-swipe-pill-height) 18px !important;
-    gap: 4px !important;
-    font-size: 14px !important;
+    gap: var(--action-button-gap) !important;
+    font-size: var(--action-label-size) !important;
     line-height: 18px !important;
     font-weight: 500 !important;
     transform: none;
@@ -9505,7 +9533,7 @@ html[lang='zh-CN'] body {
 
   .apple-swipe-action__label {
     color: var(--color-icon-secondary) !important;
-    font-size: 14px !important;
+    font-size: var(--action-label-size) !important;
     line-height: 18px !important;
     font-weight: 500 !important;
   }
@@ -9524,13 +9552,54 @@ html[lang='zh-CN'] body {
   }
 
   .apple-swipe-action__pill svg {
-    width: 22px !important;
-    height: 22px !important;
-    stroke-width: 2 !important;
+    width: var(--action-icon-size) !important;
+    height: var(--action-icon-size) !important;
+    stroke-width: 2.1 !important;
   }
 
-  /* Each swiped row owns both boundary lines, so the line fade is continuous
-     even when the neighboring row never moves. */
+  /* Separators belong to the moving foreground. They therefore leave with
+     the content instead of remaining as a decorative line over the fixed
+     action rail. One live --swipe-progress value fades and shortens them. */
+  .apple-swipe-foreground,
+  .task-card-swipe-content,
+  .page-shopping .shopping-swipe-foreground {
+    position: relative;
+  }
+
+  .apple-swipe-foreground::before,
+  .apple-swipe-foreground::after,
+  .task-card-list .task-card-swipe-content::before,
+  .task-card-list .task-card-swipe-content::after,
+  .page-shopping .shopping-swipe-foreground::before,
+  .page-shopping .shopping-swipe-foreground::after {
+    position: absolute;
+    z-index: 3;
+    right: var(--space-4);
+    left: 60px;
+    height: 1px;
+    background: color-mix(in srgb, var(--color-icon-secondary) 22%, transparent);
+    content: '';
+    opacity: max(0, calc(1 - var(--swipe-progress) * 1.12));
+    pointer-events: none;
+    transform: scaleX(calc(1 - var(--swipe-progress) * 0.36));
+    transform-origin: left center;
+    will-change: transform, opacity;
+  }
+
+  .apple-swipe-foreground::before,
+  .task-card-list .task-card-swipe-content::before,
+  .page-shopping .shopping-swipe-foreground::before {
+    top: 0;
+  }
+
+  .apple-swipe-foreground::after,
+  .task-card-list .task-card-swipe-content::after,
+  .page-shopping .shopping-swipe-foreground::after {
+    bottom: 0;
+  }
+
+  /* Remove every legacy row-level separator. A stationary pseudo-element on
+     the root was the source of the line that remained above revealed actions. */
   .page-shopping .shopping-swipe-row::before,
   .page-shopping .shopping-swipe-row::after,
   .task-card-list .task-card-shell::before,
@@ -9539,39 +9608,7 @@ html[lang='zh-CN'] body {
   .finance-shell .finance-transaction-list .finance-transaction-swipe-row::after,
   .page-browse .category-swipe-row::before,
   .page-browse .category-swipe-row::after {
-    position: absolute;
-    z-index: 3;
-    right: var(--space-4);
-    left: 60px;
-    height: 1px;
-    background: color-mix(in srgb, var(--color-icon-secondary) 22%, transparent);
-    content: '';
-    opacity: max(0, calc(1 - var(--swipe-progress) * 1.18));
-    pointer-events: none;
-    transform: scaleX(calc(1 - var(--swipe-progress) * 0.16));
-    transform-origin: right center;
-    will-change: transform, opacity;
-  }
-
-  .page-shopping .shopping-swipe-row::before,
-  .task-card-list .task-card-shell::before,
-  .finance-shell .finance-transaction-list .finance-transaction-swipe-row::before,
-  .page-browse .category-swipe-row::before {
-    top: 0;
-  }
-
-  .page-shopping .shopping-swipe-row::after,
-  .task-card-list .task-card-shell::after,
-  .finance-shell .finance-transaction-list .finance-transaction-swipe-row::after,
-  .page-browse .category-swipe-row::after {
-    bottom: 0;
-  }
-
-  .page-shopping .shopping-swipe-row + .shopping-swipe-row::before,
-  .page-browse .category-swipe-row + .category-swipe-row::before,
-  .finance-shell .finance-transaction-list .finance-transaction-swipe-row +
-    .finance-transaction-swipe-row::before {
-    opacity: max(0, calc(1 - var(--swipe-progress) * 1.18));
+    content: none !important;
   }
 
   /* Legacy row borders would otherwise remain visible beneath the two live
@@ -9618,6 +9655,64 @@ html[lang='zh-CN'] body {
   .shopping-composer-row input,
   .shopping-composer-row button {
     border-radius: var(--radius-pill) !important;
+  }
+
+  [data-shared-indicator] {
+    --segment-local-inset: var(--segment-inset);
+    --segment-track-border-width: 1px;
+    box-sizing: border-box;
+    border-width: var(--segment-track-border-width) !important;
+    border-style: solid !important;
+    border-color: var(--color-border-subtle) !important;
+    border-radius: var(--radius-pill) !important;
+  }
+
+  [data-shared-indicator] > .shared-segment-indicator {
+    top: var(--segment-position-inset) !important;
+    bottom: var(--segment-position-inset) !important;
+    left: var(--segment-position-inset) !important;
+    height: auto !important;
+    border-radius: var(--radius-pill) !important;
+  }
+
+  .segmented-control,
+  .plan-mobile-mode-switch,
+  .mobile-shopping-view-switch,
+  .finance-mode-switch,
+  .finance-inline-switch,
+  .finance-ledger-tabs,
+  .finance-planning-sections,
+  .task-scope-control {
+    height: var(--segment-height) !important;
+    min-height: var(--segment-height) !important;
+    max-height: var(--segment-height) !important;
+    padding: var(--segment-inset) !important;
+  }
+
+  .finance-shell > .finance-ledger-tabs {
+    height: var(--segment-height) !important;
+    min-height: var(--segment-height) !important;
+    max-height: var(--segment-height) !important;
+  }
+
+  .finance-shell > .finance-ledger-tabs > button {
+    height: calc(var(--segment-height) - (var(--segment-inset) * 2)) !important;
+    min-height: calc(var(--segment-height) - (var(--segment-inset) * 2)) !important;
+  }
+
+  /* The legacy Finance selector carried higher specificity than the shared
+     indicator and left a 44px surface inside the normalized 48px track. Keep
+     the one persistent pill exactly four visual pixels from every edge,
+     accounting for the track border's containing block. */
+  .finance-shell > .finance-ledger-tabs > .shared-segment-indicator.finance-ledger-tab-surface {
+    top: calc(var(--segment-inset) - var(--segment-track-border-width)) !important;
+    right: auto !important;
+    bottom: calc(var(--segment-inset) - var(--segment-track-border-width)) !important;
+    left: calc(var(--segment-inset) - var(--segment-track-border-width)) !important;
+    width: calc(
+      (100% - ((var(--segment-inset) - var(--segment-track-border-width)) * 2)) / 5
+    ) !important;
+    height: auto !important;
   }
 
   .task-toolbar-action,
@@ -9686,6 +9781,31 @@ html[lang='zh-CN'] body {
   .finance-transaction-row > div > span {
     color: var(--color-icon-secondary) !important;
     font-weight: 500 !important;
+  }
+
+  .shopping-item-meta,
+  .finance-transaction-row > div > span,
+  .task-card-meta,
+  .task-card-subtitle,
+  .calendar-item-meta,
+  .task-empty-state > span,
+  .shopping-empty-state > span,
+  .calendar-empty-day > span,
+  .calendar-empty-agenda > span,
+  .finance-empty,
+  .empty-state p,
+  .mobile-tab-label {
+    color: var(--color-text-secondary) !important;
+    font-weight: var(--font-weight-medium) !important;
+  }
+
+  .task-empty-state > span,
+  .shopping-empty-state > span,
+  .calendar-empty-day > span,
+  .calendar-empty-agenda > span,
+  .finance-empty {
+    font-size: var(--apple-description-size) !important;
+    line-height: var(--apple-description-leading) !important;
   }
 
   .finance-transaction-row > b,
