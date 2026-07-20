@@ -733,7 +733,9 @@ export default function Plan() {
         onCommit={(targetDate, targetTime) => rescheduleItem(item, targetDate, targetTime)}
       >
         <div className="mobile-timeline-row" data-unscheduled={!time || undefined}>
-          <time>{item.kind === 'event' && item.event.allDay ? '全天' : time ?? '未排定'}</time>
+          <time aria-label={item.kind === 'event' && item.event.allDay ? '全天' : time ? `开始时间 ${time}` : '未排定时间'}>
+            {item.kind === 'event' && item.event.allDay ? '全天' : time ?? ''}
+          </time>
           <SwipeActionRow
             as="div"
             id={`timeline-swipe:${rowKey}`}
@@ -766,7 +768,7 @@ export default function Plan() {
             ]}
           >
             <strong>{itemTitle(item)}</strong>
-            <span>{time ? `${itemTimeLabel(item)}${eventEndTime(item) ? '' : ' 开始'}` : item.kind === 'event' ? '全天计划' : '暂不安排具体时间'}</span>
+            {time && <span>{`${itemTimeLabel(item)}${eventEndTime(item) ? '' : ' 开始'}`}</span>}
             <MarkerIcon symbol={visual.marker} color={visual.color} size={17} />
           </SwipeActionRow>
         </div>
@@ -901,42 +903,44 @@ export default function Plan() {
 
   return (
     <section className="app-page page-plan" data-mode={mode}>
-      <MobilePageHeader
-        title="计划"
-        eyebrow={dateLabel(selected, { month: 'long', day: 'numeric' })}
-        onPrimary={() => {
-          if (mode === 'agenda' && composerOpen) {
-            setComposerOpen(false)
-            return
-          }
-          switchMode('agenda')
-          setComposerOpen(true)
-        }}
-        primaryLabel={mode === 'agenda' && composerOpen ? '收起新增区域' : '新增安排'}
-        primaryIcon={mode === 'agenda' && composerOpen ? 'chevronUp' : 'plus'}
-        showSecondary={false}
-      />
-      <div className="plan-mobile-mode-switch" data-shared-indicator role="tablist" aria-label="视图模式">
-        <SegmentedIndicator
-          className="plan-mode-indicator"
-          count={3}
-          index={MODE_ORDER[mode]}
+      <div className="page-top-chrome page-top-chrome-plan">
+        <MobilePageHeader
+          title="计划"
+          eyebrow={dateLabel(selected, { month: 'long', day: 'numeric' })}
+          onPrimary={() => {
+            if (mode === 'agenda' && composerOpen) {
+              setComposerOpen(false)
+              return
+            }
+            switchMode('agenda')
+            setComposerOpen(true)
+          }}
+          primaryLabel={mode === 'agenda' && composerOpen ? '收起新增区域' : '新增安排'}
+          primaryIcon={mode === 'agenda' && composerOpen ? 'chevronUp' : 'plus'}
+          showSecondary={false}
         />
-        {([
-          ['month', 'month', '月历'],
-          ['week', 'week', '时间'],
-          ['agenda', 'list', '日程'],
-        ] as const).map(([value, icon, label]) => (
-          <button
-            key={value}
-            role="tab"
-            aria-selected={mode === value}
-            onClick={() => switchMode(value)}
-          >
-            <AppIcon name={icon} size={18} />
-            <span>{label}</span>
-          </button>
-        ))}
+        <div className="plan-mobile-mode-switch" data-shared-indicator role="tablist" aria-label="视图模式">
+          <SegmentedIndicator
+            className="plan-mode-indicator"
+            count={3}
+            index={MODE_ORDER[mode]}
+          />
+          {([
+            ['month', 'month', '月历'],
+            ['week', 'week', '时间'],
+            ['agenda', 'list', '日程'],
+          ] as const).map(([value, icon, label]) => (
+            <button
+              key={value}
+              role="tab"
+              aria-selected={mode === value}
+              onClick={() => switchMode(value)}
+            >
+              <AppIcon name={icon} size={18} />
+              <span>{label}</span>
+            </button>
+          ))}
+        </div>
       </div>
       <PageHeader
         title="计划"

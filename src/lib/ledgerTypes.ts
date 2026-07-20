@@ -21,7 +21,17 @@ export interface Account {
   /** 用户明确确认过归属后，自动迁移不得再按账户名称覆盖。 */
   ownershipConfirmedAt?: string
   subtype: AccountSubtype
+  /**
+   * Primary/default currency. Kept for backwards compatibility and for
+   * accounts whose balance is denominated in a single currency.
+   */
   currency: CurrencyCode
+  /**
+   * Payment sources that do not carry a personal balance (for example an
+   * external payer's card) may accept transactions in more than one
+   * currency. Every transaction still stores its own original currency.
+   */
+  supportedCurrencies?: CurrencyCode[]
   /** 资产账户为正余额；信用账户为正的待还金额。 */
   openingBalanceMinor: number
   includeInNetWorth: boolean

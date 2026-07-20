@@ -15,7 +15,9 @@ import { cachedRate, convertWithCachedRate, refreshExchangeRate, saveManualExcha
 import { MOTION } from '../lib/motion'
 import {
   calculateAccountBalances,
+  accountCurrencies,
   accountOwnership,
+  accountSupportsCurrency,
   convertMinor,
   findRate,
   fromMinor,
@@ -647,6 +649,11 @@ function FinanceOverview({
             <span>本人自付 <PrivateAmount>{formatMoney(summary.actualPaidMinor, currency)}</PrivateAmount></span>
             <span>外部代付 <PrivateAmount>{formatMoney(summary.externalPaidMinor, currency)}</PrivateAmount></span>
           </small>
+          {summary.missingRates.length > 0 && (
+            <p className="finance-missing-rate-note">
+              缺少 {summary.missingRates.join('、')} 汇率；原币种流水已保留，暂未计入汇总。
+            </p>
+          )}
         </article>
       </div>
 
@@ -674,8 +681,10 @@ function FinanceOverview({
             {accounts.slice(0, 6).map((account) => (
               <li key={account.id}>
                 <span className={`finance-account-mark is-${account.kind}`} aria-hidden />
-                <div><strong>{account.name}</strong><span>{ACCOUNT_SUBTYPE_LABEL[account.subtype]}</span></div>
-                <b><PrivateAmount>{formatMoney(balances.get(account.id) ?? 0, account.currency)}</PrivateAmount></b>
+                <div><strong>{account.name}</strong><span>{accountOwnership(account) === 'external' ? `外部代付 · ${accountCurrencies(account).join(' / ')}` : ACCOUNT_SUBTYPE_LABEL[account.subtype]}</span></div>
+                <b>{accountOwnership(account) === 'external'
+                  ? '不计入资产'
+                  : <PrivateAmount>{formatMoney(balances.get(account.id) ?? 0, account.currency)}</PrivateAmount>}</b>
               </li>
             ))}
           </ul>
@@ -709,6 +718,7 @@ function AccountsView({
   const [ownership, setOwnership] = useState<NonNullable<Account['ownership']>>('self')
   const [subtype, setSubtype] = useState<Account['subtype']>('bank')
   const [currency, setCurrency] = useState<CurrencyCode>('JPY')
+  const [supportedCurrencies, setSupportedCurrencies] = useState<CurrencyCode[]>(['JPY'])
   const [opening, setOpening] = useState('0')
   const [includeNetWorth, setIncludeNetWorth] = useState(true)
   const [includeSpending, setIncludeSpending] = useState(true)
@@ -724,6 +734,7 @@ function AccountsView({
     setOwnership(accountOwnership(editing))
     setSubtype(editing.subtype)
     setCurrency(editing.currency)
+    setSupportedCurrencies(accountCurrencies(editing))
     setOpening(String(fromMinor(editing.openingBalanceMinor, editing.currency)))
     setIncludeNetWorth(editing.includeInNetWorth)
     setIncludeSpending(editing.includeInSpending)
@@ -740,6 +751,7 @@ function AccountsView({
     setOwnership('self')
     setSubtype('bank')
     setCurrency('JPY')
+    setSupportedCurrencies(['JPY'])
     setOpening('0')
     setIncludeNetWorth(true)
     setIncludeSpending(true)
@@ -760,6 +772,7 @@ function AccountsView({
         ownership,
         subtype,
         currency,
+        supportedCurrencies: ownership === 'external' ? supportedCurrencies : [currency],
         openingBalanceMinor: toMinor(Number(opening) || 0, currency),
         includeInNetWorth: ownership === 'external' ? false : includeNetWorth,
         includeInSpending: includeSpending,
@@ -789,7 +802,22 @@ function AccountsView({
           <label>账户归属<select value={ownership} onChange={(event) => { const next = event.target.value as NonNullable<Account['ownership']>; setOwnership(next); if (next === 'external') setIncludeNetWorth(false) }}><option value="self">本人账户</option><option value="external">外部账户</option></select></label>
           <label>账户大类<select value={kind === 'external' ? 'asset' : kind} onChange={(event) => { const next = event.target.value as Account['kind']; setKind(next); setSubtype(accountDefaultSubtype(next)) }}><option value="asset">资产 / 储值账户</option><option value="credit">信用卡账户</option></select></label>
           <label>账户类型<select value={subtype === 'external_payer' || subtype === 'unspecified' ? (kind === 'credit' ? 'credit_card' : 'wallet') : subtype} onChange={(event) => setSubtype(event.target.value as Account['subtype'])}>{kind === 'asset' && <><option value="bank">银行账户</option><option value="cash">现金</option><option value="wallet">电子钱包 / 代付账户</option><option value="stored_value">储值卡 / 交通卡</option></>}{kind === 'credit' && <option value="credit_card">信用卡</option>}</select></label>
-          <label>原始币种<select value={currency} onChange={(event) => setCurrency(event.target.value as CurrencyCode)}><option value="JPY">JPY 日元</option><option value="CNY">CNY 人民币</option></select></label>
+          <label>默认币种<select value={currency} onChange={(event) => { const next = event.target.value as CurrencyCode; setCurrency(next); setSupportedCurrencies((current) => [...new Set([next, ...current])]) }}><option value="JPY">JPY 日元</option><option value="CNY">CNY 人民币</option></select></label>
+          {ownership === 'external' && <fieldset className="finance-account-currency-options">
+            <legend>可用于记账的币种</legend>
+            {(['JPY', 'CNY'] as CurrencyCode[]).map((code) => <label key={code}>
+              <input
+                type="checkbox"
+                checked={supportedCurrencies.includes(code)}
+                disabled={code === currency}
+                onChange={(event) => setSupportedCurrencies((current) => event.target.checked
+                  ? [...new Set([...current, code])]
+                  : current.filter((item) => item !== code))}
+              />
+              {code === 'JPY' ? 'JPY 日元' : 'CNY 人民币'}
+            </label>)}
+            <small>外部代付不维护个人余额；每笔流水仍保留自己的原始币种。</small>
+          </fieldset>}
           <label>初始{kind === 'credit' ? '待还金额' : '余额'}<input inputMode="decimal" value={opening} onChange={(event) => setOpening(event.target.value)} /></label>
           {kind === 'credit' && <><label>账单日<input inputMode="numeric" value={billingCycleDay} onChange={(event) => setBillingCycleDay(event.target.value)} placeholder="例如 15" /></label><label>预计扣款日<input inputMode="numeric" value={paymentDueDay} onChange={(event) => setPaymentDueDay(event.target.value)} placeholder="例如 27" /></label>{ownership === 'self' && <label>默认还款账户<select value={defaultPaymentAccountId} onChange={(event) => setDefaultPaymentAccountId(event.target.value)}><option value="">稍后选择</option>{accounts.filter((account) => account.kind === 'asset' && accountOwnership(account) === 'self' && !account.isArchived && account.currency === currency).map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>}</>}
           <div className="finance-account-checks">
@@ -813,15 +841,23 @@ function AccountsView({
                   <h3>{account.name}</h3>
                 </div>
               </div>
-              <strong><PrivateAmount>{formatMoney(balances.get(account.id) ?? 0, account.currency)}</PrivateAmount></strong>
+              {accountOwnership(account) === 'external'
+                ? <strong className="finance-account-external-label">外部代付</strong>
+                : <strong><PrivateAmount>{formatMoney(balances.get(account.id) ?? 0, account.currency)}</PrivateAmount></strong>}
             </header>
-            <small>{account.isArchived ? '已停用 · 历史仍保留' : accountOwnership(account) === 'external' ? '外部资金 · 不影响个人资产或负债' : account.kind === 'credit' ? <>本期 <PrivateAmount>{formatMoney(monthPurchases, account.currency)}</PrivateAmount> · 已还 <PrivateAmount>{formatMoney(monthPayments, account.currency)}</PrivateAmount>{account.paymentDueDay ? ` · ${account.paymentDueDay} 日扣款` : ''}</> : '当前余额'}</small>
-            <footer className="finance-account-card-actions">
-              <button aria-label="上移账户" onClick={() => void moveAccount(account.id, -1)}>上移</button>
-              <button aria-label="下移账户" onClick={() => void moveAccount(account.id, 1)}>下移</button>
-              <button onClick={() => setEditingId(account.id)}>编辑</button>
-              <button onClick={() => void setAccountArchived(account.id, !account.isArchived)}>{account.isArchived ? '启用' : '停用'}</button>
-            </footer>
+            <div className="finance-account-supporting">
+              <small>{account.isArchived ? '已停用 · 历史仍保留' : accountOwnership(account) === 'external' ? '不影响个人资产或负债' : account.kind === 'credit' ? <>本期 <PrivateAmount>{formatMoney(monthPurchases, account.currency)}</PrivateAmount> · 已还 <PrivateAmount>{formatMoney(monthPayments, account.currency)}</PrivateAmount>{account.paymentDueDay ? ` · ${account.paymentDueDay} 日扣款` : ''}</> : '当前余额'}</small>
+              <span className="finance-account-currencies">{accountCurrencies(account).join(' / ')}</span>
+            </div>
+            <details className="finance-account-actions-menu">
+              <summary><AppIcon name="more" size={18} />管理账户</summary>
+              <div>
+                <button aria-label="上移账户" onClick={() => void moveAccount(account.id, -1)}>上移</button>
+                <button aria-label="下移账户" onClick={() => void moveAccount(account.id, 1)}>下移</button>
+                <button onClick={() => setEditingId(account.id)}>编辑</button>
+                <button onClick={() => void setAccountArchived(account.id, !account.isArchived)}>{account.isArchived ? '启用' : '停用'}</button>
+              </div>
+            </details>
           </article>
         })}
       </div>
@@ -918,9 +954,18 @@ function TransactionList({
           ]}
         >
           <span className={`finance-transaction-icon is-${transaction.type}`}><AppIcon name={positive ? 'plus' : transaction.type.includes('transfer') || transaction.type === 'topup' || transaction.type === 'credit_payment' ? 'sync' : 'receipt'} size={18} /></span>
-          <div><strong>{transaction.merchantNameSnapshot || transaction.note || TRANSACTION_LABEL[transaction.type]}</strong><span>{transaction.localDate} · {account?.name ?? '未知账户'} · {TRANSACTION_LABEL[transaction.type]} {external && <em>外部代付</em>}</span></div>
-          <b className={positive ? 'is-positive' : ''}><PrivateAmount>{`${positive ? '+' : transaction.type === 'external_payment' ? '' : '−'}${formatMoney(transaction.amountMinor, transaction.currency)}`}</PrivateAmount></b>
-          {(onEdit || onDelete) && <span className="finance-row-actions">{onEdit && ['expense', 'credit_purchase', 'external_payment'].includes(transaction.type) && <button aria-label="编辑流水" data-no-row-swipe onClick={() => onEdit(transaction)}><AppIcon name="edit" size={17} /></button>}{onDelete && <button aria-label="删除流水" data-no-row-swipe onClick={() => onDelete(transaction)}><AppIcon name="trash" size={17} /></button>}</span>}
+          <div>
+            <strong>{transaction.merchantNameSnapshot || transaction.note || TRANSACTION_LABEL[transaction.type]}</strong>
+            <span>
+              {transaction.localDate} · {external
+                ? `外部代付 · ${account?.name ?? '未知支付来源'}`
+                : `${account?.name ?? '未知账户'} · ${TRANSACTION_LABEL[transaction.type]}`}
+            </span>
+          </div>
+          <b className={positive ? 'is-positive' : ''}>
+            <small className="finance-transaction-currency">{transaction.currency}</small>
+            <PrivateAmount>{`${positive ? '+' : transaction.type === 'external_payment' ? '' : '−'}${formatMoney(transaction.amountMinor, transaction.currency)}`}</PrivateAmount>
+          </b>
         </SwipeActionRow>
       })}</ul> : <div className="finance-empty-state"><AppIcon name="receipt" size={24} /><span>还没有流水</span></div>}
     </section>
@@ -1549,6 +1594,9 @@ function FinanceEntrySheet({
   const [amount, setAmount] = useState(editing ? String(fromMinor(editing.amountMinor, editing.currency)) : '')
   const [date, setDate] = useState(editing?.localDate ?? todayISO())
   const [accountId, setAccountId] = useState(initialEntry.accountId)
+  const [entryCurrency, setEntryCurrency] = useState<CurrencyCode>(
+    editing?.currency ?? accounts.find((account) => account.id === initialEntry.accountId)?.currency ?? 'JPY',
+  )
   const [destinationId, setDestinationId] = useState('')
   const [destinationAmount, setDestinationAmount] = useState('')
   const [fee, setFee] = useState('')
@@ -1614,7 +1662,11 @@ function FinanceEntrySheet({
     ? selectedRefundOrigin?.accountId ?? ''
     : accountId
   const source = accounts.find((account) => account.id === effectiveAccountId)
-  const currency = source?.currency ?? selectedRefundOrigin?.currency ?? 'JPY'
+  const currency = kind === 'refund'
+    ? selectedRefundOrigin?.currency ?? 'JPY'
+    : kind === 'expense' && source && accountSupportsCurrency(source, entryCurrency)
+      ? entryCurrency
+      : source?.currency ?? 'JPY'
   const destinationOptions = accounts.filter((account) => {
     if (account.isArchived) return false
     if (account.id === accountId) return false
@@ -1629,7 +1681,7 @@ function FinanceEntrySheet({
     : undefined
   const refundAccountOptions = accounts.filter((account) =>
     !account.isArchived &&
-    account.currency === currency &&
+    accountSupportsCurrency(account, currency) &&
     (refundFundingParty === 'external'
       ? accountOwnership(account) === 'external'
       : accountOwnership(account) === 'self'),
@@ -1638,6 +1690,7 @@ function FinanceEntrySheet({
     amount || destinationAmount || fee || merchant.trim() || note.trim() || linkedTransactionId ||
     date !== (editing?.localDate ?? todayISO()) ||
     accountId !== initialEntry.accountId ||
+    entryCurrency !== (editing?.currency ?? accounts.find((account) => account.id === initialEntry.accountId)?.currency ?? 'JPY') ||
     categoryId !== initialEntry.categoryId ||
     JSON.stringify(fundAllocationDrafts) !== JSON.stringify(initialEntry.fundAllocations)
   )
@@ -1711,6 +1764,11 @@ function FinanceEntrySheet({
     if (kind === 'refund' || sourceOptions.some((account) => account.id === accountId)) return
     setAccountId(sourceOptions[0]?.id ?? '')
   }, [accountId, kind, sourceOptions])
+
+  useEffect(() => {
+    if (!source || kind !== 'expense') return
+    if (!accountSupportsCurrency(source, entryCurrency)) setEntryCurrency(source.currency)
+  }, [entryCurrency, kind, source])
 
   useEffect(() => {
     if (kind !== 'expense' || accountOwnership(source) === 'external') return
@@ -1920,7 +1978,7 @@ function FinanceEntrySheet({
             ).map((account) => ({
               id: account.id,
               title: account.name,
-              subtitle: `${ACCOUNT_SUBTYPE_LABEL[account.subtype]} · ${account.currency}${accountOwnership(account) === 'external' ? ' · 外部代付' : ''}`,
+              subtitle: `${ACCOUNT_SUBTYPE_LABEL[account.subtype]} · ${accountCurrencies(account).join(' / ')}${accountOwnership(account) === 'external' ? ' · 外部代付' : ''}`,
             }))
   const pickerTitle = !pickerTarget
     ? ''
@@ -1950,7 +2008,11 @@ function FinanceEntrySheet({
   function selectPickerValue(id: string) {
     if (!pickerTarget) return
     if (pickerTarget.kind === 'category') selectCategory(id)
-    else if (pickerTarget.kind === 'source') setAccountId(id)
+    else if (pickerTarget.kind === 'source') {
+      setAccountId(id)
+      const account = accounts.find((item) => item.id === id)
+      if (account && !accountSupportsCurrency(account, entryCurrency)) setEntryCurrency(account.currency)
+    }
     else if (pickerTarget.kind === 'destination' || pickerTarget.kind === 'refund-account') setDestinationId(id)
     else if (pickerTarget.kind === 'fund-pool') {
       setAllocationsTouched(true)
@@ -2032,6 +2094,22 @@ function FinanceEntrySheet({
 
                 {kind === 'expense' && (
                   <>
+                    {source && accountCurrencies(source).length > 1 && (
+                      <label className="finance-entry-currency-field">
+                        本次记账币种
+                        <select
+                          value={currency}
+                          onChange={(event) => {
+                            setEntryCurrency(event.target.value as CurrencyCode)
+                            setFundAllocationDrafts([])
+                            setAllocationsTouched(false)
+                          }}
+                        >
+                          {accountCurrencies(source).map((code) => <option key={code} value={code}>{code === 'JPY' ? 'JPY 日元' : code === 'CNY' ? 'CNY 人民币' : code}</option>)}
+                        </select>
+                        <small>支付来源可承接多币种；流水仍保存本次原始币种。</small>
+                      </label>
+                    )}
                     <div className="finance-sheet-static-row"><span>资金承担者</span><strong>{accountOwnership(source) === 'external' ? '外部代付' : '本人资金'}</strong></div>
                     <FinancePickerRow label="分类" value={selectedCategory?.name ?? '未分类'} placeholder="未分类" onClick={() => setPickerTarget({ kind: 'category' })} />
                     {accountOwnership(source) !== 'external' && (

@@ -10800,3 +10800,542 @@ html[lang='zh-CN'] body {
     border-radius: var(--radius-pill) !important;
   }
 }
+
+/* --------------------------------------------------------------------------
+   System structure cleanup · 2026-07-20
+
+   A visible boundary has exactly one owner: the section owns its outline and
+   static children are flat rows. A row only becomes an independent rounded
+   surface while it is swiped, dragged or focused as a transient layer.
+   -------------------------------------------------------------------------- */
+@media (max-width: 1023px) {
+  .page-top-chrome {
+    position: sticky;
+    z-index: 34;
+    top: var(--ds-safe-top);
+    margin-inline: calc(-1 * var(--page-inline-padding));
+    padding: 0 var(--page-inline-padding) var(--space-3);
+    background: var(--material-toolbar-fallback);
+    background: var(--material-toolbar-fill);
+    backdrop-filter: blur(var(--material-toolbar-blur)) saturate(108%);
+    -webkit-backdrop-filter: blur(var(--material-toolbar-blur)) saturate(108%);
+  }
+
+  .page-top-chrome::after {
+    position: absolute;
+    right: 0;
+    bottom: -20px;
+    left: 0;
+    height: 22px;
+    background: linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--color-page-bg) 84%, transparent),
+      color-mix(in srgb, var(--color-page-bg) 42%, transparent) 48%,
+      transparent
+    );
+    content: '';
+    pointer-events: none;
+  }
+
+  .page-top-chrome > .mobile-page-header {
+    position: static !important;
+    margin: 0 !important;
+    background: transparent !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  .page-top-chrome > .mobile-shopping-view-switch,
+  .page-top-chrome > .plan-mobile-mode-switch {
+    margin-block: 0 !important;
+  }
+
+  /* Shopping groups: the section owns the only static outline. */
+  html .page-shopping .shopping-drop-group {
+    min-width: 0;
+    border: 0 !important;
+    border-radius: var(--radius-panel) !important;
+    box-shadow: none !important;
+  }
+
+  html .page-shopping .shopping-group-section {
+    overflow: hidden !important;
+    border: 1px solid var(--color-border-subtle) !important;
+    border-radius: var(--radius-panel) !important;
+    background: var(--color-surface-primary) !important;
+    padding: 0 var(--space-4) !important;
+    box-shadow: var(--shadow-card) !important;
+  }
+
+  html .page-shopping .shopping-group-title {
+    min-height: 58px !important;
+    border: 0 !important;
+    border-bottom: 1px solid var(--color-divider) !important;
+    padding: 0 !important;
+  }
+
+  html .page-shopping .shopping-card-list {
+    overflow: visible !important;
+    margin: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  html .page-shopping .shopping-swipe-row,
+  html .page-shopping .shopping-row-swipe,
+  html .page-shopping .shopping-card {
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: var(--color-surface-primary) !important;
+    box-shadow: none !important;
+  }
+
+  html .page-shopping .shopping-row-swipe {
+    overflow: hidden !important;
+  }
+
+  html .page-shopping .shopping-card {
+    min-height: var(--grouped-row-height-two-line) !important;
+    padding: var(--space-3) 0 !important;
+  }
+
+  html .page-shopping .shopping-swipe-row + .shopping-swipe-row {
+    border-top: 0 !important;
+  }
+
+  html .page-shopping .shopping-row-swipe[data-swipe-open],
+  html .page-shopping .shopping-swipe-row[data-dragging='true'] .shopping-row-swipe {
+    z-index: 3;
+    border-radius: var(--radius-card) !important;
+    box-shadow: 0 8px 22px rgb(20 21 20 / 0.1) !important;
+  }
+
+  html .page-shopping .shopping-group-empty-action,
+  html .page-shopping .shopping-group-empty {
+    width: 100%;
+    min-height: 56px !important;
+    margin: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+  }
+
+  html .page-shopping .shopping-drop-group[data-drag-active='true'] .shopping-group-empty {
+    margin-block: var(--space-2) !important;
+    border: 1px dashed var(--ds-border-strong) !important;
+    border-radius: var(--radius-control) !important;
+    background: var(--color-surface-secondary) !important;
+  }
+
+  html .page-shopping .shopping-drop-group[data-drag-active='true'],
+  html .page-shopping .shopping-drop-group[data-over='true'] {
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  html .page-shopping .shopping-drop-group[data-over='true'] .shopping-group-section {
+    border-color: var(--ds-border-strong) !important;
+    background: color-mix(in srgb, var(--color-surface-primary) 94%, var(--color-text-primary)) !important;
+  }
+
+  /* Category management: the card owns the shell; rows and composer do not. */
+  html .page-browse .browse-category-card {
+    overflow: hidden !important;
+    padding: 0 !important;
+  }
+
+  html .page-browse .browse-category-card > ul {
+    overflow: visible !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  html .page-browse .category-swipe-row,
+  html .page-browse .category-row {
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: var(--color-surface-primary) !important;
+    box-shadow: none !important;
+  }
+
+  html .page-browse .category-composer {
+    margin: 0 !important;
+    border: 0 !important;
+    border-top: 1px solid var(--color-divider) !important;
+    border-radius: 0 !important;
+    background: var(--color-surface-primary) !important;
+    padding: var(--space-3) var(--space-4) !important;
+    box-shadow: none !important;
+  }
+
+  /* Transactions: one section card, flat rows, no duplicated external tag. */
+  html .finance-shell .finance-transaction-list > ul {
+    overflow: visible !important;
+    margin-top: var(--space-2) !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  html .finance-shell .finance-transaction-swipe-row,
+  html .finance-shell .finance-transaction-row {
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: var(--color-surface-primary) !important;
+    box-shadow: none !important;
+  }
+
+  html .finance-shell .finance-transaction-row {
+    display: grid !important;
+    min-height: 72px !important;
+    grid-template-columns: 40px minmax(0, 1fr) auto !important;
+    align-items: center;
+    gap: var(--space-3) !important;
+    padding: var(--space-3) 0 !important;
+  }
+
+  html .finance-shell .finance-transaction-row > div {
+    display: grid;
+    min-width: 0;
+    gap: 2px;
+  }
+
+  html .finance-shell .finance-transaction-row > div > strong,
+  html .finance-shell .finance-transaction-row > div > span {
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: normal !important;
+    overflow-wrap: anywhere;
+  }
+
+  html .finance-shell .finance-transaction-row > b {
+    display: grid;
+    align-self: center;
+    justify-items: end;
+    gap: 1px;
+    margin: 0 !important;
+    font-size: 15px !important;
+    white-space: nowrap;
+  }
+
+  html .finance-shell .finance-transaction-currency {
+    color: var(--color-text-tertiary);
+    font-size: 10px;
+    line-height: 1.2;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+  }
+
+  html .finance-shell .finance-row-actions {
+    display: none !important;
+  }
+
+  .finance-missing-rate-note {
+    grid-column: 1 / -1;
+    margin: var(--space-2) 0 0;
+    color: var(--color-text-secondary);
+    font-size: 12px;
+    line-height: 1.45;
+    font-weight: var(--font-weight-medium);
+  }
+
+  /* Accounts are one grouped list; management opens on demand. */
+  html .finance-shell .finance-account-grid {
+    overflow: hidden;
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 0 !important;
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-panel);
+    background: var(--color-surface-primary);
+    box-shadow: var(--shadow-card);
+  }
+
+  html .finance-shell .finance-account-card {
+    min-height: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    padding: var(--space-4) !important;
+    box-shadow: none !important;
+  }
+
+  html .finance-shell .finance-account-card + .finance-account-card {
+    border-top: 1px solid var(--color-divider) !important;
+  }
+
+  .finance-account-supporting {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    margin-top: var(--space-2);
+  }
+
+  .finance-account-currencies,
+  .finance-account-external-label {
+    border-radius: var(--radius-pill);
+    background: var(--color-surface-secondary);
+    padding: 4px 9px;
+    color: var(--color-text-secondary);
+    font-size: 12px !important;
+    line-height: 18px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .finance-account-actions-menu,
+  .finance-row-more {
+    margin-top: var(--space-2);
+  }
+
+  .finance-account-actions-menu > summary,
+  .finance-row-more > summary {
+    display: inline-flex;
+    min-height: 36px;
+    cursor: pointer;
+    list-style: none;
+    align-items: center;
+    gap: 6px;
+    border-radius: var(--radius-pill);
+    background: var(--color-surface-secondary);
+    padding: 0 12px;
+    color: var(--color-text-secondary);
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .finance-account-actions-menu > summary::-webkit-details-marker,
+  .finance-row-more > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .finance-account-actions-menu > div,
+  .finance-row-more > div {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+  }
+
+  .finance-account-actions-menu button,
+  .finance-row-more button {
+    min-height: 36px;
+    border-radius: var(--radius-pill);
+    background: var(--color-surface-secondary);
+    padding: 0 12px;
+    color: var(--color-text-primary);
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .finance-account-currency-options {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2);
+    border: 0;
+    border-radius: var(--radius-card);
+    background: var(--color-surface-secondary);
+    padding: var(--space-3);
+  }
+
+  .finance-account-currency-options legend,
+  .finance-account-currency-options small {
+    grid-column: 1 / -1;
+    color: var(--color-text-secondary);
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  .finance-account-currency-options label {
+    display: flex;
+    min-height: 40px;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  /* Fund pools use a readable data row and defer controls to one disclosure. */
+  html .finance-shell .finance-fund-list > ul {
+    overflow: visible;
+    margin-top: var(--space-2);
+    border: 0 !important;
+  }
+
+  html .finance-shell .finance-fund-list .finance-fund-row {
+    display: grid !important;
+    min-height: 0 !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    gap: var(--space-3) !important;
+    border: 0 !important;
+    padding: var(--space-4) 0 !important;
+  }
+
+  html .finance-shell .finance-fund-list .finance-fund-row + .finance-fund-row {
+    border-top: 1px solid var(--color-divider) !important;
+  }
+
+  .finance-fund-row-main {
+    align-content: start;
+  }
+
+  .finance-fund-row-metrics {
+    display: grid;
+    min-width: 106px;
+    gap: 5px;
+    margin: 0;
+    text-align: right;
+  }
+
+  .finance-fund-row-metrics > div {
+    display: grid;
+    grid-template-columns: auto auto;
+    gap: 8px;
+  }
+
+  .finance-fund-row-metrics dt {
+    color: var(--color-text-tertiary);
+    font-size: 11px;
+    font-weight: 500;
+  }
+
+  .finance-fund-row-metrics dd {
+    color: var(--color-text-primary);
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .finance-fund-row > .finance-row-more {
+    grid-column: 1 / -1;
+    margin-top: 0;
+  }
+
+  /* Time planning: one panel shell, inset header, flat schedule rows. */
+  html .page-plan[data-mode='week'] .mobile-week-timeline {
+    overflow: visible !important;
+    display: grid !important;
+    gap: var(--space-3) !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+  }
+
+  html .page-plan[data-mode='week'] .mobile-week-strip {
+    overflow: hidden;
+    min-height: 58px !important;
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-panel);
+    background: var(--color-surface-primary);
+    padding: var(--space-1) var(--space-2) !important;
+    box-shadow: var(--shadow-card);
+  }
+
+  html .page-plan[data-mode='week'] .mobile-timeline-list {
+    padding: 0 !important;
+  }
+
+  html .page-plan[data-mode='week'] .mobile-timeline-items {
+    gap: var(--space-3) !important;
+  }
+
+  html .page-plan[data-mode='week'] .mobile-timeline-all-day,
+  html .page-plan[data-mode='week'] .mobile-timeline-unscheduled,
+  html .page-plan[data-mode='week'] .mobile-timeline-scheduled {
+    overflow: hidden;
+    display: grid !important;
+    gap: 0 !important;
+    margin: 0 !important;
+    border: 1px solid var(--color-border-subtle) !important;
+    border-radius: var(--radius-panel) !important;
+    background: var(--color-surface-primary) !important;
+    padding: 0 var(--space-4) !important;
+    box-shadow: var(--shadow-card) !important;
+  }
+
+  html .page-plan[data-mode='week'] .mobile-timeline-all-day > header,
+  html .page-plan[data-mode='week'] .mobile-timeline-unscheduled > header {
+    min-height: 54px;
+    border-bottom: 1px solid var(--color-divider);
+  }
+
+  html .page-plan[data-mode='week'] .timeline-schedule-row,
+  html .page-plan[data-mode='week'] .mobile-timeline-row,
+  html .page-plan[data-mode='week'] .mobile-timeline-swipe,
+  html .page-plan[data-mode='week'] .mobile-timeline-event {
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: var(--color-surface-primary) !important;
+    box-shadow: none !important;
+  }
+
+  html .page-plan[data-mode='week'] .mobile-timeline-row {
+    min-height: 64px !important;
+    grid-template-columns: 42px minmax(0, 1fr) !important;
+    gap: var(--space-2) !important;
+    padding: 0 !important;
+  }
+
+  html .page-plan[data-mode='week'] .mobile-timeline-row[data-unscheduled] {
+    grid-template-columns: 0 minmax(0, 1fr) !important;
+    gap: 0 !important;
+  }
+
+  html .page-plan[data-mode='week'] .mobile-timeline-row[data-unscheduled] > time {
+    overflow: hidden;
+    width: 0;
+    opacity: 0;
+  }
+
+  html .page-plan[data-mode='week'] .mobile-timeline-swipe > .mobile-timeline-event {
+    min-height: 64px !important;
+    padding: var(--space-3) 0 !important;
+  }
+
+  html .page-plan[data-mode='week'] .mobile-timeline-swipe .apple-swipe-divider {
+    right: 0 !important;
+    left: 0 !important;
+  }
+
+  html .page-plan[data-mode='week'] .timeline-schedule-row[data-dragging],
+  html .page-plan[data-mode='week'] .timeline-schedule-row[data-dragging] .mobile-timeline-row,
+  html .page-plan[data-mode='week'] .timeline-schedule-row[data-dragging] .mobile-timeline-swipe,
+  html .page-plan[data-mode='week'] .timeline-schedule-row[data-dragging] .mobile-timeline-event {
+    overflow: visible !important;
+    border-radius: var(--radius-card) !important;
+    background: var(--color-surface-primary) !important;
+  }
+
+  html .page-plan[data-mode='week'] .calendar-toolbar {
+    align-items: center !important;
+    gap: var(--space-4) !important;
+    margin-block: var(--space-4) var(--space-3) !important;
+  }
+
+  html .page-plan[data-mode='week'] .calendar-panel-action {
+    gap: var(--space-2) !important;
+  }
+
+  html .page-plan[data-mode='week'] .calendar-panel-action > button {
+    margin: 0 !important;
+    box-shadow: none !important;
+  }
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  @media (max-width: 1023px) {
+    .page-top-chrome {
+      background: var(--material-toolbar-fallback) !important;
+    }
+  }
+}

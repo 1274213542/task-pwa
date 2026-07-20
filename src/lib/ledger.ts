@@ -57,6 +57,15 @@ export function accountOwnership(account?: Account): FundingParty {
   return account.ownership ?? (account.kind === 'external' ? 'external' : 'self')
 }
 
+export function accountCurrencies(account?: Account): CurrencyCode[] {
+  if (!account) return []
+  return [...new Set([account.currency, ...(account.supportedCurrencies ?? [])])]
+}
+
+export function accountSupportsCurrency(account: Account | undefined, currency: CurrencyCode): boolean {
+  return Boolean(account && accountCurrencies(account).includes(currency))
+}
+
 export function transactionFundingParty(
   transaction: FinanceTransaction,
   accounts: Map<string, Account>,
@@ -274,6 +283,7 @@ export async function saveAccount(input: {
   ownership?: Account['ownership']
   subtype: Account['subtype']
   currency: CurrencyCode
+  supportedCurrencies?: CurrencyCode[]
   openingBalanceMinor?: number
   includeInNetWorth?: boolean
   includeInSpending?: boolean
@@ -286,6 +296,11 @@ export async function saveAccount(input: {
   const name = clean(input.name)
   if (!name) throw new Error('请输入账户名称')
   if (!/^[A-Z]{3}$/.test(input.currency)) throw new Error('币种必须使用 ISO 三字代码')
+  const supportedCurrencies = [...new Set([input.currency, ...(input.supportedCurrencies ?? [])]
+    .map((currency) => currency.trim().toUpperCase() as CurrencyCode))]
+  if (supportedCurrencies.some((currency) => !/^[A-Z]{3}$/.test(currency))) {
+    throw new Error('支持币种必须使用 ISO 三字代码')
+  }
   for (const [label, value] of [
     ['账单日', input.billingCycleDay],
     ['还款日', input.paymentDueDay],
@@ -310,6 +325,7 @@ export async function saveAccount(input: {
     }),
     subtype: input.subtype,
     currency: input.currency,
+    ...(supportedCurrencies.length > 1 && { supportedCurrencies }),
     openingBalanceMinor: Math.round(input.openingBalanceMinor ?? existing?.openingBalanceMinor ?? 0),
     includeInNetWorth:
       ownership === 'external'
@@ -377,7 +393,7 @@ export async function saveSpending(input: {
   positiveMinor(input.amountMinor)
   const account = await db.accounts.get(input.accountId)
   if (!account || account.lifecycleStatus !== 'active' || account.isArchived) throw new Error('请选择有效账户')
-  if (account.currency !== input.currency) throw new Error('交易币种必须与支付账户一致')
+  if (!accountSupportsCurrency(account, input.currency)) throw new Error('交易币种不在支付账户支持范围内')
   const category = input.categoryId
     ? await db.expenseCategories.get(input.categoryId)
     : undefined
@@ -831,7 +847,7 @@ export async function saveRefund(input: {
     }
     const originalAccount = await db.accounts.get(linked.accountId)
     const account = await db.accounts.get(input.accountId ?? linked.accountId)
-    if (!originalAccount || !account || account.currency !== linked.currency) {
+    if (!originalAccount || !account || !accountSupportsCurrency(account, linked.currency)) {
       throw new Error('原消费的账户或币种信息异常')
     }
     const transactions = await db.financeTransactions.toArray()

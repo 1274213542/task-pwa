@@ -260,7 +260,25 @@ export function FinanceFundsView({ accounts, onFeedback }: {
         <header><div><span>用途分配不产生收入或支出</span><h2>资金池</h2></div><strong>{activePools.length} 个</strong></header>
         {activePools.length ? <ul>{activePools.map((pool) => {
           const state = states.get(pool.id)
-          return <li key={pool.id}><div><strong>{pool.name}</strong><span>{purposeLabels[pool.purpose]} · {pool.currency} · 已使用 <PrivateAmount>{formatMoney(state?.usedMinor ?? 0, pool.currency)}</PrivateAmount></span></div><div className="finance-fund-row-value"><b><PrivateAmount>{formatMoney(state?.availableMinor ?? 0, pool.currency)}</PrivateAmount></b>{(state?.reservedMinor ?? 0) > 0 && <small>锁定 <PrivateAmount>{formatMoney(state?.reservedMinor ?? 0, pool.currency)}</PrivateAmount></small>}<span className="finance-inline-actions"><button type="button" onClick={() => beginPoolAdjustment(pool.id)}>调整金额</button><button type="button" onClick={() => beginEditPool(pool)}>编辑</button><button type="button" onClick={() => void setFundPoolArchived(pool.id).then(() => onFeedback('资金池已停用；余额仍计入已分配资金')).catch((error: unknown) => onFeedback(error instanceof Error ? error.message : '停用失败'))}>停用</button></span></div></li>
+          return <li key={pool.id} className="finance-fund-row">
+            <div className="finance-fund-row-main">
+              <strong>{pool.name}</strong>
+              <span>{purposeLabels[pool.purpose]} · {pool.currency}</span>
+            </div>
+            <dl className="finance-fund-row-metrics">
+              <div><dt>可用</dt><dd><PrivateAmount>{formatMoney(state?.availableMinor ?? 0, pool.currency)}</PrivateAmount></dd></div>
+              <div><dt>已使用</dt><dd><PrivateAmount>{formatMoney(state?.usedMinor ?? 0, pool.currency)}</PrivateAmount></dd></div>
+              {(state?.reservedMinor ?? 0) > 0 && <div><dt>已锁定</dt><dd><PrivateAmount>{formatMoney(state?.reservedMinor ?? 0, pool.currency)}</PrivateAmount></dd></div>}
+            </dl>
+            <details className="finance-row-more">
+              <summary><AppIcon name="more" size={17} />管理</summary>
+              <div>
+                <button type="button" onClick={() => beginPoolAdjustment(pool.id)}>调整金额</button>
+                <button type="button" onClick={() => beginEditPool(pool)}>编辑</button>
+                <button type="button" onClick={() => void setFundPoolArchived(pool.id).then(() => onFeedback('资金池已停用；余额仍计入已分配资金')).catch((error: unknown) => onFeedback(error instanceof Error ? error.message : '停用失败'))}>停用</button>
+              </div>
+            </details>
+          </li>
         })}</ul> : (
           <div className="finance-fund-onboarding">
             <div>

@@ -841,27 +841,29 @@ export default function Shopping() {
       className="app-page page-shopping"
       data-shopping-view={grouped ? 'grouped' : 'flat'}
     >
-      <MobilePageHeader
-        title="购物清单"
-        eyebrow={`${pending.length} 件待购`}
-        onPrimary={() => setComposerOpen((open) => !open)}
-        primaryLabel={composerOpen ? '收起新增商品' : '新增商品'}
-        primaryIcon={composerOpen ? 'chevronUp' : 'plus'}
-      />
-      <div className="mobile-shopping-view-switch" data-shared-indicator role="tablist" aria-label="清单视图">
-        <SegmentedIndicator
-          className="shopping-view-indicator"
-          count={2}
-          index={grouped ? 0 : 1}
+      <div className="page-top-chrome page-top-chrome-shopping">
+        <MobilePageHeader
+          title="购物清单"
+          eyebrow={`${pending.length} 件待购`}
+          onPrimary={() => setComposerOpen((open) => !open)}
+          primaryLabel={composerOpen ? '收起新增商品' : '新增商品'}
+          primaryIcon={composerOpen ? 'chevronUp' : 'plus'}
         />
-        <button role="tab" aria-selected={grouped} onClick={() => switchGrouped(true)}>
-          <AppIcon name="category" size={18} />
-          按地点
-        </button>
-        <button role="tab" aria-selected={!grouped} onClick={() => switchGrouped(false)}>
-          <AppIcon name="list" size={18} />
-          平铺
-        </button>
+        <div className="mobile-shopping-view-switch" data-shared-indicator role="tablist" aria-label="清单视图">
+          <SegmentedIndicator
+            className="shopping-view-indicator"
+            count={2}
+            index={grouped ? 0 : 1}
+          />
+          <button role="tab" aria-selected={grouped} onClick={() => switchGrouped(true)}>
+            <AppIcon name="category" size={18} />
+            按地点
+          </button>
+          <button role="tab" aria-selected={!grouped} onClick={() => switchGrouped(false)}>
+            <AppIcon name="list" size={18} />
+            平铺
+          </button>
+        </div>
       </div>
       <PageHeader
         title="购物清单"

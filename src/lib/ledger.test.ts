@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
+  accountCurrencies,
+  accountSupportsCurrency,
   calculateAccountBalances,
   convertMinor,
   ledgerSummary,
@@ -237,6 +239,33 @@ describe('多币种', () => {
     expect(toMinor(12.34, 'CNY')).toBe(1_234)
     expect(toMinor(1234, 'JPY')).toBe(1_234)
     expect(convertMinor(1_234, 'CNY', 'JPY', 20)).toBe(247)
+  })
+
+  it('外部代付来源可以承接多币种，而每笔流水仍保留原币种', () => {
+    const fatherCard = {
+      ...account('father-card', 'credit', 'credit_card', 0),
+      ownership: 'external' as const,
+      includeInNetWorth: false,
+      supportedCurrencies: ['JPY', 'CNY'],
+    }
+    expect(accountCurrencies(fatherCard)).toEqual(['JPY', 'CNY'])
+    expect(accountSupportsCurrency(fatherCard, 'CNY')).toBe(true)
+
+    const summary = ledgerSummary({
+      accounts: [fatherCard],
+      transactions: [transaction('cny-external', 'external_payment', 1_000, fatherCard.id, {
+        currency: 'CNY',
+        fundingParty: 'external',
+        affectsNetWorth: false,
+        reportingCurrency: 'JPY',
+        reportingAmountMinor: 200,
+      })],
+      rates: [rate],
+      reportingCurrency: 'JPY',
+    })
+    expect(summary.externalPaidMinor).toBe(200)
+    expect(summary.actualPaidMinor).toBe(0)
+    expect(summary.netWorthMinor).toBe(0)
   })
 
   it('余额使用最新率，历史消费优先使用交易快照', () => {
