@@ -314,7 +314,7 @@ export default function Overview() {
         onClick={(event) => openSpatialSection(event, '/today')}
       >
         <header>
-          <div><p>本日计划</p><h2 id="overview-today-list-title">今天需要处理</h2></div>
+          <div><h2 id="overview-today-list-title">今天需要处理</h2></div>
           <button type="button" className="overview-inline-create" onClick={openTaskComposer}>
             <AppIcon name="plus" size={15} /> 新建今日任务
           </button>
@@ -354,10 +354,7 @@ export default function Overview() {
         onClick={(event) => openSpatialSection(event, '/plan')}
       >
         <header>
-          <div>
-            <p>接下来</p>
-            <h2 id="overview-calendar-title">未来七天</h2>
-          </div>
+          <div><h2 id="overview-calendar-title">未来七天</h2></div>
           <Link to="/plan" onClick={(event) => openSpatialLink(event, '/plan')}>
             查看日历 <AppIcon name="chevronRight" size={16} />
           </Link>
@@ -388,10 +385,7 @@ export default function Overview() {
         onClick={(event) => openSpatialSection(event, '/today')}
       >
         <header>
-          <div>
-            <p>近期</p>
-            <h2 id="overview-upcoming-title">下一步</h2>
-          </div>
+          <div><h2 id="overview-upcoming-title">下一步</h2></div>
           <Link to="/today" onClick={(event) => openSpatialLink(event, '/today')}>全部任务</Link>
         </header>
         {(view?.upcoming.length ?? 0) +

@@ -372,35 +372,29 @@
     white-space: nowrap;
   }
 
-  /* Full swipe keeps the rail fixed. Only the danger pill expands from the
-     trailing edge while the foreground continues following the finger. */
+  /* Full swipe keeps the two action pills geometrically fixed. The foreground
+     alone continues following the finger, so the danger action never stretches
+     over its neighbour. */
   .apple-swipe-row[data-full-swipe-enabled] > .apple-swipe-actions {
     display: flex !important;
-    width: 100% !important;
+    width: var(--apple-swipe-width) !important;
     justify-content: flex-end !important;
     overflow: visible !important;
   }
 
-  .apple-swipe-row[data-full-swipe-enabled] .apple-swipe-action.is-danger {
-    z-index: calc(2 + round(var(--swipe-full-progress)));
-  }
-
   .apple-swipe-row[data-full-swipe-enabled] .apple-swipe-action.is-danger .apple-swipe-action__pill {
-    width: calc(
-      var(--action-button-width) +
-      (var(--swipe-row-width) - var(--apple-swipe-width)) * var(--swipe-full-progress)
-    ) !important;
+    width: var(--action-button-width) !important;
     transform: translate3d(0, calc((1 - var(--action-progress)) * 6px), 0)
       scale(calc(0.86 + var(--action-progress) * 0.14)) !important;
-    transform-origin: right center !important;
+    transform-origin: center !important;
   }
 
   .apple-swipe-row[data-full-swipe-enabled] .apple-swipe-action.is-danger .apple-swipe-action__label {
-    opacity: calc(var(--action-progress) * (1 - var(--swipe-full-progress))) !important;
+    opacity: var(--action-progress) !important;
   }
 
   .apple-swipe-row[data-full-swipe-committing] .apple-swipe-action.is-danger .apple-swipe-action__pill {
-    border-radius: var(--radius-card-medium) !important;
+    border-radius: var(--radius-pill) !important;
   }
 
   /* Time view: the panel is the card; its scheduled items are plain grouped
@@ -5048,8 +5042,8 @@ select:focus {
   overflow: hidden !important;
   display: grid !important;
   width: min(100%, 32rem);
-  height: min(86dvh, calc(var(--visual-viewport-height, 100dvh) - 10px));
-  max-height: calc(var(--visual-viewport-height, 100dvh) - 10px) !important;
+  height: min(88dvh, calc(var(--visual-viewport-height, 100dvh) - 8px));
+  max-height: calc(var(--visual-viewport-height, 100dvh) - 8px) !important;
   grid-template-rows: auto minmax(0, 1fr);
   padding: 4px 0 0 !important;
 }
@@ -5058,7 +5052,10 @@ select:focus {
   position: relative !important;
   top: auto !important;
   z-index: 3;
+  display: grid !important;
   min-height: 56px;
+  grid-template-columns: minmax(72px, 1fr) auto minmax(72px, 1fr);
+  align-items: center;
   margin: 0 !important;
   border-bottom: 1px solid var(--color-divider);
   padding: 6px var(--space-4) 8px !important;
@@ -5068,16 +5065,92 @@ select:focus {
   -webkit-backdrop-filter: blur(var(--material-toolbar-blur)) saturate(108%);
 }
 
+.editor-sheet.editor-sheet-task .editor-sheet-header > :first-child {
+  justify-self: start;
+}
+
+.editor-sheet.editor-sheet-task .editor-sheet-header > :last-child {
+  justify-self: end;
+}
+
+.editor-sheet.editor-sheet-task .editor-sheet-header button {
+  width: auto !important;
+  min-width: 52px;
+  height: 44px;
+  min-height: 44px;
+  border-radius: var(--radius-pill) !important;
+  padding-inline: 12px;
+}
+
 .editor-sheet.editor-sheet-task .task-editor-scroll {
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
+  touch-action: pan-y;
   -webkit-overflow-scrolling: touch;
   padding: var(--space-3) var(--space-4)
     calc(env(safe-area-inset-bottom, 0px) + var(--space-6));
   scroll-padding-block: var(--space-4)
     calc(env(safe-area-inset-bottom, 0px) + var(--space-8));
+}
+
+.editor-sheet.editor-sheet-task .task-editor-scroll > *,
+.editor-sheet.editor-sheet-task .task-editor-scroll .space-y-3,
+.editor-sheet.editor-sheet-task .task-editor-schedule,
+.editor-sheet.editor-sheet-task .task-editor-schedule-grid,
+.editor-sheet.editor-sheet-task label {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.editor-sheet.editor-sheet-task input:not([type='checkbox']):not([type='radio']),
+.editor-sheet.editor-sheet-task textarea,
+.editor-sheet.editor-sheet-task select {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+}
+
+.editor-sheet.editor-sheet-task .task-editor-schedule {
+  gap: var(--space-3);
+  border: 0;
+  border-top: 1px solid var(--color-divider);
+  border-radius: 0 !important;
+  background: transparent;
+  padding: var(--space-4) 0 0;
+}
+
+.editor-sheet.editor-sheet-task .task-intent-picker[data-compact] {
+  height: 52px;
+  min-height: 52px;
+}
+
+.editor-sheet.editor-sheet-task .task-intent-picker[data-compact] > button {
+  min-height: 44px;
+  padding: 6px 5px;
+}
+
+.editor-sheet.editor-sheet-task .visual-picker {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+  border: 0;
+  border-top: 1px solid var(--color-divider);
+  border-radius: 0 !important;
+  background: transparent;
+  padding: var(--space-4) 0 0;
+}
+
+.editor-sheet.editor-sheet-task .visual-picker-row {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.editor-sheet.editor-sheet-task .visual-color-button,
+.editor-sheet.editor-sheet-task .visual-marker-button {
+  justify-self: center;
 }
 
 .editor-sheet.editor-sheet-task .task-editor-danger-zone {
@@ -5940,15 +6013,19 @@ select:focus {
 }
 
 /* Task scheduling: compact DDL metadata and parent/child spatial hierarchy. */
-.task-card[data-task-depth='1'] { width: calc(100% - 18px); margin-left: 18px; }
-.task-card[data-task-depth='2'] { width: calc(100% - 30px); margin-left: 30px; }
-.task-card[data-task-depth='3'],
-.task-card[data-task-depth='4'] { width: calc(100% - 40px); margin-left: 40px; }
+.task-card[data-task-depth] {
+  width: 100%;
+  margin-left: 0;
+}
+.task-card[data-task-depth='1'] .task-card-copy { padding-left: 12px; }
+.task-card[data-task-depth='2'] .task-card-copy { padding-left: 22px; }
+.task-card[data-task-depth='3'] .task-card-copy,
+.task-card[data-task-depth='4'] .task-card-copy { padding-left: 30px; }
 .task-card[data-task-depth]::before {
   position: absolute;
   top: 8px;
   bottom: 8px;
-  left: -10px;
+  left: 56px;
   width: 1px;
   background: var(--ds-border-strong);
   content: '';
@@ -10386,9 +10463,8 @@ html[lang='zh-CN'] body {
         calc((1 - var(--action-progress)) * 8px),
         0
       )
-      scale(calc(0.82 + var(--action-progress) * 0.18))
-      scaleX(calc(1 + var(--swipe-overshoot) * 0.46));
-    transform-origin: right center;
+      scale(calc(0.82 + var(--action-progress) * 0.18));
+    transform-origin: center;
   }
 
   .apple-swipe-action__pill svg {
@@ -11045,7 +11121,7 @@ html[lang='zh-CN'] body {
     padding: 0 !important;
   }
 
-  html .page-shopping .shopping-card-list {
+  html .page-shopping .shopping-card-list:not(.shopping-flat-list):not(.is-history) {
     overflow: visible !important;
     margin: 0 !important;
     border: 0 !important;
@@ -11074,6 +11150,23 @@ html[lang='zh-CN'] body {
 
   html .page-shopping .shopping-swipe-row + .shopping-swipe-row {
     border-top: 0 !important;
+  }
+
+  html .page-shopping .shopping-flat-list,
+  html .page-shopping .shopping-card-list.is-history {
+    overflow: hidden !important;
+    margin-top: var(--space-3) !important;
+    border: 1px solid var(--color-border-subtle) !important;
+    border-radius: var(--radius-panel) !important;
+    background: var(--color-surface-primary) !important;
+    padding: 0 var(--space-4) !important;
+    box-shadow: var(--shadow-card) !important;
+  }
+
+  html .page-shopping .shopping-flat-list .shopping-swipe-row,
+  html .page-shopping .shopping-card-list.is-history .shopping-swipe-row {
+    overflow: visible;
+    border-radius: 0 !important;
   }
 
   html .page-shopping .shopping-row-swipe[data-swipe-open],
@@ -11111,6 +11204,32 @@ html[lang='zh-CN'] body {
   html .page-shopping .shopping-drop-group[data-over='true'] .shopping-group-section {
     border-color: var(--ds-border-strong) !important;
     background: color-mix(in srgb, var(--color-surface-primary) 94%, var(--color-text-primary)) !important;
+  }
+
+  /* Location management follows the same one-shell/flat-row rule as shopping
+     groups. The composer owns one top divider instead of inheriting the last
+     row's border. */
+  html .page-shopping .location-manager {
+    overflow: hidden;
+    border: 1px solid var(--color-border-subtle) !important;
+    border-radius: var(--radius-panel) !important;
+    background: var(--color-surface-primary) !important;
+    box-shadow: var(--shadow-card) !important;
+  }
+
+  html .page-shopping .location-manager-list,
+  html .page-shopping .location-manager-row {
+    border: 0 !important;
+    background: transparent !important;
+  }
+
+  html .page-shopping .location-manager-row + .location-manager-row {
+    border-top: 1px solid var(--color-divider) !important;
+  }
+
+  html .page-shopping .location-manager-composer {
+    border-top: 1px solid var(--color-divider);
+    background: var(--color-surface-secondary);
   }
 
   /* Category management: the card owns the shell; rows and composer do not. */
@@ -11508,5 +11627,233 @@ html[lang='zh-CN'] body {
     .page-top-chrome {
       background: var(--material-toolbar-fallback) !important;
     }
+  }
+}
+
+/* --------------------------------------------------------------------------
+   System cleanup final pass
+
+   These selectors deliberately live last: legacy desktop rules remain intact,
+   while the mobile surface gets one border owner, stable row grids and compact
+   finance summaries without introducing new business projections.
+   -------------------------------------------------------------------------- */
+@media (max-width: 1023px) {
+  /* The task check column never participates in hierarchy indentation. */
+  html .task-card-list .task-card {
+    grid-template-columns: 44px minmax(0, 1fr) !important;
+    padding-block: 12px !important;
+  }
+
+  html .task-card-list .task-card-copy {
+    min-height: 44px;
+    justify-content: stretch;
+  }
+
+  html .task-card-list .task-card-title-button,
+  html .task-card-list .task-card-meta {
+    width: 100%;
+    justify-content: flex-start;
+    text-align: left;
+  }
+
+  /* The rail is a fixed two-button geometry. Drag distance belongs only to the
+     foreground transform and can never expand the destructive pill. */
+  .apple-swipe-row > .apple-swipe-actions {
+    width: calc(var(--action-button-width) * 2 + var(--action-button-gap)) !important;
+    min-width: calc(var(--action-button-width) * 2 + var(--action-button-gap)) !important;
+    max-width: calc(var(--action-button-width) * 2 + var(--action-button-gap)) !important;
+    grid-template-columns: repeat(2, var(--action-button-width)) !important;
+    gap: var(--action-button-gap) !important;
+  }
+
+  .apple-swipe-row > .apple-swipe-actions > .apple-swipe-action,
+  .apple-swipe-row > .apple-swipe-actions > .apple-swipe-action .apple-swipe-action__pill {
+    width: var(--action-button-width) !important;
+    min-width: var(--action-button-width) !important;
+    max-width: var(--action-button-width) !important;
+  }
+
+  .apple-swipe-row > .apple-swipe-actions > .apple-swipe-action {
+    overflow: visible !important;
+    flex: 0 0 var(--action-button-width) !important;
+  }
+
+  /* One title divider and one moving row divider define recent transactions. */
+  html .finance-shell .finance-transaction-list {
+    padding: var(--space-4) !important;
+  }
+
+  html .finance-shell .finance-transaction-list > header {
+    min-height: 48px;
+    border-bottom: 1px solid var(--color-divider);
+    padding: 0 !important;
+  }
+
+  html .finance-shell .finance-see-all {
+    display: inline-flex;
+    min-width: 44px;
+    min-height: 44px;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 2px;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    padding: 0 2px 0 12px !important;
+    box-shadow: none !important;
+    color: var(--color-text-secondary);
+    font-size: 15px;
+    line-height: 22px;
+    font-weight: 600;
+  }
+
+  html .finance-shell .finance-transaction-list > ul {
+    margin-top: 0 !important;
+  }
+
+  html .finance-shell .finance-transaction-title-line {
+    display: flex !important;
+    min-width: 0;
+    align-items: center;
+    gap: 6px;
+  }
+
+  html .finance-shell .finance-transaction-title-line > strong {
+    overflow: hidden !important;
+    min-width: 0;
+    color: var(--color-text-primary);
+    font-size: 16px !important;
+    line-height: 22px !important;
+    font-weight: 600 !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  html .finance-shell .finance-transaction-status {
+    flex: 0 0 auto;
+    border-radius: var(--radius-pill);
+    background: var(--color-surface-secondary);
+    padding: 2px 7px;
+    color: var(--color-text-secondary);
+    font-size: 11px;
+    line-height: 16px;
+    font-style: normal;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  html .finance-shell .finance-transaction-row > div > span:last-child {
+    display: block;
+    overflow: hidden !important;
+    color: var(--color-text-secondary) !important;
+    font-size: 13px !important;
+    line-height: 19px !important;
+    font-weight: 500 !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  html .finance-shell .finance-transaction-row > b {
+    min-width: 72px;
+  }
+
+  /* Account content and its optional controls are separate levels. */
+  html .finance-shell .finance-account-card > header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--space-3);
+  }
+
+  html .finance-shell .finance-account-actions-menu > summary,
+  html .finance-shell .finance-row-more > summary {
+    background: transparent;
+    padding: 0;
+  }
+
+  html .finance-shell .finance-account-actions-menu > summary svg,
+  html .finance-shell .finance-row-more > summary svg {
+    transition: transform var(--duration-fast) var(--ease-standard);
+  }
+
+  html .finance-shell .finance-account-actions-menu[open] > summary svg,
+  html .finance-shell .finance-row-more[open] > summary svg {
+    transform: rotate(90deg);
+  }
+
+  /* Three comparable fund summaries remain readable at a 390px viewport. */
+  html .finance-shell .finance-fund-metrics {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: var(--space-2) !important;
+  }
+
+  html .finance-shell .finance-fund-metrics article,
+  html .finance-shell .finance-fund-metrics article:last-child:nth-child(odd) {
+    min-height: 92px !important;
+    align-content: space-between !important;
+    gap: var(--space-2) !important;
+    border: 1px solid var(--color-border-subtle) !important;
+    border-radius: var(--radius-card-medium) !important;
+    background: var(--color-surface-primary) !important;
+    padding: 12px !important;
+    box-shadow: var(--shadow-card) !important;
+  }
+
+  html .finance-shell .finance-fund-metrics article > span {
+    overflow: hidden;
+    min-width: 0;
+    color: var(--color-text-secondary) !important;
+    font-size: 12px !important;
+    line-height: 16px !important;
+    font-weight: 500 !important;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  html .finance-shell .finance-fund-metrics article > strong {
+    overflow: visible;
+    color: var(--color-text-primary) !important;
+    font-size: clamp(15px, 4vw, 18px) !important;
+    line-height: 22px !important;
+    font-weight: 700 !important;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  html .finance-shell .finance-fund-list > header {
+    min-height: 48px;
+    border-bottom: 1px solid var(--color-divider);
+  }
+
+  html .finance-shell .finance-fund-list > ul {
+    margin-top: 0 !important;
+  }
+
+  html .finance-shell .finance-fund-list .finance-fund-row + .finance-fund-row {
+    border-top: 1px solid var(--color-divider) !important;
+  }
+
+  html .finance-shell .finance-fund-row > .finance-row-more {
+    grid-column: 1 / -1;
+    min-height: 36px;
+    margin: 0 !important;
+  }
+
+  /* Location management remains one shell: the composer is a section, not a
+     nested card, and the empty drop target has no latent rounded edge. */
+  html .page-shopping .location-manager-list {
+    padding-inline: var(--space-4);
+  }
+
+  html .page-shopping .location-manager-row {
+    min-height: 56px;
+    padding-inline: 0 !important;
+  }
+
+  html .page-shopping .location-manager-composer {
+    margin: 0 !important;
+    border-radius: 0 !important;
+    padding: var(--space-3) var(--space-4) var(--space-4) !important;
   }
 }

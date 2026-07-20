@@ -629,9 +629,11 @@ export default function Today() {
     let parentId = item.task.parentTaskId
     const visitedParents = new Set<string>()
     while (parentId && !visitedParents.has(parentId) && nestingLevel < 4) {
+      const parent = tasks?.find((candidate) => candidate.id === parentId)
+      if (!parent || parent.lifecycleStatus !== 'active') break
       visitedParents.add(parentId)
       nestingLevel += 1
-      parentId = tasks?.find((candidate) => candidate.id === parentId)?.parentTaskId
+      parentId = parent.parentTaskId
     }
     const cat = item.task.categoryId ? catMap.get(item.task.categoryId) : undefined
     const catText = cat ? cat.name : undefined

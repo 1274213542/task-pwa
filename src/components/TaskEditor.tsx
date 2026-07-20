@@ -291,6 +291,7 @@ export default function TaskEditor({
             <TaskIntentSelector
               value={inheritsParentSchedule ? effective.type : scheduleType}
               disabled={inheritsParentSchedule}
+              compact
               onChange={(next) => {
                 setScheduleType(next)
                 if (next !== 'unscheduled' && !scheduleStart) setScheduleStart(todayISO)
@@ -368,11 +369,6 @@ export default function TaskEditor({
             onColorChange={setVisualToken}
             onMarkerChange={setMarkerSymbol}
           />
-          {task.recurrence && (
-            <p className="text-[12px] leading-5 text-neutral-400">
-              当前编辑会更新整个固定任务系列；本期完成状态仍独立保存。
-            </p>
-          )}
         </div>
 
         <div className="task-editor-danger-zone">

@@ -247,17 +247,14 @@ export function FinanceFundsView({ accounts, onFeedback }: {
     <div className="finance-funds-view">
       <div className="finance-ledger-metrics finance-fund-metrics">
         {currencySummaries.flatMap((summary) => [
-          <article key={`${summary.code}:actual`}><span>实际账户总余额 · {summary.code}</span><strong><PrivateAmount>{formatMoney(summary.actual, summary.code)}</PrivateAmount></strong><small>现实银行、现金及本人钱包合计</small></article>,
-          <article key={`${summary.code}:unallocated`}><span>未分配余额 · {summary.code}</span><strong><PrivateAmount>{formatMoney(summary.unallocated, summary.code)}</PrivateAmount></strong><small>尚未划入任何资金池</small></article>,
-          <article key={`${summary.code}:allocated`}><span>已分配资金 · {summary.code}</span><strong><PrivateAmount>{formatMoney(summary.allocated, summary.code)}</PrivateAmount></strong><small>当前各资金池归属金额合计</small></article>,
-          <article key={`${summary.code}:free`}><span>可自由支配 · {summary.code}</span><strong><PrivateAmount>{formatMoney(summary.disposable, summary.code)}</PrivateAmount></strong><small>已扣除信用卡锁定 <PrivateAmount>{formatMoney(summary.reserved, summary.code)}</PrivateAmount></small></article>,
-          <article key={`${summary.code}:restricted`}><span>不可自由支配 · {summary.code}</span><strong><PrivateAmount>{formatMoney(summary.restricted, summary.code)}</PrivateAmount></strong><small>父亲专项、学费及税费等</small></article>,
-          <article key={`${summary.code}:savings`}><span>个人储蓄 · {summary.code}</span><strong><PrivateAmount>{formatMoney(summary.savings, summary.code)}</PrivateAmount></strong><small>不包含父亲专项</small></article>,
+          <article key={`${summary.code}:free`}><span>可自由支配 · {summary.code}</span><strong><PrivateAmount>{formatMoney(summary.disposable, summary.code)}</PrivateAmount></strong></article>,
+          <article key={`${summary.code}:restricted`}><span>不可自由支配 · {summary.code}</span><strong><PrivateAmount>{formatMoney(summary.restricted, summary.code)}</PrivateAmount></strong></article>,
+          <article key={`${summary.code}:savings`}><span>个人储蓄 · {summary.code}</span><strong><PrivateAmount>{formatMoney(summary.savings, summary.code)}</PrivateAmount></strong></article>,
         ])}
       </div>
 
       <section className="finance-section-card finance-fund-list">
-        <header><div><span>用途分配不产生收入或支出</span><h2>资金池</h2></div><strong>{activePools.length} 个</strong></header>
+        <header><div><h2>资金池</h2></div><strong>{activePools.length} 个</strong></header>
         {activePools.length ? <ul>{activePools.map((pool) => {
           const state = states.get(pool.id)
           return <li key={pool.id} className="finance-fund-row">
@@ -271,7 +268,7 @@ export function FinanceFundsView({ accounts, onFeedback }: {
               {(state?.reservedMinor ?? 0) > 0 && <div><dt>已锁定</dt><dd><PrivateAmount>{formatMoney(state?.reservedMinor ?? 0, pool.currency)}</PrivateAmount></dd></div>}
             </dl>
             <details className="finance-row-more">
-              <summary><AppIcon name="more" size={17} />管理</summary>
+              <summary>管理<AppIcon name="chevronRight" size={16} /></summary>
               <div>
                 <button type="button" onClick={() => beginPoolAdjustment(pool.id)}>调整金额</button>
                 <button type="button" onClick={() => beginEditPool(pool)}>编辑</button>
@@ -298,7 +295,7 @@ export function FinanceFundsView({ accounts, onFeedback }: {
       </section>
 
       {archivedPools.length > 0 && <details className="finance-section-card finance-inline-details finance-archived-pools">
-        <summary><span><small>余额仍属于已分配资金</small><strong>已停用资金池 · {archivedPools.length}</strong></span><AppIcon name="chevronDown" size={18} /></summary>
+        <summary><span><strong>已停用资金池 · {archivedPools.length}</strong></span><AppIcon name="chevronDown" size={18} /></summary>
         <ul>{archivedPools.map((pool) => {
           const state = states.get(pool.id)
           return <li key={pool.id}><div><strong>{pool.name}</strong><span>剩余 <PrivateAmount>{formatMoney(state?.grossMinor ?? 0, pool.currency)}</PrivateAmount></span></div><span className="finance-inline-actions"><button type="button" onClick={() => void setFundPoolArchived(pool.id, false).then(() => onFeedback('资金池已恢复')).catch((error: unknown) => onFeedback(error instanceof Error ? error.message : '恢复失败'))}>恢复</button><button type="button" disabled={Boolean(state?.grossMinor || state?.reservedMinor)} onClick={() => void softDeleteFundPool(pool.id).then(() => onFeedback('资金池已删除')).catch((error: unknown) => onFeedback(error instanceof Error ? error.message : '删除失败'))}>删除</button></span></li>
@@ -306,7 +303,7 @@ export function FinanceFundsView({ accounts, onFeedback }: {
       </details>}
 
       <details ref={poolEditorRef} className="finance-section-card finance-inline-details">
-        <summary><span><small>不改变账户余额，只分配用途</small><strong>新建资金池</strong></span><AppIcon name="chevronDown" size={18} /></summary>
+        <summary><span><strong>新建资金池</strong></span><AppIcon name="chevronDown" size={18} /></summary>
         <form className="finance-form-grid-v2" onSubmit={createPool}>
           <label>名称<input value={name} onChange={(event) => setName(event.target.value)} placeholder="例如 父亲房租专项" /></label>
           <label>用途<select value={purpose} onChange={(event) => setPurpose(event.target.value as FundPoolPurpose)}>{Object.entries(purposeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
@@ -319,7 +316,7 @@ export function FinanceFundsView({ accounts, onFeedback }: {
       </details>
 
       <details ref={reallocationRef} className="finance-section-card finance-inline-details">
-        <summary><span><small>只改变资金用途</small><strong>重新分配</strong></span><AppIcon name="chevronDown" size={18} /></summary>
+        <summary><span><strong>重新分配</strong></span><AppIcon name="chevronDown" size={18} /></summary>
         <form className="finance-form-grid-v2" onSubmit={reallocate}>
           <label>原资金池<select value={sourcePoolId} onChange={(event) => setSourcePoolId(event.target.value)}><option value="">未分配资金</option>{pools.map((pool) => <option key={pool.id} value={pool.id}>{pool.name} · {pool.currency}{pool.isArchived ? ' · 已停用' : ''}</option>)}</select></label>
           <label>目标资金池<select value={destinationPoolId} onChange={(event) => setDestinationPoolId(event.target.value)}><option value="">转回未分配</option>{activePools.filter((pool) => pool.id !== sourcePoolId).map((pool) => <option key={pool.id} value={pool.id}>{pool.name} · {pool.currency}</option>)}</select></label>
@@ -342,7 +339,7 @@ export function FinanceFundsView({ accounts, onFeedback }: {
       </details>
 
       <section className="finance-section-card finance-savings-goals">
-        <header><div><span>父亲专项不会计入</span><h2>储蓄目标</h2></div></header>
+        <header><div><h2>储蓄目标</h2></div></header>
         {goals.length > 0 && <ul>{goals.map((goal) => {
           const state = states.get(goal.fundPoolId)
           const current = Math.max(0, state?.grossMinor ?? 0)

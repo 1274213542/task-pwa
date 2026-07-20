@@ -241,7 +241,6 @@ export default function Finance() {
     <section className="app-page page-finance" data-mode={mode}>
       <MobilePageHeader
         title="财务"
-        eyebrow="工时、收入与支出"
         onPrimary={() => mode === 'work'
           ? setWorkEditorOpen((open) => !open)
           : setExpenseEditorOpen((open) => !open)}
@@ -252,7 +251,6 @@ export default function Finance() {
       />
       <PageHeader
         title="财务"
-        eyebrow="把时间与日常花费放在同一条日期轴上"
         actions={(
           <>
             <AmountPrivacyToggle compact />

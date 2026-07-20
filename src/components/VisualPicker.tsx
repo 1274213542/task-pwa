@@ -60,7 +60,7 @@ export default function VisualPicker({
             onMarkerChange(undefined)
           }}
         >
-          使用分类或主题默认样式
+          恢复默认
         </button>
       )}
     </fieldset>

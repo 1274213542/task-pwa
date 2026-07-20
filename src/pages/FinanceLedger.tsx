@@ -305,14 +305,12 @@ export default function FinanceLedger() {
     <section className="app-page page-finance finance-ledger-page finance-shell">
       <div className="finance-sticky-header">
         <MobilePageHeader
-          eyebrow="工时、收入与支出"
           title="财务"
           onPrimary={() => openEntry('expense')}
           primaryLabel="快速记账"
           primaryIcon="plus"
         />
         <PageHeader
-          eyebrow="工时、收入与支出"
           title="财务"
           actions={
             <>
@@ -793,7 +791,7 @@ function AccountsView({
   return (
     <div className="finance-accounts-view">
       <div className="finance-view-heading">
-        <div><span>{accounts.filter((account) => !account.isArchived).length} 个启用账户</span><h2>账户与支付来源</h2></div>
+        <div><h2>账户与支付来源</h2></div>
         <div><button onClick={onTransfer}>转账</button><button className="primary" onClick={() => { reset(); setOpen((value) => !value) }}>新增账户</button></div>
       </div>
       {open && (
@@ -850,7 +848,7 @@ function AccountsView({
               <span className="finance-account-currencies">{accountCurrencies(account).join(' / ')}</span>
             </div>
             <details className="finance-account-actions-menu">
-              <summary><AppIcon name="more" size={18} />管理账户</summary>
+              <summary>更多<AppIcon name="chevronRight" size={16} /></summary>
               <div>
                 <button aria-label="上移账户" onClick={() => void moveAccount(account.id, -1)}>上移</button>
                 <button aria-label="下移账户" onClick={() => void moveAccount(account.id, 1)}>下移</button>
@@ -889,7 +887,7 @@ function TransactionsView({
   return (
     <div className="finance-transactions-view">
       <div className="finance-view-heading">
-        <div><span>{visible.length} 条记录</span><h2>资金流水</h2></div>
+        <div><h2>资金流水</h2></div>
         <button className="primary" onClick={() => onNew('expense')}>快速记账</button>
       </div>
       <div className="finance-compact-filter">
@@ -932,7 +930,14 @@ function TransactionList({
   const accountMap = new Map(accounts.map((account) => [account.id, account]))
   return (
     <section className="finance-section-card finance-transaction-list">
-      <header><div><h2>{title}</h2></div>{onSeeAll && <button onClick={onSeeAll}>查看全部</button>}</header>
+      <header>
+        <div><h2>{title}</h2></div>
+        {onSeeAll && (
+          <button className="finance-see-all" onClick={onSeeAll}>
+            查看全部 <AppIcon name="chevronRight" size={15} />
+          </button>
+        )}
+      </header>
       {transactions.length ? <ul>{transactions.map((transaction, index) => {
         const account = accountMap.get(transaction.accountId)
         const positive = transaction.type === 'income' || transaction.type === 'refund'
@@ -955,11 +960,13 @@ function TransactionList({
         >
           <span className={`finance-transaction-icon is-${transaction.type}`}><AppIcon name={positive ? 'plus' : transaction.type.includes('transfer') || transaction.type === 'topup' || transaction.type === 'credit_payment' ? 'sync' : 'receipt'} size={18} /></span>
           <div>
-            <strong>{transaction.merchantNameSnapshot || transaction.note || TRANSACTION_LABEL[transaction.type]}</strong>
+            <span className="finance-transaction-title-line">
+              <strong>{transaction.merchantNameSnapshot || transaction.note || TRANSACTION_LABEL[transaction.type]}</strong>
+              {external && <em className="finance-transaction-status">外部代付</em>}
+            </span>
             <span>
-              {transaction.localDate} · {external
-                ? `外部代付 · ${account?.name ?? '未知支付来源'}`
-                : `${account?.name ?? '未知账户'} · ${TRANSACTION_LABEL[transaction.type]}`}
+              {transaction.localDate} · {account?.name ?? (external ? '未知支付来源' : '未知账户')}
+              {!external && ` · ${TRANSACTION_LABEL[transaction.type]}`}
             </span>
           </div>
           <b className={positive ? 'is-positive' : ''}>

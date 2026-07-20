@@ -383,12 +383,11 @@ function LocationManager({ locations }: { locations: ShoppingLocation[] }) {
 
   return (
     <div className="location-manager list-card mt-2 overflow-hidden rounded-2xl bg-white dark:bg-neutral-800">
-      <ul>
+      <ul className="location-manager-list">
         {locations.map((loc) => (
           <li
             key={loc.id}
-            className="flex items-center gap-2.5 border-b border-black/5 px-4 py-2.5
-              dark:border-white/10"
+            className="location-manager-row flex items-center gap-2.5 px-4 py-2.5"
           >
             <span aria-hidden className="location-type-icon">
               <AppIcon name={loc.type === 'online' ? 'browse' : 'shopping'} size={17} />
@@ -442,7 +441,7 @@ function LocationManager({ locations }: { locations: ShoppingLocation[] }) {
           </li>
         ))}
       </ul>
-      <div className="flex items-center gap-2 px-4 py-2.5">
+      <div className="location-manager-composer flex items-center gap-2 px-4 py-2.5">
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
