@@ -3294,7 +3294,7 @@ body.editor-open .app-shell main { transform: scale(.99); opacity: .5; filter: n
   }
   .desktop-week-time-rail {
     display: grid;
-    grid-template-rows: 72px repeat(7, 80px);
+    grid-template-rows: 72px repeat(8, 80px);
     border-right: 1px solid var(--line);
     background: var(--surface-strong);
   }
@@ -3311,7 +3311,7 @@ body.editor-open .app-shell main { transform: scale(.99); opacity: .5; filter: n
     grid-template-columns: repeat(7, minmax(0, 1fr));
   }
   .week-column {
-    min-height: 700px;
+    min-height: 780px;
     padding: 0 7px 12px;
     background-image: repeating-linear-gradient(
       to bottom,
@@ -3321,6 +3321,26 @@ body.editor-open .app-shell main { transform: scale(.99); opacity: .5; filter: n
     background-position: 0 72px;
   }
   .week-day-heading { min-height: 72px; border-radius: 0; background: var(--surface-strong); }
+  .week-column-unscheduled {
+    display: grid;
+    min-height: 80px;
+    align-content: center;
+    gap: 4px;
+    border-bottom: 1px solid var(--line);
+    padding: 6px 0;
+  }
+  .week-unscheduled-chip {
+    overflow: hidden;
+    border-radius: 999px;
+    background: var(--surface);
+    padding: 4px 7px;
+    font-size: 10px;
+    font-weight: 600;
+    text-align: left;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .week-column-unscheduled > span { color: var(--muted); font-size: 10px; text-align: right; }
   .week-column-items { position: relative; min-height: 620px; padding: 0; }
   .week-event {
     position: absolute;

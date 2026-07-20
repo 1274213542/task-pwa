@@ -46,13 +46,8 @@ function CategoryRow({ cat, taskCount }: { cat: Category; taskCount: number }) {
       contentClassName="category-row"
       actions={[
         {
-          label: '样式',
-          icon: 'palette',
-          onSelect: () => void setCategoryColor(cat.id, nextColorToken(cat.colorToken)),
-        },
-        {
-          label: '重命名',
-          icon: 'edit',
+          label: '更多',
+          icon: 'more',
           onSelect: () => setEditing(true),
         },
         {

@@ -42,6 +42,9 @@ export default function TaskEditor({
   const [scheduleStart, setScheduleStart] = useState(
     civilDateOf(task.startAt ?? task.startDate) ?? item.date,
   )
+  const [scheduleTime, setScheduleTime] = useState(
+    task.startAt?.includes('T') ? task.startAt.slice(11, 16) : '',
+  )
   const [scheduleDue, setScheduleDue] = useState(() => {
     if (!task.dueAt) return ''
     return task.dueAt.includes('T') ? task.dueAt.slice(0, 16) : `${task.dueAt}T23:59`
@@ -100,7 +103,9 @@ export default function TaskEditor({
         visualToken,
         markerSymbol,
         scheduleType,
-        startAt: scheduleType === 'unscheduled' || inheritsParentSchedule ? undefined : scheduleStart,
+        startAt: scheduleType === 'unscheduled' || inheritsParentSchedule
+          ? undefined
+          : scheduleTime ? `${scheduleStart}T${scheduleTime}` : scheduleStart,
         dueAt: scheduleType === 'unscheduled' || inheritsParentSchedule ? undefined : scheduleDue || undefined,
         showBeforeStart,
         surfaceDaysBeforeDue,
@@ -303,6 +308,21 @@ export default function TaskEditor({
                     value={inheritsParentSchedule ? civilDateOf(effective.startAt) ?? '' : scheduleStart}
                     onChange={(event) => setScheduleStart(event.target.value)}
                   />
+                </label>
+              )}
+              {(inheritsParentSchedule ? effective.type : scheduleType) !== 'unscheduled' && (
+                <label>
+                  具体时间（可选）
+                  <input
+                    type="time"
+                    className="field mt-1"
+                    disabled={inheritsParentSchedule}
+                    value={inheritsParentSchedule
+                      ? effective.startAt?.includes('T') ? effective.startAt.slice(11, 16) : ''
+                      : scheduleTime}
+                    onChange={(event) => setScheduleTime(event.target.value)}
+                  />
+                  <span className="task-schedule-time-hint">留空时显示在“未排定时间”</span>
                 </label>
               )}
               {(inheritsParentSchedule ? effective.type : scheduleType) !== 'unscheduled' && (

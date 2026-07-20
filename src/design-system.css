@@ -200,12 +200,12 @@
 
   /* Swipe geometry stays independent: increasing icon weight never inflates
      the action rail or changes the business reveal distance. */
-  --action-button-width: 72px;
-  --action-button-height: 68px;
-  --action-pill-height: 46px;
-  --action-icon-size: 24px;
+  --action-button-width: 56px;
+  --action-button-height: 56px;
+  --action-pill-height: 36px;
+  --action-icon-size: 18px;
   --action-button-gap: 4px;
-  --action-label-size: 14px;
+  --action-label-size: 11px;
 
   /* Compatibility aliases consumed by existing components. */
   --ui-radius-panel: var(--ds-radius-panel);
@@ -1115,6 +1115,333 @@ select:focus {
 
   .page-overview {
     gap: var(--ds-space-3);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Unified transient rows, scheduling feedback and civil-date states
+
+   This layer intentionally owns only presentation. SwipeActionRow keeps one
+   gesture implementation while each feature retains its original callbacks.
+   -------------------------------------------------------------------------- */
+
+@media (max-width: 1023px) {
+  .shopping-swipe-row > .shopping-row-swipe,
+  .task-card-shell > .task-card-swipe-row,
+  .calendar-item-swipe,
+  .mobile-timeline-swipe,
+  .finance-work-entry-swipe {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .shopping-swipe-row > .shopping-row-swipe,
+  .task-card-shell > .task-card-swipe-row {
+    overflow: hidden;
+    border-radius: var(--radius-card-medium);
+  }
+
+  .shopping-row-swipe > .shopping-card,
+  .task-card-swipe-row > .task-card-swipe-content {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .apple-swipe-actions {
+    gap: var(--action-button-gap) !important;
+    padding-right: 0 !important;
+  }
+
+  .apple-swipe-action {
+    grid-template-rows: var(--action-pill-height) 16px !important;
+    gap: 2px !important;
+  }
+
+  .apple-swipe-action__pill {
+    box-shadow: 0 1px 0 rgb(255 255 255 / 0.18) inset;
+  }
+
+  .apple-swipe-action__label {
+    font-size: var(--action-label-size) !important;
+    line-height: 16px !important;
+    font-weight: 500 !important;
+  }
+
+  .calendar-item-swipe {
+    overflow: hidden;
+    border-radius: var(--radius-card-medium);
+  }
+
+  .calendar-item-swipe > .calendar-item-card {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .finance-work-entry-swipe {
+    display: block;
+    overflow: hidden;
+    border-radius: var(--radius-card-medium);
+  }
+
+  .finance-work-entry-row {
+    display: grid;
+    min-height: var(--grouped-row-height-two-line);
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-surface-primary);
+  }
+
+  .finance-work-entry-row > div:first-child {
+    display: grid;
+    min-width: 0;
+    gap: 2px;
+  }
+
+  .finance-work-entry-row strong,
+  .finance-work-entry-row span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .finance-work-entry-row span {
+    color: var(--color-text-secondary);
+    font-size: var(--apple-secondary-size);
+    line-height: var(--apple-secondary-leading);
+    font-weight: var(--font-weight-medium);
+  }
+
+  .timeline-schedule-row {
+    position: relative;
+    min-width: 0;
+    border-radius: var(--radius-card-medium);
+  }
+
+  .timeline-schedule-row[data-dragging] {
+    z-index: 30;
+  }
+
+  .timeline-schedule-row > .mobile-timeline-row {
+    transition:
+      transform var(--duration-standard) var(--ease-standard),
+      filter var(--duration-fast) var(--ease-standard);
+  }
+
+  .timeline-schedule-row[data-dragging] > .mobile-timeline-row {
+    transform: translate3d(var(--timeline-drag-x), var(--timeline-drag-y), 0) scale(1.018);
+    filter: drop-shadow(0 12px 22px rgb(20 21 20 / 0.16));
+    transition: none;
+  }
+
+  .timeline-drop-feedback {
+    position: absolute;
+    z-index: 40;
+    top: -34px;
+    left: 56px;
+    min-height: 30px;
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-pill);
+    background: var(--color-text-primary);
+    box-shadow: var(--shadow-floating);
+    color: var(--color-surface-primary);
+    padding: 5px 12px;
+    font-size: 13px;
+    line-height: 20px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .mobile-timeline-all-day,
+  .mobile-timeline-unscheduled,
+  .mobile-timeline-scheduled {
+    display: grid;
+    gap: var(--space-2);
+  }
+
+  .mobile-timeline-all-day,
+  .mobile-timeline-unscheduled {
+    margin-bottom: var(--space-4);
+    border-radius: var(--radius-card-large);
+    background: color-mix(in srgb, var(--color-surface-secondary) 78%, transparent);
+    padding: var(--space-3);
+  }
+
+  .mobile-timeline-all-day > header,
+  .mobile-timeline-unscheduled > header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-2);
+    padding-inline: var(--space-1);
+  }
+
+  .mobile-timeline-all-day > header span,
+  .mobile-timeline-unscheduled > header span {
+    color: var(--color-text-primary);
+    font-size: 15px;
+    line-height: 21px;
+    font-weight: 600;
+  }
+
+  .mobile-timeline-all-day > header small,
+  .mobile-timeline-unscheduled > header small {
+    color: var(--color-text-secondary);
+    font-size: 12px;
+    line-height: 17px;
+    font-weight: 500;
+  }
+
+  .mobile-timeline-swipe {
+    overflow: hidden;
+    border-radius: var(--radius-card-medium);
+  }
+
+  .mobile-timeline-swipe > .mobile-timeline-event {
+    display: grid;
+    width: 100%;
+    min-height: 64px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-content: center;
+    gap: 2px var(--space-3);
+    border-radius: var(--radius-card-medium);
+    padding: var(--space-3) var(--space-4);
+    cursor: pointer;
+  }
+
+  .mobile-timeline-swipe > .mobile-timeline-event strong,
+  .mobile-timeline-swipe > .mobile-timeline-event span {
+    grid-column: 1;
+  }
+
+  .mobile-timeline-swipe > .mobile-timeline-event > .marker-icon {
+    position: static;
+    grid-column: 2;
+    grid-row: 1 / 3;
+    align-self: center;
+    transform: none;
+  }
+
+  .task-schedule-time-hint {
+    display: block;
+    margin-top: var(--space-1);
+    color: var(--color-text-secondary);
+    font-size: 12px;
+    line-height: 17px;
+    font-weight: 500;
+  }
+
+  .page-plan[data-mode='month'] .calendar-date-number {
+    position: relative;
+    display: grid;
+    width: 36px;
+    height: 36px;
+    place-items: center;
+    border: 0 !important;
+    border-radius: var(--radius-circle) !important;
+    background: transparent !important;
+    color: var(--color-text-primary) !important;
+    isolation: isolate;
+  }
+
+  .page-plan[data-mode='month'] .calendar-date-number[data-has-items='true'] {
+    background: var(--color-control-selected) !important;
+  }
+
+  .page-plan[data-mode='month'] .calendar-selected-date-pill {
+    position: absolute;
+    z-index: -1;
+    inset: 0;
+    border-radius: var(--radius-circle);
+    background: var(--color-text-primary);
+    box-shadow: 0 1px 0 rgb(255 255 255 / 0.14) inset;
+  }
+
+  .page-plan[data-mode='month'] .calendar-date-label {
+    position: relative;
+    z-index: 1;
+    color: inherit;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .page-plan[data-mode='month'] .calendar-day[data-selected='true'] .calendar-date-number,
+  .page-plan[data-mode='month'] .calendar-day[data-selected='true'] .calendar-date-number[data-today='true'],
+  .page-plan[data-mode='month'] .calendar-day[data-selected='true'] .calendar-date-number[data-has-items='true'] {
+    background: transparent !important;
+    color: #fff !important;
+  }
+
+  .page-plan[data-mode='month'] .calendar-date-count {
+    display: none !important;
+  }
+
+  /* Every segmented surface shares one concentric pill geometry. */
+  [data-shared-indicator],
+  .segmented-control,
+  .plan-mobile-mode-switch,
+  .mobile-shopping-view-switch,
+  .task-scope-control,
+  .task-intent-selector,
+  .finance-ledger-tabs,
+  .finance-planning-sections,
+  .finance-mode-switch,
+  .finance-inline-switch {
+    overflow: hidden;
+    border-radius: var(--radius-pill) !important;
+  }
+
+  [data-shared-indicator] > button,
+  .segmented-control > button,
+  .task-intent-selector > button,
+  .finance-ledger-tabs > button,
+  .finance-planning-sections > button {
+    border-radius: var(--radius-pill) !important;
+  }
+
+  .shared-segment-indicator {
+    border-radius: var(--radius-pill) !important;
+  }
+
+  .field:not(textarea),
+  .task-editor-schedule-grid input,
+  .calendar-composer-controls input,
+  .calendar-composer-controls select,
+  .finance-form-grid-v2 input,
+  .finance-form-grid-v2 select {
+    border-radius: var(--radius-pill) !important;
+  }
+
+  textarea.field,
+  .calendar-composer textarea {
+    border-radius: var(--radius-card-medium) !important;
+  }
+
+  /* Small gray copy uses weight and line-height, not low contrast alone. */
+  .task-card-meta,
+  .task-card-subtitle,
+  .shopping-item-meta,
+  .calendar-item-main > span,
+  .mobile-timeline-event > span,
+  .finance-transaction-row > div > span,
+  .finance-work-entry-row span,
+  .finance-stat-card span,
+  .finance-summary-card span,
+  .empty-state p,
+  .calendar-empty-day,
+  .calendar-empty-agenda,
+  .mobile-tab-label,
+  .mobile-week-strip span {
+    color: var(--color-text-secondary) !important;
+    font-weight: var(--font-weight-medium) !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .timeline-schedule-row > .mobile-timeline-row,
+  .calendar-selected-date-pill {
+    transition-duration: 1ms !important;
   }
 }
 
@@ -6581,7 +6908,11 @@ select:focus {
   display: grid;
   min-width: 0;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--ds-space-2);
+  gap: 0;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--radius-pill);
+  background: var(--ds-control-bg);
+  padding: var(--segment-inset);
 }
 
 .task-schedule-composer > .task-intent-picker {
@@ -6596,9 +6927,10 @@ select:focus {
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: var(--ds-space-2);
-  border: 1px solid var(--ds-border);
-  border-radius: var(--ds-radius-control);
-  background: var(--ui-surface);
+  z-index: 1;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
   padding: 10px;
   color: var(--ui-muted);
   text-align: left;
@@ -6610,9 +6942,14 @@ select:focus {
 
 .task-intent-picker > button:active { transform: scale(0.975); }
 .task-intent-picker > button[aria-checked='true'] {
-  border-color: var(--ds-border-strong);
-  background: var(--neutral-selected);
+  background: transparent;
   color: var(--ui-ink);
+}
+
+.task-intent-picker > .task-intent-indicator {
+  border-radius: var(--radius-pill);
+  background: var(--ui-surface);
+  box-shadow: var(--ds-shadow-card);
 }
 
 .task-intent-picker > button > span {
@@ -6637,22 +6974,6 @@ select:focus {
   line-height: 1.25;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.task-intent-picker i {
-  position: absolute;
-  top: 7px;
-  right: 7px;
-  width: 7px;
-  height: 7px;
-  border: 1px solid var(--ds-border-strong);
-  border-radius: 50%;
-}
-
-.task-intent-picker button[aria-checked='true'] i {
-  border-color: var(--ui-ink);
-  background: var(--ui-ink);
-  box-shadow: 0 0 0 2px var(--ui-surface);
 }
 
 .task-intent-picker button:disabled { opacity: 0.62; }
@@ -9157,7 +9478,7 @@ select:focus {
   --apple-swipe-action-width: var(--action-button-width);
   --apple-swipe-pill-height: var(--action-pill-height);
   --apple-swipe-action-height: var(--action-button-height);
-  --apple-swipe-reveal: 224px;
+  --apple-swipe-reveal: 116px;
 }
 
 html[lang='zh-CN'] body {
@@ -9492,10 +9813,10 @@ html[lang='zh-CN'] body {
     height: var(--apple-swipe-action-height) !important;
     min-height: var(--apple-swipe-action-height) !important;
     flex-basis: var(--apple-swipe-action-width) !important;
-    grid-template-rows: var(--apple-swipe-pill-height) 18px !important;
+    grid-template-rows: var(--apple-swipe-pill-height) 16px !important;
     gap: var(--action-button-gap) !important;
     font-size: var(--action-label-size) !important;
-    line-height: 18px !important;
+    line-height: 16px !important;
     font-weight: 500 !important;
     transform: none;
   }
@@ -9534,7 +9855,7 @@ html[lang='zh-CN'] body {
   .apple-swipe-action__label {
     color: var(--color-icon-secondary) !important;
     font-size: var(--action-label-size) !important;
-    line-height: 18px !important;
+    line-height: 16px !important;
     font-weight: 500 !important;
   }
 
@@ -9564,6 +9885,7 @@ html[lang='zh-CN'] body {
   .task-card-swipe-content,
   .page-shopping .shopping-swipe-foreground {
     position: relative;
+    transition: none !important;
   }
 
   .apple-swipe-foreground::before,
@@ -9822,5 +10144,249 @@ html[lang='zh-CN'] body {
   .apple-swipe-action__pill,
   .apple-swipe-action__label {
     transition: none !important;
+  }
+}
+
+/* Late priority: legacy page selectors above are intentionally kept for
+   desktop compatibility; mobile uses the unified geometry below. */
+@media (max-width: 1023px) {
+  .shopping-swipe-row > .shopping-row-swipe,
+  .task-card-shell > .task-card-swipe-row,
+  .calendar-item-swipe,
+  .mobile-timeline-swipe,
+  .finance-work-entry-swipe {
+    width: 100% !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+    border-radius: var(--radius-card-medium) !important;
+  }
+
+  .shopping-row-swipe > .shopping-card,
+  .task-card-swipe-row > .task-card-swipe-content,
+  .calendar-item-swipe > .calendar-item-card {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .apple-swipe-actions {
+    width: 116px !important;
+    gap: var(--action-button-gap) !important;
+    padding-right: 0 !important;
+  }
+
+  .apple-swipe-action {
+    width: var(--action-button-width) !important;
+    height: var(--action-button-height) !important;
+    min-height: var(--action-button-height) !important;
+    flex-basis: var(--action-button-width) !important;
+    grid-template-rows: var(--action-pill-height) 16px !important;
+    gap: 2px !important;
+  }
+
+  .apple-swipe-action__pill {
+    width: var(--action-button-width) !important;
+    height: var(--action-pill-height) !important;
+  }
+
+  .apple-swipe-action__pill svg {
+    width: var(--action-icon-size) !important;
+    height: var(--action-icon-size) !important;
+    stroke-width: 1.9 !important;
+  }
+
+  .apple-swipe-action__label {
+    font-size: var(--action-label-size) !important;
+    line-height: 16px !important;
+    font-weight: 500 !important;
+  }
+
+  .page-plan[data-mode='month'] .calendar-date-number {
+    position: relative !important;
+    display: grid !important;
+    width: 36px !important;
+    height: 36px !important;
+    place-items: center !important;
+    border: 0 !important;
+    border-radius: var(--radius-circle) !important;
+    background: transparent !important;
+    color: var(--color-text-primary) !important;
+    isolation: isolate;
+  }
+
+  .page-plan[data-mode='month'] .calendar-date-number[data-has-items='true'] {
+    background: var(--color-control-selected) !important;
+  }
+
+  .page-plan[data-mode='month'] .calendar-selected-date-pill {
+    position: absolute;
+    z-index: -1;
+    inset: 0;
+    border-radius: var(--radius-circle);
+    background: var(--color-text-primary);
+  }
+
+  .page-plan[data-mode='month'] .calendar-date-label {
+    position: relative;
+    z-index: 1;
+    color: inherit;
+  }
+
+  .page-plan[data-mode='month'] .calendar-day[data-selected='true'] .calendar-date-number,
+  .page-plan[data-mode='month'] .calendar-day[data-selected='true'] .calendar-date-number[data-today='true'],
+  .page-plan[data-mode='month'] .calendar-day[data-selected='true'] .calendar-date-number[data-has-items='true'] {
+    background: transparent !important;
+    color: #fff !important;
+  }
+
+  .page-plan[data-mode='month'] .calendar-date-count {
+    display: none !important;
+  }
+
+  .page-plan[data-mode='week'] .mobile-timeline-items,
+  .mobile-timeline-all-day,
+  .mobile-timeline-unscheduled,
+  .mobile-timeline-scheduled {
+    display: grid !important;
+    gap: var(--space-2) !important;
+  }
+
+  .mobile-timeline-all-day,
+  .mobile-timeline-unscheduled {
+    margin-bottom: var(--space-4);
+    border-radius: var(--radius-card-large);
+    background: color-mix(in srgb, var(--color-surface-secondary) 78%, transparent);
+    padding: var(--space-3);
+  }
+
+  .mobile-timeline-all-day > header,
+  .mobile-timeline-unscheduled > header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-2);
+  }
+
+  .mobile-timeline-all-day > header span,
+  .mobile-timeline-all-day > header small,
+  .mobile-timeline-unscheduled > header span,
+  .mobile-timeline-unscheduled > header small {
+    font-weight: 500;
+  }
+
+  .page-plan[data-mode='week'] .mobile-timeline-row {
+    display: grid;
+    grid-template-columns: 48px minmax(0, 1fr);
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .page-plan[data-mode='week'] .mobile-timeline-row > time {
+    align-self: center;
+    padding-top: 0 !important;
+    color: var(--color-text-secondary) !important;
+    font-size: 12px !important;
+    line-height: 17px !important;
+    font-weight: 500 !important;
+  }
+
+  .mobile-timeline-swipe > .mobile-timeline-event {
+    position: relative;
+    display: grid !important;
+    width: 100% !important;
+    min-height: 64px !important;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-content: center;
+    gap: 2px var(--space-3);
+    border-radius: var(--radius-card-medium) !important;
+    padding: var(--space-3) var(--space-4) !important;
+  }
+
+  .mobile-timeline-swipe > .mobile-timeline-event strong,
+  .mobile-timeline-swipe > .mobile-timeline-event span {
+    grid-column: 1;
+  }
+
+  .mobile-timeline-swipe > .mobile-timeline-event > .marker-icon {
+    position: static !important;
+    grid-column: 2;
+    grid-row: 1 / 3;
+    align-self: center;
+    transform: none !important;
+  }
+
+  .timeline-schedule-row {
+    position: relative;
+    min-width: 0;
+    border-radius: var(--radius-card-medium);
+  }
+
+  .timeline-schedule-row > .mobile-timeline-row {
+    transition:
+      transform var(--duration-standard) var(--ease-standard),
+      filter var(--duration-fast) var(--ease-standard);
+  }
+
+  .timeline-schedule-row[data-dragging] {
+    z-index: 30;
+  }
+
+  .timeline-schedule-row[data-dragging] > .mobile-timeline-row {
+    transform: translate3d(var(--timeline-drag-x), var(--timeline-drag-y), 0) scale(1.018);
+    filter: drop-shadow(0 12px 22px rgb(20 21 20 / 0.16));
+    transition: none;
+  }
+
+  .timeline-drop-feedback {
+    position: absolute;
+    z-index: 40;
+    top: -34px;
+    left: 56px;
+    min-height: 30px;
+    border-radius: var(--radius-pill);
+    background: var(--color-text-primary);
+    box-shadow: var(--shadow-floating);
+    color: var(--color-surface-primary);
+    padding: 5px 12px;
+    font-size: 13px;
+    line-height: 20px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .finance-work-entry-row {
+    display: grid !important;
+    min-height: var(--grouped-row-height-two-line);
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-surface-primary);
+  }
+
+  [data-shared-indicator],
+  .segmented-control,
+  .plan-mobile-mode-switch,
+  .mobile-shopping-view-switch,
+  .task-scope-control,
+  .task-intent-selector,
+  .finance-ledger-tabs,
+  .finance-planning-sections,
+  .finance-mode-switch,
+  .finance-inline-switch,
+  .shared-segment-indicator {
+    border-radius: var(--radius-pill) !important;
+  }
+
+  .task-card-meta,
+  .task-card-subtitle,
+  .shopping-item-meta,
+  .calendar-item-main > span,
+  .mobile-timeline-event > span,
+  .finance-transaction-row > div > span,
+  .finance-work-entry-row span,
+  .empty-state p,
+  .mobile-tab-label {
+    color: var(--color-text-secondary) !important;
+    font-weight: var(--font-weight-medium) !important;
   }
 }

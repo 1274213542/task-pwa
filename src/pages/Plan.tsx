@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { motion, useReducedMotion } from 'motion/react'
 import { Temporal } from 'temporal-polyfill'
@@ -12,7 +12,7 @@ import {
 } from '../lib/db'
 import { type CalItem, buildCalendarItems, monthGrid } from '../lib/calendar'
 import { useCivilDate } from '../lib/useCivilDate'
-import { addEvent, softDeleteEvent, toggleEventCompletion } from '../lib/events'
+import { addEvent, softDeleteEvent, toggleEventCompletion, updateEvent } from '../lib/events'
 import {
   RecurrenceConflictError,
   addTasks,
@@ -20,6 +20,8 @@ import {
   completeTask,
   resolveAfterCompletion,
   skipFixedOccurrence,
+  softDeleteTask,
+  updateTask,
   voidRecord,
 } from '../lib/tasks'
 import { parseBatchLines } from '../lib/batch'
@@ -32,6 +34,7 @@ import { FOCUS_QUICK_ADD_EVENT } from '../lib/appEvents'
 import { MOTION } from '../lib/motion'
 import MobilePageHeader from '../components/MobilePageHeader'
 import SegmentedIndicator from '../components/SegmentedIndicator'
+import SwipeActionRow from '../components/SwipeActionRow'
 
 const WEEK_LABELS_MON = ['一', '二', '三', '四', '五', '六', '日']
 const WEEK_LABELS_SUN = ['日', '一', '二', '三', '四', '五', '六']
@@ -46,6 +49,161 @@ function weekStart(dateISO: string, weekStartsOn: 1 | 0) {
 
 function dateLabel(dateISO: string, options?: Intl.DateTimeFormatOptions) {
   return new Date(`${dateISO}T00:00:00`).toLocaleDateString('zh-CN', options)
+}
+
+function minutesFromTime(value: string | null) {
+  if (!value) return 9 * 60
+  const [hour, minute] = value.split(':').map(Number)
+  return Math.max(0, Math.min(23 * 60 + 45, hour * 60 + minute))
+}
+
+function timeFromMinutes(value: number) {
+  const normalized = Math.max(0, Math.min(23 * 60 + 45, Math.round(value / 15) * 15))
+  return `${String(Math.floor(normalized / 60)).padStart(2, '0')}:${String(normalized % 60).padStart(2, '0')}`
+}
+
+/**
+ * A 300ms hold hands the gesture from vertical scrolling to scheduling.
+ * Horizontal swipes stay owned by SwipeActionRow; early movement cancels the
+ * timer, so an ordinary scroll never silently changes an item's date.
+ */
+function TimelineScheduleRow({
+  date,
+  time,
+  disabled = false,
+  onCommit,
+  children,
+}: {
+  date: string
+  time: string | null
+  disabled?: boolean
+  onCommit: (date: string, time: string) => Promise<void>
+  children: ReactNode
+}) {
+  const rootRef = useRef<HTMLDivElement>(null)
+  const timerRef = useRef<number | null>(null)
+  const gestureRef = useRef<{
+    pointerId: number
+    startX: number
+    startY: number
+    active: boolean
+    targetDate: string
+    targetMinutes: number
+  } | null>(null)
+  const activeTouchBlocker = useRef((event: TouchEvent) => {
+    if (gestureRef.current?.active) event.preventDefault()
+  })
+  const suppressClickRef = useRef(false)
+  const [dragState, setDragState] = useState<{ dx: number; dy: number; date: string; time: string } | null>(null)
+
+  function clearTimer() {
+    if (timerRef.current === null) return
+    window.clearTimeout(timerRef.current)
+    timerRef.current = null
+  }
+
+  function clearTouchBlocker() {
+    rootRef.current?.removeEventListener('touchmove', activeTouchBlocker.current)
+  }
+
+  useEffect(() => () => {
+    clearTimer()
+    clearTouchBlocker()
+  }, [])
+
+  function onPointerDown(event: ReactPointerEvent<HTMLDivElement>) {
+    if (disabled || event.button !== 0) return
+    const target = event.target as Element
+    if (target.closest('.apple-swipe-actions, [data-no-time-drag], input, textarea, select')) return
+    clearTimer()
+    gestureRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      active: false,
+      targetDate: date,
+      targetMinutes: minutesFromTime(time),
+    }
+    timerRef.current = window.setTimeout(() => {
+      const gesture = gestureRef.current
+      if (!gesture) return
+      gesture.active = true
+      suppressClickRef.current = true
+      rootRef.current?.setPointerCapture(gesture.pointerId)
+      rootRef.current?.addEventListener('touchmove', activeTouchBlocker.current, { passive: false })
+      setDragState({ dx: 0, dy: 0, date, time: timeFromMinutes(gesture.targetMinutes) })
+      navigator.vibrate?.(8)
+    }, 300)
+  }
+
+  function onPointerMove(event: ReactPointerEvent<HTMLDivElement>) {
+    const gesture = gestureRef.current
+    if (!gesture || gesture.pointerId !== event.pointerId) return
+    const dx = event.clientX - gesture.startX
+    const dy = event.clientY - gesture.startY
+    if (!gesture.active) {
+      if (Math.hypot(dx, dy) > 9) {
+        clearTimer()
+        clearTouchBlocker()
+        gestureRef.current = null
+      }
+      return
+    }
+    event.preventDefault()
+    const dayOffset = Math.max(-3, Math.min(3, Math.round(dx / 76)))
+    const targetDate = Temporal.PlainDate.from(date).add({ days: dayOffset }).toString()
+    const targetMinutes = minutesFromTime(time) + Math.round(dy / 12) * 15
+    gesture.targetDate = targetDate
+    gesture.targetMinutes = targetMinutes
+    setDragState({ dx, dy, date: targetDate, time: timeFromMinutes(targetMinutes) })
+  }
+
+  function finish(event: ReactPointerEvent<HTMLDivElement>, cancelled = false) {
+    clearTimer()
+    clearTouchBlocker()
+    const gesture = gestureRef.current
+    gestureRef.current = null
+    if (!gesture?.active) return
+    event.preventDefault()
+    setDragState(null)
+    if (!cancelled) void onCommit(gesture.targetDate, timeFromMinutes(gesture.targetMinutes))
+    window.setTimeout(() => { suppressClickRef.current = false }, 0)
+  }
+
+  return (
+    <div
+      ref={rootRef}
+      className="timeline-schedule-row"
+      data-dragging={dragState ? true : undefined}
+      style={dragState ? {
+        '--timeline-drag-x': `${dragState.dx}px`,
+        '--timeline-drag-y': `${dragState.dy}px`,
+      } as React.CSSProperties : undefined}
+      onPointerDown={onPointerDown}
+      onPointerMoveCapture={(event) => {
+        if (!gestureRef.current?.active) return
+        onPointerMove(event)
+        event.stopPropagation()
+      }}
+      onPointerMove={(event) => {
+        if (!gestureRef.current?.active) onPointerMove(event)
+      }}
+      onPointerUp={(event) => finish(event)}
+      onPointerCancel={(event) => finish(event, true)}
+      onClickCapture={(event) => {
+        if (!suppressClickRef.current) return
+        event.preventDefault()
+        event.stopPropagation()
+      }}
+    >
+      {children}
+      {dragState && (
+        <span className="timeline-drop-feedback" role="status">
+          {dragState.date === date ? '' : `${dragState.date.slice(5)} · `}{dragState.time}
+        </span>
+      )}
+    </div>
+  )
 }
 
 export default function Plan() {
@@ -236,11 +394,26 @@ export default function Plan() {
   }
 
   function itemTime(item: CalItem) {
-    if (item.kind !== 'event' || !item.event.startAt) return null
-    return new Date(item.event.startAt).toLocaleTimeString('zh-CN', {
-      hour: '2-digit',
-      minute: '2-digit',
-    })
+    const value = item.kind === 'event' ? item.event.startAt : item.task.startAt
+    if (!value?.includes('T')) return null
+    const direct = value.match(/T(\d{2}:\d{2})/)
+    if (direct) return direct[1]
+    return new Date(value).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+  }
+
+  function eventEndTime(item: CalItem) {
+    if (item.kind !== 'event' || !item.event.endAt) return undefined
+    return Temporal.Instant.from(item.event.endAt)
+      .toZonedDateTimeISO(Temporal.Now.timeZoneId())
+      .toPlainTime()
+      .toString({ smallestUnit: 'minute' })
+  }
+
+  function itemTimeLabel(item: CalItem) {
+    const start = itemTime(item)
+    if (!start) return item.kind === 'event' && item.event.allDay ? '全天' : '未排定'
+    const end = eventEndTime(item)
+    return end ? `${start} – ${end}` : start
   }
 
   function openItem(item: CalItem) {
@@ -253,6 +426,57 @@ export default function Plan() {
       void setTaskStatus(item, item.completed ? 'pending' : 'completed')
     } else {
       void toggleEventCompletion(item.event)
+    }
+  }
+
+  async function rescheduleItem(item: CalItem, targetDate: string, targetTime: string) {
+    try {
+      if (item.kind === 'event') {
+        const spanDays = Temporal.PlainDate.from(item.event.startDate)
+          .until(Temporal.PlainDate.from(item.event.endDate)).days
+        await updateEvent(item.event.id, {
+          title: item.event.title,
+          notes: item.event.notes,
+          date: targetDate,
+          endDate: Temporal.PlainDate.from(targetDate).add({ days: spanDays }).toString(),
+          time: targetTime,
+          endTime: eventEndTime(item),
+          categoryId: item.event.categoryId,
+          visualToken: item.event.visualToken,
+          markerSymbol: item.event.markerSymbol,
+        })
+      } else {
+        const task = item.task
+        if (task.recurrence || (task.parentTaskId && task.inheritsParentSchedule !== false)) {
+          setFeedback('周期任务或继承父任务日期的事项，请通过“更多”编辑排期')
+          window.setTimeout(() => setFeedback(''), 2600)
+          return
+        }
+        const previousStartDate = (task.startAt ?? task.startDate ?? item.date).slice(0, 10)
+        const dueSharesStart = !task.dueAt || task.dueAt.slice(0, 10) === previousStartDate
+        await updateTask(task.id, {
+          title: task.title,
+          notes: task.notes,
+          categoryId: task.categoryId,
+          startDate: targetDate,
+          endDate: task.endDate,
+          taskScope: task.taskScope,
+          visualToken: task.visualToken,
+          markerSymbol: task.markerSymbol,
+          scheduleType: task.scheduleType === 'unscheduled' ? 'today' : task.scheduleType,
+          startAt: `${targetDate}T${targetTime}`,
+          dueAt: dueSharesStart ? `${targetDate}T${targetTime}` : task.dueAt,
+          showBeforeStart: task.showBeforeStart,
+          surfaceDaysBeforeDue: task.surfaceDaysBeforeDue,
+          parentTaskId: task.parentTaskId,
+          inheritsParentSchedule: task.inheritsParentSchedule,
+        })
+      }
+      setSelected(targetDate)
+      setFeedback(`已调整到 ${targetDate.slice(5)} ${targetTime}`)
+      window.setTimeout(() => setFeedback(''), 1800)
+    } catch (reason) {
+      setFeedback(reason instanceof Error ? reason.message : '调整时间失败，请重试')
     }
   }
 
@@ -374,8 +598,20 @@ export default function Plan() {
         data-selected={isSelected || undefined}
       >
         <span className="calendar-date-row">
-          <span className="calendar-date-number" data-today={isToday || undefined}>
-            {Number(dateISO.slice(8))}
+          <span
+            className="calendar-date-number"
+            data-today={isToday || undefined}
+            data-has-items={totalCount > 0 || undefined}
+          >
+            {isSelected && (
+              <motion.span
+                layoutId="calendar-selected-date"
+                className="calendar-selected-date-pill"
+                transition={reduceMotion ? MOTION.reduced : MOTION.control}
+                aria-hidden
+              />
+            )}
+            <span className="calendar-date-label">{Number(dateISO.slice(8))}</span>
           </span>
           {totalCount > 0 && <span className="calendar-date-count">{totalCount}</span>}
         </span>
@@ -403,22 +639,40 @@ export default function Plan() {
     const resolved = item.kind === 'task' ? (item.completed || item.skipped) : item.completed
     const categoryId = item.kind === 'event' ? item.event.categoryId : item.task.categoryId
     const category = categoryId ? catMap.get(categoryId) : undefined
-    const time = itemTime(item)
+    const timeLabel = itemTimeLabel(item)
     const subtitle =
       item.kind === 'event'
-        ? [time ?? '全天', item.event.startDate !== item.event.endDate ? `${item.event.startDate.slice(5)} → ${item.event.endDate.slice(5)}` : null]
+        ? [timeLabel, item.event.startDate !== item.event.endDate ? `${item.event.startDate.slice(5)} → ${item.event.endDate.slice(5)}` : null]
             .filter(Boolean)
             .join(' · ')
         : [category?.name, item.subtitle, item.skipped ? '已跳过' : null]
             .filter(Boolean)
             .join(' · ')
     return (
-      <li
+      <SwipeActionRow
         key={`${item.kind}:${item.kind === 'event' ? item.event.id : item.task.id}:${item.date}:${item.kind === 'task' ? item.occurrenceKey : ''}`}
-        data-color-token={visual.color}
-        data-feature-tone={featureTone}
-        data-resolved={resolved || undefined}
-        className="calendar-item-card row-in"
+        id={`calendar:${item.kind}:${item.kind === 'event' ? item.event.id : item.task.id}:${item.date}`}
+        label={itemTitle(item)}
+        className="calendar-item-swipe"
+        contentClassName="calendar-item-card row-in"
+        contentProps={{
+          'data-color-token': visual.color,
+          'data-feature-tone': featureTone,
+          'data-resolved': resolved || undefined,
+        } as React.HTMLAttributes<HTMLDivElement>}
+        resetKey={`${mode}:${selected}`}
+        actions={[
+          { label: '更多', icon: 'more', tone: 'neutral', onSelect: () => openItem(item) },
+          {
+            label: '删除',
+            icon: 'trash',
+            tone: 'danger',
+            onSelect: () => {
+              if (item.kind === 'event') void softDeleteEvent(item.event.id)
+              else void softDeleteTask(item.task.id)
+            },
+          },
+        ]}
       >
         <button
           aria-label={resolved ? '取消完成' : '完成'}
@@ -438,20 +692,80 @@ export default function Plan() {
         >
           <AppIcon name="edit" size={18} />
         </button>
-        {item.kind === 'event' && (
-          <button
-            aria-label="删除计划"
-            onClick={() => void softDeleteEvent(item.event.id)}
-            className="calendar-item-delete hit-target"
-          >
-            <AppIcon name="close" size={18} />
-          </button>
-        )}
-      </li>
+      </SwipeActionRow>
     )
   }
 
   const selectedItems = itemsForDate(selected)
+  const selectedAllDayItems = selectedItems.filter(
+    (item) => item.kind === 'event' && item.event.allDay && !itemTime(item),
+  )
+  const selectedUnscheduledItems = selectedItems.filter(
+    (item) => !itemTime(item) && !(item.kind === 'event' && item.event.allDay),
+  )
+  const selectedTimedItems = selectedItems.filter((item) => Boolean(itemTime(item)))
+
+  function timelineItemRow(item: CalItem, index: number) {
+    const visual = itemVisual(item)
+    const source = item.kind === 'event' ? item.event : item.task
+    const category = source.categoryId ? catMap.get(source.categoryId) : undefined
+    const featureTone = source.visualToken || category?.colorToken
+      ? 'custom'
+      : (['lime', 'purple', 'charcoal'] as const)[index % 3]
+    const resolved = item.kind === 'task' ? (item.completed || item.skipped) : item.completed
+    const time = itemTime(item)
+    const dragDisabled = item.kind === 'task' && Boolean(
+      item.task.recurrence || (item.task.parentTaskId && item.task.inheritsParentSchedule !== false),
+    )
+    const rowKey = `${item.kind}:${item.kind === 'event' ? item.event.id : item.task.id}:${item.date}:${item.kind === 'task' ? item.occurrenceKey : ''}`
+    return (
+      <TimelineScheduleRow
+        key={`timeline:${rowKey}`}
+        date={item.date}
+        time={time}
+        disabled={dragDisabled}
+        onCommit={(targetDate, targetTime) => rescheduleItem(item, targetDate, targetTime)}
+      >
+        <div className="mobile-timeline-row">
+          <time>{item.kind === 'event' && item.event.allDay ? '全天' : time ?? '未排定'}</time>
+          <SwipeActionRow
+            as="div"
+            id={`timeline-swipe:${rowKey}`}
+            label={itemTitle(item)}
+            className="mobile-timeline-swipe"
+            contentClassName="mobile-timeline-event"
+            resetKey={`${selected}:${mode}`}
+            contentProps={{
+              role: 'button',
+              tabIndex: 0,
+              onClick: () => openItem(item),
+              onKeyDown: (event) => {
+                if (event.key === 'Enter' || event.key === ' ') openItem(item)
+              },
+              'data-color-token': visual.color,
+              'data-feature-tone': featureTone,
+              'data-resolved': resolved || undefined,
+            } as React.HTMLAttributes<HTMLDivElement>}
+            actions={[
+              { label: '更多', icon: 'more', tone: 'neutral', onSelect: () => openItem(item) },
+              {
+                label: '删除',
+                icon: 'trash',
+                tone: 'danger',
+                onSelect: () => item.kind === 'event'
+                  ? void softDeleteEvent(item.event.id)
+                  : void softDeleteTask(item.task.id),
+              },
+            ]}
+          >
+            <strong>{itemTitle(item)}</strong>
+            <span>{time ? `${itemTimeLabel(item)}${eventEndTime(item) ? '' : ' 开始'}` : item.kind === 'event' ? '全天计划' : '暂不安排具体时间'}</span>
+            <MarkerIcon symbol={visual.marker} color={visual.color} size={17} />
+          </SwipeActionRow>
+        </div>
+      </TimelineScheduleRow>
+    )
+  }
   const futureAgendaGroups = agendaDates
     .map((date) => ({ date, items: itemsForDate(date) }))
     // The focused date is already fully represented by dayPanel. Excluding it
@@ -721,36 +1035,27 @@ export default function Plan() {
                     transition={reduceMotion ? MOTION.reduced : MOTION.calendar}
                     className="mobile-timeline-items"
                   >
-                  {selectedItems.length > 0 ? selectedItems.map((item, index) => {
-                    const visual = itemVisual(item)
-                    const source = item.kind === 'event' ? item.event : item.task
-                    const category = source.categoryId ? catMap.get(source.categoryId) : undefined
-                    const featureTone = source.visualToken || category?.colorToken
-                      ? 'custom'
-                      : (['lime', 'purple', 'charcoal'] as const)[index % 3]
-                    const resolved = item.kind === 'task' ? (item.completed || item.skipped) : item.completed
-                    const time = itemTime(item) ?? `${String(8 + index).padStart(2, '0')}:00`
-                    return (
-                      <div
-                        key={`${item.kind}:${item.kind === 'event' ? item.event.id : item.task.id}:${item.date}:${index}`}
-                        className="mobile-timeline-row"
-                      >
-                        <time>{time}</time>
-                        <button
-                          type="button"
-                          data-color-token={visual.color}
-                          data-feature-tone={featureTone}
-                          data-resolved={resolved || undefined}
-                          className="mobile-timeline-event"
-                          onClick={() => openItem(item)}
-                        >
-                          <strong>{itemTitle(item)}</strong>
-                          <span>{item.kind === 'event' ? (itemTime(item) ? `${itemTime(item)} 开始` : '全天计划') : '任务'}</span>
-                          <MarkerIcon symbol={visual.marker} color={visual.color} size={17} />
-                        </button>
-                      </div>
-                    )
-                  }) : (
+                  {selectedItems.length > 0 ? (
+                    <>
+                      {selectedAllDayItems.length > 0 && (
+                        <section className="mobile-timeline-all-day" aria-label="全天计划">
+                          <header><span>全天计划</span><small>不占用具体时间段</small></header>
+                          {selectedAllDayItems.map(timelineItemRow)}
+                        </section>
+                      )}
+                      {selectedUnscheduledItems.length > 0 && (
+                        <section className="mobile-timeline-unscheduled" aria-label="未排定时间">
+                          <header><span>未排定时间</span><small>长按后拖动可安排具体时间</small></header>
+                          {selectedUnscheduledItems.map(timelineItemRow)}
+                        </section>
+                      )}
+                      {selectedTimedItems.length > 0 && (
+                        <section className="mobile-timeline-scheduled" aria-label="已排定时间">
+                          {selectedTimedItems.map(timelineItemRow)}
+                        </section>
+                      )}
+                    </>
+                  ) : (
                     <div className="mobile-timeline-empty">选择上方日期或添加新安排</div>
                   )}
                   </motion.div>
@@ -759,6 +1064,7 @@ export default function Plan() {
               <div ref={weekBoardRef} className="week-board-shell desktop-week-board">
                 <div className="desktop-week-time-rail" aria-hidden>
                   <span />
+                  <time>未排定</time>
                   {['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00'].map((time) => (
                     <time key={time}>{time}</time>
                   ))}
@@ -766,6 +1072,8 @@ export default function Plan() {
                 <div className="week-board" role="grid" aria-label={weekLabel}>
                   {weekDates.map((date, index) => {
                     const items = itemsForDate(date)
+                    const unscheduledItems = items.filter((item) => !itemTime(item))
+                    const timedItems = items.filter((item) => Boolean(itemTime(item)))
                     return (
                       <section
                         key={date}
@@ -777,14 +1085,27 @@ export default function Plan() {
                           <span>{weekLabels[index]}</span>
                           <strong data-today={date === todayISO || undefined}>{Number(date.slice(8))}</strong>
                         </button>
+                        <div className="week-column-unscheduled" aria-label="未排定时间">
+                          {unscheduledItems.slice(0, 2).map((item) => (
+                            <button
+                              key={`unscheduled:${item.kind}:${item.kind === 'event' ? item.event.id : item.task.id}:${item.date}`}
+                              className="week-unscheduled-chip"
+                              onClick={() => {
+                                selectDay(date)
+                                openItem(item)
+                              }}
+                            >
+                              {itemTitle(item)}
+                            </button>
+                          ))}
+                          {unscheduledItems.length > 2 && <span>+{unscheduledItems.length - 2}</span>}
+                        </div>
                         <div className="week-column-items">
-                          {items.map((item, itemIndex) => {
+                          {timedItems.map((item) => {
                             const visual = itemVisual(item)
                             const resolved = item.kind === 'task' ? (item.completed || item.skipped) : item.completed
-                            const time = itemTime(item)
-                            const [hour = 8, minute = 0] = time
-                              ? time.split(':').map(Number)
-                              : [8 + itemIndex, 0]
+                            const time = itemTime(item)!
+                            const [hour, minute] = time.split(':').map(Number)
                             const top = Math.max(0, (hour - 8) * 80 + (minute / 60) * 80)
                             return (
                               <button

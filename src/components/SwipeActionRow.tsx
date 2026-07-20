@@ -3,6 +3,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type HTMLAttributes,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from 'react'
@@ -13,7 +14,7 @@ import {
   applySwipePresentation,
 } from '../lib/swipePresentation'
 
-const COMMIT_DISTANCE = 58
+const COMMIT_DISTANCE = 52
 const DIRECTION_LOCK = 10
 const OPEN_EVENT = 'task-pwa:apple-swipe-open'
 const SETTLE_EASING = 'cubic-bezier(0.22, 1, 0.36, 1)'
@@ -33,6 +34,9 @@ export default function SwipeActionRow({
   children,
   className = '',
   contentClassName = '',
+  contentProps,
+  as = 'li',
+  resetKey,
 }: {
   id: string
   label: string
@@ -40,8 +44,12 @@ export default function SwipeActionRow({
   children: ReactNode
   className?: string
   contentClassName?: string
+  contentProps?: HTMLAttributes<HTMLDivElement>
+  as?: 'li' | 'div'
+  /** Changing list mode, group or date closes an in-flight transient action. */
+  resetKey?: string
 }) {
-  const rootRef = useRef<HTMLLIElement>(null)
+  const rootRef = useRef<HTMLElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const railRef = useRef<HTMLDivElement>(null)
   const reveal = actions.length * APPLE_SWIPE_ACTION_WIDTH +
@@ -217,6 +225,12 @@ export default function SwipeActionRow({
   }, [id])
 
   useEffect(() => {
+    close()
+    // The reset key is deliberately a semantic boundary, not animation state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resetKey])
+
+  useEffect(() => {
     if (!open) return
     const closeWhenOutside = (event: PointerEvent) => {
       if (rootRef.current?.contains(event.target as Node)) return
@@ -299,13 +313,15 @@ export default function SwipeActionRow({
     settle(shouldOpen ? -reveal : 0, velocity)
   }
 
-  if (!actions.length) {
-    return <li className={contentClassName}>{children}</li>
-  }
+  const Root = as
+
+  if (!actions.length) return <Root className={contentClassName}>{children}</Root>
 
   return (
-    <li
-      ref={rootRef}
+    <Root
+      ref={(node: HTMLLIElement | HTMLDivElement | null) => {
+        rootRef.current = node
+      }}
       data-no-route-swipe
       data-apple-swipe-id={id}
       data-swipe-open={open || undefined}
@@ -340,7 +356,7 @@ export default function SwipeActionRow({
             }}
           >
             <span className="apple-swipe-action__pill" aria-hidden="true">
-              <AppIcon name={action.icon} size={24} />
+              <AppIcon name={action.icon} size={18} />
             </span>
             <span className="apple-swipe-action__label">{action.label}</span>
           </button>
@@ -348,6 +364,7 @@ export default function SwipeActionRow({
       </div>
       <div
         ref={contentRef}
+        {...contentProps}
         className={`apple-swipe-content apple-swipe-foreground ${contentClassName}`.trim()}
         data-swipe-layer="foreground"
         onPointerDown={onPointerDown}
@@ -363,6 +380,6 @@ export default function SwipeActionRow({
       >
         {children}
       </div>
-    </li>
+    </Root>
   )
 }

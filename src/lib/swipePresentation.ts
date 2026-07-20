@@ -1,4 +1,4 @@
-export const APPLE_SWIPE_ACTION_WIDTH = 72
+export const APPLE_SWIPE_ACTION_WIDTH = 56
 export const APPLE_SWIPE_ACTION_GAP = 4
 
 function clamp01(value: number) {
@@ -30,4 +30,3 @@ export function applySwipePresentation(
   element.style.setProperty('--swipe-leading-progress', stagedProgress(progress, 0.56, 0.92).toFixed(4))
   element.style.setProperty('--swipe-overshoot', overshoot.toFixed(4))
 }
-

@@ -94,6 +94,9 @@ export function applyTaskViewSettings<T extends TaskViewCandidate>(
         const order = taskSmartPriority(a.item.task as Task, a.item.completed, today, allTasks) -
           taskSmartPriority(b.item.task as Task, b.item.completed, today, allTasks)
         if (order !== 0) return order
+        const aDue = taskDueStatus(a.item.task as Task, today, allTasks).days
+        const bDue = taskDueStatus(b.item.task as Task, today, allTasks).days
+        if (aDue !== null && bDue !== null && aDue !== bDue) return aDue - bDue
       }
       if (settings.sort === 'updated') {
         const order = b.item.task.updatedAt.localeCompare(a.item.task.updatedAt)

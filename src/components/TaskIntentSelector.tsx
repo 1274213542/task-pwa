@@ -1,5 +1,6 @@
 import AppIcon, { type AppIconName } from './AppIcon'
 import type { TaskScheduleType } from '../lib/db'
+import SegmentedIndicator from './SegmentedIndicator'
 
 const TASK_INTENTS: Array<{
   id: TaskScheduleType
@@ -38,14 +39,21 @@ export default function TaskIntentSelector({
   disabled?: boolean
   compact?: boolean
 }) {
+  const activeIndex = Math.max(0, TASK_INTENTS.findIndex((intent) => intent.id === value))
   return (
     <div
       className="task-intent-picker"
       data-compact={compact || undefined}
+      data-shared-indicator="true"
       role="radiogroup"
       aria-label="任务时间意图"
       aria-disabled={disabled || undefined}
     >
+      <SegmentedIndicator
+        index={activeIndex}
+        count={TASK_INTENTS.length}
+        className="task-intent-indicator"
+      />
       {TASK_INTENTS.map((intent) => (
         <button
           key={intent.id}
@@ -60,7 +68,6 @@ export default function TaskIntentSelector({
             <strong>{intent.title}</strong>
             <small>{intent.description}</small>
           </span>
-          <i aria-hidden />
         </button>
       ))}
     </div>

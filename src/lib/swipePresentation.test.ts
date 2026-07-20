@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
-import { applySwipePresentation } from './swipePresentation'
+import { APPLE_SWIPE_ACTION_GAP, APPLE_SWIPE_ACTION_WIDTH, applySwipePresentation } from './swipePresentation'
 
-function presentationAt(value: number, reveal = 224) {
+const reveal = APPLE_SWIPE_ACTION_WIDTH * 2 + APPLE_SWIPE_ACTION_GAP
+
+function presentationAt(value: number, revealDistance = reveal) {
   const values = new Map<string, string>()
   const element = {
     style: {
@@ -9,7 +11,7 @@ function presentationAt(value: number, reveal = 224) {
     },
   } as unknown as HTMLElement
 
-  applySwipePresentation(element, value, reveal)
+  applySwipePresentation(element, value, revealDistance)
   return values
 }
 
@@ -25,9 +27,9 @@ describe('applySwipePresentation', () => {
   })
 
   it('reveals actions in danger, secondary, leading order', () => {
-    const early = presentationAt(-56)
-    const middle = presentationAt(-112)
-    const late = presentationAt(-190)
+    const early = presentationAt(-30)
+    const middle = presentationAt(-62)
+    const late = presentationAt(-106)
 
     expect(Number(early.get('--swipe-delete-progress'))).toBeGreaterThan(0)
     expect(Number(early.get('--swipe-secondary-progress'))).toBe(0)
@@ -37,7 +39,7 @@ describe('applySwipePresentation', () => {
   })
 
   it('clamps progress while exposing bounded overshoot for the danger pill', () => {
-    const values = presentationAt(-242)
+    const values = presentationAt(-(reveal + 18))
 
     expect(values.get('--swipe-progress')).toBe('1.0000')
     expect(values.get('--swipe-overshoot')).toBe('1.0000')

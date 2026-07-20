@@ -144,11 +144,13 @@ export function taskSmartPriority(task: Task, completed: boolean, todayISO: stri
   const due = taskDueStatus(task, todayISO, tasks)
   if (due.tone === 'overdue') return 0
   if (due.tone === 'today') return 10
-  if (schedule.type === 'today') return 20
-  if (due.tone === 'soon') return 30
-  if (schedule.type === 'longTerm' && isTaskExecutable(task, todayISO, tasks)) return 40
-  if (due.dueDate) return 50
-  return 60
+  if (due.tone === 'soon') return 20
+  if (schedule.type === 'today') return 30
+  if ((task.taskScope ?? 'daily') === 'daily' && !due.dueDate) return 40
+  if (schedule.type === 'longTerm' && isTaskExecutable(task, todayISO, tasks)) return 50
+  if (due.dueDate) return 60
+  if (schedule.type === 'longTerm') return 70
+  return 80
 }
 
 export function leafTaskIds(tasks: Task[]): Set<string> {

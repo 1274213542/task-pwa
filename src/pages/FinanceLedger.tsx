@@ -31,6 +31,7 @@ import {
   setAccountArchived,
   settlePaycheck,
   softDeleteFinanceTransaction,
+  softDeleteWorkEntry,
   toMinor,
 } from '../lib/ledger'
 import {
@@ -908,7 +909,7 @@ function TransactionList({
           contentClassName="finance-transaction-row"
           actions={[
             ...(onEdit && ['expense', 'credit_purchase', 'external_payment'].includes(transaction.type)
-              ? [{ label: '编辑', icon: 'edit' as const, tone: 'neutral' as const, onSelect: () => onEdit(transaction) }]
+              ? [{ label: '更多', icon: 'more' as const, tone: 'neutral' as const, onSelect: () => onEdit(transaction) }]
               : []),
             ...(onDelete
               ? [{ label: '删除', icon: 'trash' as const, tone: 'danger' as const, onSelect: () => onDelete(transaction) }]
@@ -958,6 +959,7 @@ function WorkView({
   const [templateId, setTemplateId] = useState('')
   const [templateName, setTemplateName] = useState('')
   const [saving, setSaving] = useState(false)
+  const [editingWorkEntryId, setEditingWorkEntryId] = useState('')
   const [settlementEntryId, setSettlementEntryId] = useState('')
   const [actualPaidAmount, setActualPaidAmount] = useState('')
   const [settling, setSettling] = useState(false)
@@ -1014,6 +1016,7 @@ function WorkView({
       const grossMinutes = Math.round(Number(hours) * 60)
       const unpaidBreak = Math.max(0, Number(breakMinutes) || 0)
       await saveWorkEntry({
+        id: editingWorkEntryId || undefined,
         date,
         worked: true,
         workContent: content,
@@ -1027,11 +1030,40 @@ function WorkView({
         payoutAccountId: payoutAccountId || undefined,
         templateId: templateId || undefined,
       })
-      onFeedback('工作记录已保存；预计工资不会提前增加账户余额')
+      setEditingWorkEntryId('')
+      onFeedback(editingWorkEntryId ? '工作记录已更新' : '工作记录已保存；预计工资不会提前增加账户余额')
     } catch (error) {
       onFeedback(error instanceof Error ? error.message : '工作记录保存失败')
     } finally {
       setSaving(false)
+    }
+  }
+
+  function beginWorkEdit(entry: WorkEntry) {
+    if (entry.settlementStatus === 'settled') {
+      onFeedback('已入账记录已锁定，不能直接修改')
+      return
+    }
+    setEditingWorkEntryId(entry.id)
+    setDate(entry.date)
+    setHours(String((entry.durationMinutes + entry.breakMinutes) / 60))
+    setBreakMinutes(String(entry.breakMinutes))
+    setHourlyRate(String(fromMinor(entry.hourlyRateMinor, entry.currency)))
+    setCurrency(entry.currency)
+    setContent(entry.workContent ?? '')
+    setLocation(entry.workLocation ?? '')
+    setEmployer(entry.employer ?? '')
+    setPayoutAccountId(entry.payoutAccountId ?? '')
+    document.querySelector<HTMLElement>('.finance-work-composer')?.scrollIntoView({ block: 'start' })
+  }
+
+  async function removeWorkEntry(entry: WorkEntry) {
+    try {
+      await softDeleteWorkEntry(entry.id)
+      if (editingWorkEntryId === entry.id) setEditingWorkEntryId('')
+      onFeedback('工作记录已删除')
+    } catch (reason) {
+      onFeedback(reason instanceof Error ? reason.message : '工作记录删除失败')
     }
   }
 
@@ -1091,7 +1123,7 @@ function WorkView({
     <div className="finance-work-v2">
       <div className="finance-view-heading"><div><span>待结算 {pending.length} 条</span><h2>工资与工时</h2></div><strong><PrivateAmount>{pendingEstimateLabel}</PrivateAmount> 预计税前</strong></div>
       <form className="finance-section-card finance-work-composer" onSubmit={submit}>
-        <header><div><span>预计工资不计入余额</span><h2>记录工作</h2></div>{templates.length > 0 && <select value={templateId} onChange={(event) => applyTemplate(event.target.value)}><option value="">选择模板</option>{templates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select>}</header>
+        <header><div><span>预计工资不计入余额</span><h2>{editingWorkEntryId ? '编辑工作记录' : '记录工作'}</h2></div>{templates.length > 0 && <select value={templateId} onChange={(event) => applyTemplate(event.target.value)}><option value="">选择模板</option>{templates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select>}</header>
         <div className="finance-form-grid-v2">
           <label>日期<input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label>
           <label>工作时长<input inputMode="decimal" value={hours} onChange={(event) => setHours(event.target.value)} /></label>
@@ -1103,11 +1135,21 @@ function WorkView({
           <label>工作地点<input value={location} onChange={(event) => setLocation(event.target.value)} /></label>
           <label className="wide">雇主 / 项目<input value={employer} onChange={(event) => setEmployer(event.target.value)} /></label>
         </div>
-        <div className="finance-work-actions"><div><input value={templateName} onChange={(event) => setTemplateName(event.target.value)} placeholder="模板名称" /><button type="button" onClick={() => void createTemplate()}>保存为模板</button></div><button className="primary" disabled={saving}>{saving ? '保存中…' : '保存工作记录'}</button></div>
+        <div className="finance-work-actions"><div><input value={templateName} onChange={(event) => setTemplateName(event.target.value)} placeholder="模板名称" /><button type="button" onClick={() => void createTemplate()}>保存为模板</button></div><button className="primary" disabled={saving}>{saving ? '保存中…' : editingWorkEntryId ? '更新工作记录' : '保存工作记录'}</button></div>
       </form>
       <section className="finance-section-card finance-work-records-v2">
         <header><div><span>按日期查看</span><h2>工作记录</h2></div><strong>{activeEntries.length} 条</strong></header>
-        {activeEntries.length ? <ul>{activeEntries.map((entry) => <li key={entry.id}><div><strong>{entry.workContent || entry.employer || '工作'}</strong><span>{entry.date} · {formatMinutes(entry.durationMinutes)}{entry.workLocation ? ` · ${entry.workLocation}` : ''}</span></div><b><PrivateAmount>{formatMoney(entry.estimatedGrossMinor, entry.currency)}</PrivateAmount></b>{entry.settlementStatus === 'settled' ? <em>已入账</em> : settlementEntryId === entry.id ? <div className="finance-settlement-inline"><label>实际到账<input autoFocus inputMode="decimal" value={actualPaidAmount} onChange={(event) => setActualPaidAmount(event.target.value)} /></label><button type="button" disabled={settling || !actualPaidAmount} onClick={() => void settleOne(entry)}>{settling ? '入账中…' : '确认入账'}</button><button type="button" disabled={settling} onClick={() => setSettlementEntryId('')}>取消</button></div> : <button type="button" onClick={() => beginSettlement(entry)}>实际入账</button>}</li>)}</ul> : <div className="finance-empty-state">还没有工作记录</div>}
+        {activeEntries.length ? <ul>{activeEntries.map((entry) => <SwipeActionRow
+          key={entry.id}
+          id={`work-entry:${entry.id}`}
+          label={entry.workContent || entry.employer || '工作'}
+          className="finance-work-entry-swipe"
+          contentClassName="finance-work-entry-row"
+          actions={[
+            { label: '更多', icon: 'more', tone: 'neutral', onSelect: () => beginWorkEdit(entry) },
+            { label: '删除', icon: 'trash', tone: 'danger', disabled: entry.settlementStatus === 'settled', onSelect: () => void removeWorkEntry(entry) },
+          ]}
+        ><div><strong>{entry.workContent || entry.employer || '工作'}</strong><span>{entry.date} · {formatMinutes(entry.durationMinutes)}{entry.workLocation ? ` · ${entry.workLocation}` : ''}</span></div><b><PrivateAmount>{formatMoney(entry.estimatedGrossMinor, entry.currency)}</PrivateAmount></b>{entry.settlementStatus === 'settled' ? <em>已入账</em> : settlementEntryId === entry.id ? <div className="finance-settlement-inline"><label>实际到账<input autoFocus inputMode="decimal" value={actualPaidAmount} onChange={(event) => setActualPaidAmount(event.target.value)} /></label><button type="button" disabled={settling || !actualPaidAmount} onClick={() => void settleOne(entry)}>{settling ? '入账中…' : '确认入账'}</button><button type="button" disabled={settling} onClick={() => setSettlementEntryId('')}>取消</button></div> : <button type="button" data-no-row-swipe onClick={() => beginSettlement(entry)}>实际入账</button>}</SwipeActionRow>)}</ul> : <div className="finance-empty-state">还没有工作记录</div>}
       </section>
     </div>
   )

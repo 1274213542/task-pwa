@@ -18,6 +18,14 @@ function localTime(event: CalendarEvent): string {
     .toString({ smallestUnit: 'minute' })
 }
 
+function localEndTime(event: CalendarEvent): string {
+  if (!event.endAt) return ''
+  return Temporal.Instant.from(event.endAt)
+    .toZonedDateTimeISO(Temporal.Now.timeZoneId())
+    .toPlainTime()
+    .toString({ smallestUnit: 'minute' })
+}
+
 export default function EventEditor({
   event,
   categories,
@@ -32,6 +40,7 @@ export default function EventEditor({
   const [date, setDate] = useState(event.startDate)
   const [endDate, setEndDate] = useState(event.endDate)
   const [time, setTime] = useState(localTime(event))
+  const [endTime, setEndTime] = useState(localEndTime(event))
   const [categoryId, setCategoryId] = useState(event.categoryId ?? '')
   const [visualToken, setVisualToken] = useState<ColorToken | undefined>(event.visualToken)
   const [markerSymbol, setMarkerSymbol] = useState<MarkerSymbol | undefined>(event.markerSymbol)
@@ -68,6 +77,7 @@ export default function EventEditor({
         date,
         endDate,
         time: time || undefined,
+        endTime: time && endTime ? endTime : undefined,
         categoryId: categoryId || undefined,
         visualToken,
         markerSymbol,
@@ -152,7 +162,7 @@ export default function EventEditor({
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <label className="text-[12px] font-medium text-neutral-500">
-              时间
+              开始时间（可选）
               <input
                 type="time"
                 value={time}
@@ -160,6 +170,18 @@ export default function EventEditor({
                 className="field mt-1"
               />
             </label>
+            <label className="text-[12px] font-medium text-neutral-500">
+              结束时间（可选）
+              <input
+                type="time"
+                value={endTime}
+                disabled={!time}
+                onChange={(e) => setEndTime(e.target.value)}
+                className="field mt-1"
+              />
+            </label>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <label className="text-[12px] font-medium text-neutral-500">
               分类
               <select

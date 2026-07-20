@@ -1083,6 +1083,20 @@ export async function saveWorkEntry(input: {
   return id
 }
 
+export async function softDeleteWorkEntry(id: string): Promise<void> {
+  const entry = await db.workEntries.get(id)
+  if (!entry) return
+  if (entry.settlementStatus === 'settled') {
+    throw new Error('已入账的工作记录不能直接删除')
+  }
+  const timestamp = now()
+  await db.workEntries.update(id, {
+    lifecycleStatus: 'deleted',
+    deletedAt: timestamp,
+    updatedAt: timestamp,
+  })
+}
+
 export async function settlePaycheck(input: {
   workEntryIds: string[]
   payoutAccountId: string

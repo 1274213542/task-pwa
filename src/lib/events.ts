@@ -9,6 +9,7 @@ export async function addEvent(opts: {
   date: string // PlainDate
   endDate?: string // 跨日事项
   time?: string // "HH:MM"，给定则为定时事项
+  endTime?: string
   notes?: string
   categoryId?: string
 }): Promise<void> {
@@ -18,11 +19,19 @@ export async function addEvent(opts: {
   const allDay = !opts.time
   const timezone = Temporal.Now.timeZoneId()
   let startAt: string | undefined
+  let endAt: string | undefined
   if (opts.time) {
     startAt = Temporal.PlainDateTime.from(`${opts.date}T${opts.time}`)
       .toZonedDateTime(timezone)
       .toInstant()
       .toString()
+    if (opts.endTime) {
+      const endDate = opts.endDate && opts.endDate >= opts.date ? opts.endDate : opts.date
+      endAt = Temporal.PlainDateTime.from(`${endDate}T${opts.endTime}`)
+        .toZonedDateTime(timezone)
+        .toInstant()
+        .toString()
+    }
   }
   await db.calendarEvents.add({
     id: crypto.randomUUID(),
@@ -32,6 +41,7 @@ export async function addEvent(opts: {
     startDate: opts.date,
     endDate: opts.endDate && opts.endDate > opts.date ? opts.endDate : opts.date,
     ...(startAt && { startAt, timezone }),
+    ...(endAt && { endAt }),
     ...(opts.categoryId && { categoryId: opts.categoryId }),
     completionStatus: 'pending',
     lifecycleStatus: 'active',
@@ -64,6 +74,7 @@ export async function updateEvent(
     date: string
     endDate?: string
     time?: string
+    endTime?: string
     categoryId?: string
     visualToken?: ColorToken
     markerSymbol?: MarkerSymbol
@@ -79,15 +90,22 @@ export async function updateEvent(
         .toInstant()
         .toString()
     : undefined
+  const endTime = opts.endTime?.trim()
+  const effectiveEndDate = opts.endDate && opts.endDate >= opts.date ? opts.endDate : opts.date
+  const endAt = time && endTime
+    ? Temporal.PlainDateTime.from(`${effectiveEndDate}T${endTime}`)
+        .toZonedDateTime(timezone)
+        .toInstant()
+        .toString()
+    : undefined
   await db.calendarEvents.update(id, {
     title,
     notes: opts.notes?.trim() || undefined,
     allDay: !time,
     startDate: opts.date,
-    endDate:
-      opts.endDate && opts.endDate >= opts.date ? opts.endDate : opts.date,
+    endDate: effectiveEndDate,
     startAt,
-    endAt: undefined,
+    endAt,
     timezone: time ? timezone : undefined,
     categoryId: opts.categoryId || undefined,
     visualToken: opts.visualToken,

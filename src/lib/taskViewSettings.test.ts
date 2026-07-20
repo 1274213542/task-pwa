@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest'
+import { Temporal } from 'temporal-polyfill'
+import { todayLocalISO } from './dates'
 import {
   DEFAULT_TASK_VIEW_SETTINGS,
   activeTaskViewSettingCount,
@@ -95,6 +97,35 @@ describe('task view settings', () => {
       schedule: 'longTerm',
     })
     expect(result.map((row) => row.id)).toEqual(['parent', 'child'])
+  })
+
+  it('keeps manual order but sorts smart mode by overdue and nearest DDL', () => {
+    const today = Temporal.PlainDate.from(todayLocalISO())
+    const scheduled: Array<TaskViewCandidate & { id: string }> = [
+      ['manual-first', undefined],
+      ['tomorrow', today.add({ days: 1 }).toString()],
+      ['overdue', today.subtract({ days: 2 }).toString()],
+      ['today', today.toString()],
+      ['later', today.add({ days: 30 }).toString()],
+    ].map(([id, dueAt]) => ({
+      id: id!,
+      completed: false,
+      task: {
+        id: id!,
+        createdAt: '2026-07-01',
+        updatedAt: '2026-07-01',
+        scheduleType: dueAt ? 'longTerm' : 'unscheduled',
+        ...(dueAt && { startAt: today.subtract({ days: 20 }).toString(), dueAt }),
+      },
+    }))
+    expect(applyTaskViewSettings(scheduled, {
+      ...DEFAULT_TASK_VIEW_SETTINGS,
+      sort: 'smart',
+    }).map((row) => row.id)).toEqual(['overdue', 'today', 'tomorrow', 'manual-first', 'later'])
+    expect(applyTaskViewSettings(scheduled, {
+      ...DEFAULT_TASK_VIEW_SETTINGS,
+      sort: 'manual',
+    }).map((row) => row.id)).toEqual(scheduled.map((row) => row.id))
   })
 
   it('recovers safely from invalid persisted settings and counts active changes', () => {
