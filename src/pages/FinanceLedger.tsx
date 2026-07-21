@@ -123,8 +123,16 @@ function formatWorkEntryTiming(entry: WorkEntry) {
   const timeRange = entry.startTime && entry.endTime
     ? `${entry.startTime}–${entry.endTime}${entry.endTime < entry.startTime ? '（次日）' : ''}`
     : '未记录出退勤'
-  const breakLabel = entry.breakMinutes > 0 ? ` · 休息 ${entry.breakMinutes} 分` : ''
-  return `${entry.date} · ${timeRange} · ${formatMinutes(entry.durationMinutes)}${breakLabel}`
+  return `${entry.date} · ${timeRange} · ${formatMinutes(entry.durationMinutes)}`
+}
+
+function formatWorkEntryContext(entry: WorkEntry) {
+  const details = [
+    entry.breakMinutes > 0 ? `休息 ${entry.breakMinutes} 分` : '未扣除休息',
+    entry.workLocation,
+    entry.employer && entry.employer !== entry.workContent ? entry.employer : undefined,
+  ].filter(Boolean)
+  return details.join(' · ')
 }
 
 const FINANCE_ENTRY_DEFAULTS_KEY = 'financeEntryDefaultsV1'
@@ -467,7 +475,7 @@ function FinanceOverview({
       </div>
 
       <section className="finance-section-card finance-quick-actions">
-        <header><div><span>快捷操作</span><h2>记录资金变化</h2></div></header>
+        <header><div><h2>记录资金变化</h2></div></header>
         <div>
           <button onClick={() => onNew('expense')}><AppIcon name="receipt" size={20} />记支出</button>
           <button onClick={() => onNew('income')}><AppIcon name="plus" size={20} />记收入</button>
@@ -1060,7 +1068,27 @@ function WorkView({
             { label: '更多', icon: 'more', tone: 'neutral', onSelect: () => beginWorkEdit(entry) },
             { label: '删除', icon: 'trash', tone: 'danger', disabled: entry.settlementStatus === 'settled', onSelect: () => void removeWorkEntry(entry) },
           ]}
-        ><div><strong>{entry.workContent || entry.employer || '工作'}</strong><span>{formatWorkEntryTiming(entry)}{entry.workLocation ? ` · ${entry.workLocation}` : ''}</span></div><b><PrivateAmount>{formatMoney(entry.estimatedGrossMinor, entry.currency)}</PrivateAmount></b>{entry.settlementStatus === 'settled' ? <em>已入账</em> : settlementEntryId === entry.id ? <div className="finance-settlement-inline"><label>实际到账<input autoFocus inputMode="decimal" value={actualPaidAmount} onChange={(event) => setActualPaidAmount(event.target.value)} /></label><button type="button" disabled={settling || !actualPaidAmount} onClick={() => void settleOne(entry)}>{settling ? '入账中…' : '确认入账'}</button><button type="button" disabled={settling} onClick={() => setSettlementEntryId('')}>取消</button></div> : <button type="button" data-no-row-swipe onClick={() => beginSettlement(entry)}>实际入账</button>}</SwipeActionRow>)}</ul> : <div className="finance-empty-state">还没有工作记录</div>}
+        >
+          <div className="finance-work-entry-heading">
+            <strong>{entry.workContent || entry.employer || '工作'}</strong>
+            <b><PrivateAmount>{formatMoney(entry.estimatedGrossMinor, entry.currency)}</PrivateAmount></b>
+          </div>
+          <span className="finance-work-entry-timing">{formatWorkEntryTiming(entry)}</span>
+          <div className="finance-work-entry-footer">
+            <span>{formatWorkEntryContext(entry)}</span>
+            {entry.settlementStatus === 'settled' ? (
+              <em>已入账</em>
+            ) : settlementEntryId === entry.id ? (
+              <div className="finance-settlement-inline">
+                <label>实际到账<input autoFocus inputMode="decimal" value={actualPaidAmount} onChange={(event) => setActualPaidAmount(event.target.value)} /></label>
+                <button type="button" disabled={settling || !actualPaidAmount} onClick={() => void settleOne(entry)}>{settling ? '入账中…' : '确认入账'}</button>
+                <button type="button" disabled={settling} onClick={() => setSettlementEntryId('')}>取消</button>
+              </div>
+            ) : (
+              <button type="button" data-no-row-swipe onClick={() => beginSettlement(entry)}>实际入账</button>
+            )}
+          </div>
+        </SwipeActionRow>)}</ul> : <div className="finance-empty-state">还没有工作记录</div>}
       </section>
     </div>
   )

@@ -27,6 +27,7 @@ export default function TaskRow({
   markerSymbol = 'dot',
   featureTone = 'custom',
   completed,
+  completionDisabled = false,
   overdue,
   actions,
   liRef,
@@ -45,6 +46,7 @@ export default function TaskRow({
   markerSymbol?: MarkerSymbol
   featureTone?: FeatureTone
   completed: boolean
+  completionDisabled?: boolean
   overdue?: boolean
   actions: RowActions
   liRef?: (el: HTMLElement | null) => void
@@ -116,8 +118,9 @@ export default function TaskRow({
       <button
         type="button"
         onClick={actions.onToggle}
+        disabled={completionDisabled}
         className="task-card-check"
-        aria-label={completed ? '取消完成' : '完成'}
+        aria-label={completionDisabled ? '长期任务模板' : completed ? '取消完成' : '完成'}
       >
         <motion.span
           className="task-card-check-feedback"
@@ -130,6 +133,8 @@ export default function TaskRow({
         >
           {completed ? (
             <AppIcon name="check" size={16} weight="bold" />
+          ) : completionDisabled ? (
+            <AppIcon name="sync" size={15} />
           ) : (
             <span className="task-card-check-empty" />
           )}

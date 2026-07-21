@@ -202,6 +202,7 @@ export async function updateTask(
     startDate: string
     endDate?: string
     taskScope?: TaskScope
+    recurrence?: Recurrence | null
     visualToken?: ColorToken
     markerSymbol?: MarkerSymbol
     scheduleType?: TaskScheduleType
@@ -262,7 +263,16 @@ export async function updateTask(
       categoryId: changes.categoryId || undefined,
       startDate: changes.startDate,
       endDate: changes.endDate || undefined,
-      taskScope: changes.taskScope ?? 'daily',
+      taskScope: changes.taskScope ?? current.taskScope ?? 'daily',
+      ...(changes.recurrence !== undefined && {
+        recurrence: changes.recurrence ?? undefined,
+        currentSequence: changes.recurrence?.mode === 'after_completion'
+          ? current.currentSequence ?? 1
+          : undefined,
+        nextDueDate: changes.recurrence?.mode === 'after_completion'
+          ? current.nextDueDate ?? civilDateOf(changes.startAt) ?? changes.startDate
+          : undefined,
+      }),
       visualToken: changes.visualToken,
       markerSymbol: changes.markerSymbol,
       scheduleType: changes.scheduleType ?? current.scheduleType ?? 'today',

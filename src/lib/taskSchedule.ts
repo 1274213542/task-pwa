@@ -30,8 +30,10 @@ export const civilDateOf = (value?: string): string | undefined => {
 }
 
 export function taskScheduleTypeOf(task: Pick<Task, 'scheduleType' | 'recurrence' | 'startDate' | 'endDate'>): TaskScheduleType {
+  // 周期规则描述的是持续存在的模板。旧版本曾把这些记录写成
+  // scheduleType=today；读取时优先按长期模板解释，避免模板长期占据今日列表。
+  if (task.recurrence) return 'longTerm'
   if (task.scheduleType) return task.scheduleType
-  if (task.recurrence) return 'today'
   if (task.startDate && task.endDate && task.endDate > task.startDate) return 'longTerm'
   return task.startDate ? 'today' : 'unscheduled'
 }

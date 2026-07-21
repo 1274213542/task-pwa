@@ -1,54 +1,61 @@
-# Design QA — overview, daily history, quick entry and calendar markers
+**Comparison Target**
 
-## Test frame
+- Source visual truth paths:
+  - `/tmp/codex-remote-attachments/019f7905-c801-7d31-8fff-0cc15df5dd75/490BDD92-FFFD-439E-A937-CFDF7BCA726F/1-照片-1.jpg`
+  - `/tmp/codex-remote-attachments/019f7905-c801-7d31-8fff-0cc15df5dd75/490BDD92-FFFD-439E-A937-CFDF7BCA726F/2-照片-2.jpg`
+  - `/tmp/codex-remote-attachments/019f7905-c801-7d31-8fff-0cc15df5dd75/490BDD92-FFFD-439E-A937-CFDF7BCA726F/3-照片-3.jpg`
+  - `/tmp/codex-remote-attachments/019f7905-c801-7d31-8fff-0cc15df5dd75/490BDD92-FFFD-439E-A937-CFDF7BCA726F/4-照片-4.jpg`
+  - `/tmp/codex-remote-attachments/019f7905-c801-7d31-8fff-0cc15df5dd75/490BDD92-FFFD-439E-A937-CFDF7BCA726F/5-照片-5.jpg`
+  - `/tmp/codex-remote-attachments/019f7905-c801-7d31-8fff-0cc15df5dd75/490BDD92-FFFD-439E-A937-CFDF7BCA726F/6-照片-6.jpg`
+- Implementation URL: `http://127.0.0.1:4187/task-pwa/`
+- Implementation screenshot path: unavailable; Browser Harness could discover the Chrome CDP endpoint but the WebSocket handshake repeatedly timed out.
+- Intended viewport: 390 × 844 CSS pixels.
+- Intended states: task tabs, task editor scheduling/time controls, finance overview, and finance work-record list.
 
-- Viewport: 390 × 845 CSS px.
-- Browser: local Chromium controlled through Browser Harness.
-- Production shell: Vite preview with the generated Service Worker controlling the page.
-- User reference: the supplied 588 × 1280 iPhone month-calendar screenshot, normalized to the same frame.
-- Comparison artifacts:
-  - `qa/overview-daily-calendar/plan-month-comparison.png`
-  - `qa/overview-daily-calendar/plan-month-overlay.png`
+**Full-view Comparison Evidence**
 
-## Overview
+- Blocked before a valid comparison image could be produced. Build success and an HTTP preview response were not substituted for browser-rendered evidence.
 
-- A date-scoped daily completion remains in “今天需要处理”, uses a checked/struck-through state and sorts after pending items.
-- Restoring the completion returns the same task to pending; its deterministic record ID is reused.
-- Future-seven marker geometry and colors use the same shared marker model as the month calendar.
-- “下一步” rejects the synthetic date of an ordinary today task and only admits an authored DDL/end date within seven days.
-- Screenshot: `qa/overview-daily-calendar/overview-mobile.png`.
+**Focused Region Comparison Evidence**
 
-## Daily history
+- Not available because the same Browser Harness connection failure prevented capture of the task editor, tab control, work-record rows, and finance-card boundaries.
 
-- The daily task page exposes a compact rolling seven-day history.
-- Completion date/time, restored state and restore action remain aligned at 390 px.
-- Date-scoped IDs prevent a second active history row after complete → restore → complete.
-- Screenshot: `qa/overview-daily-calendar/daily-history-mobile.png`.
+**Findings**
 
-## Quick entry
+- [P1] Browser-rendered design verification is unavailable
+  Location: local mobile preview at 390 × 844.
+  Evidence: the reference images are available, but the implementation screenshot is missing after repeated CDP WebSocket handshake timeouts.
+  Impact: typography, spacing, clipping, divider containment, and mobile sheet behavior cannot be truthfully signed off from code and tests alone.
+  Fix: reconnect Browser Harness to an allowed Chrome instance, capture the four intended states at 390 × 844, combine each with its matching reference, and run the visual comparison.
 
-- The 390 px viewport produced a 364 px Sheet with equal client/scroll widths; document and body both remained 390 px wide.
-- Amount, date, picker and textarea fields share 16 px inline padding and do not change width when populated.
-- The transaction-kind strip is the only intentional horizontal scroller.
-- Default transaction date uses the local civil date rather than UTC.
-- Screenshot: `qa/overview-daily-calendar/finance-quick-entry-mobile.png`.
+**Open Questions**
 
-## Plan and calendar
+- No product ambiguity is blocking implementation. Only the browser-rendered evidence gate is blocked.
 
-- Duration formatting renders `10小时44分` rather than a floating-point hour value, and zero renders `0 小时`.
-- Marker layout uses a centered fixed track: up to three explicit dots, followed by `+N` overflow. This remains bounded for one through five categories and does not alter the date hit target.
-- Selected-date summary reads the same date-type marker rows as the month cell and includes them in its count.
-- Screenshot: `qa/overview-daily-calendar/plan-month-mobile.png`.
+**Implementation Checklist**
 
-## Regression checks
+- Capture the task list with “今日任务 / 长期任务”.
+- Capture the task editor with blank and populated time fields.
+- Capture the finance overview quick actions and recent transactions.
+- Capture the work-record list showing 出勤、退勤、工时、休息、地点、金额和入账状态.
+- Check console errors and the primary interactions in the same browser session.
+- Compare each source/implementation pair and resolve any P0/P1/P2 mismatch.
 
-- Automated tests: 24 files / 124 tests passed.
-- Lint: passed.
-- TypeScript production build: passed.
-- PWA precache: 46 entries generated; Service Worker registered and controlled the production preview.
-- Offline reload: the production overview loaded while network requests were disabled.
-- Reduced-motion emulation: enabled successfully without horizontal overflow.
-- Five primary routes switched without captured runtime or console errors.
-- Real iPhone Safari and installed Home Screen PWA remain a user-device verification step; no desktop capture is labeled as a real-device result.
+**Comparison History**
 
-final result: passed
+- Iteration 1: source images opened and implementation built; Browser Harness capture failed at the CDP WebSocket handshake. No visual fixes were claimed from this incomplete pass.
+
+**Primary Interactions Tested**
+
+- Browser interaction testing: blocked by the same Browser Harness connection failure.
+- Automated logic/build testing is tracked separately from this visual QA report and does not replace it.
+
+**Console Errors Checked**
+
+- Blocked; no browser session could be attached.
+
+**Follow-up Polish**
+
+- None classified until a valid visual comparison exists.
+
+final result: blocked

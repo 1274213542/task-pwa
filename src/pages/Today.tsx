@@ -29,7 +29,6 @@ import {
   type CompletionRecord,
   type Task,
   type TaskScheduleType,
-  type TaskScope,
 } from '../lib/db'
 import {
   type Recurrence,
@@ -43,7 +42,6 @@ import { useCivilDate } from '../lib/useCivilDate'
 import {
   RecurrenceConflictError,
   addTasksDetailed,
-  completeDailyTask,
   completeFixedOccurrence,
   completeTask,
   migrateDailyCompletionHistory,
@@ -70,8 +68,6 @@ import { MOTION } from '../lib/motion'
 import {
   defaultFixedRecurrence,
   taskScopeOf,
-  weekEndISO,
-  weekStartISO,
 } from '../lib/taskPeriods'
 import { synchronizeTaskPeriod } from '../lib/taskPeriodSync'
 import {
@@ -82,15 +78,24 @@ import {
 } from '../lib/taskViewSettings'
 import {
   childProgress,
+  civilDateOf,
   effectiveTaskSchedule,
   taskDueStatus,
   taskScheduleLabel,
 } from '../lib/taskSchedule'
+import {
+  effectiveRecurrence,
+  isLongTermTaskDefinition,
+  isTodayTaskDefinition,
+  taskViewFromStorage,
+  type TaskView,
+} from '../lib/taskViews'
 
 /** 今天视图的投影条目（TaskOccurrenceView 的子集） */
 interface TodayItem {
   task: Task
-  kind: 'single' | 'fixed' | 'ac'
+  view?: TaskView
+  kind: 'single' | 'fixed' | 'ac' | 'template'
   occurrenceDate: string
   occurrenceKey: string
   completed: boolean
@@ -114,48 +119,36 @@ function buildItems(
   tasks: Task[],
   records: CompletionRecord[],
   todayISO: string,
-  scope: TaskScope,
+  view: TaskView,
 ): TodayItem[] {
   const recMap = new Map(records.map((r) => [r.id, r]))
   const items: TodayItem[] = []
   const taskMap = new Map(tasks.map((task) => [task.id, task]))
 
   for (const task of tasks) {
-    if (taskScopeOf(task) !== scope) continue
-    const r = task.recurrence
-    if (scope === 'weekly') {
-      const periodStart = weekStartISO(todayISO)
-      const periodEnd = weekEndISO(todayISO)
-      if (task.startDate && task.startDate > periodEnd) continue
-      if (!r) {
-        const rec = recMap.get(`${task.id}:single`)
-        items.push({
-          task,
-          kind: 'single',
-          occurrenceDate: task.startDate ?? periodStart,
-          occurrenceKey: 'single',
-          completed: rec?.resolution === 'completed',
-          overdue: false,
-        })
-      } else {
-        if (task.endDate && task.endDate < periodStart) continue
-        const occurrenceKey = `fixed:${periodStart}`
-        const rec = recMap.get(`${task.id}:${occurrenceKey}`)
-        items.push({
-          task,
-          kind: 'fixed',
-          occurrenceDate: periodStart,
-          occurrenceKey,
-          completed: rec?.resolution === 'completed',
-          overdue: false,
-          subtitle: '每周 · 周一更新',
-        })
-      }
+    const r = effectiveRecurrence(task)
+    if (view === 'longTerm') {
+      if (!isLongTermTaskDefinition(task, todayISO, tasks)) continue
+      const single = recMap.get(`${task.id}:single`)
+      items.push({
+        task,
+        kind: r ? 'template' : 'single',
+        occurrenceDate: civilDateOf(task.startAt) ?? task.startDate ?? todayISO,
+        occurrenceKey: r ? 'template' : 'single',
+        completed: !r && single?.resolution === 'completed',
+        overdue: !r && taskDueStatus(task, todayISO, taskMap).tone === 'overdue',
+        subtitle: r ? `${describeRecurrence(r)} · 长期模板` : taskScheduleLabel(task, todayISO, tasks),
+      })
       continue
     }
+
+    if (!isTodayTaskDefinition(task, todayISO, tasks)) continue
     if (!r) {
-      const occurrenceKey = taskScopeOf(task) === 'daily' ? `daily:${todayISO}` : 'single'
+      const legacyDailyKey = `daily:${todayISO}`
+      const occurrenceKey = recMap.has(`${task.id}:${legacyDailyKey}`) ? legacyDailyKey : 'single'
       const rec = recMap.get(`${task.id}:${occurrenceKey}`)
+      const completedDate = rec?.completedDate ?? civilDateOf(task.completedAt)
+      if (rec?.resolution === 'completed' && completedDate && completedDate < todayISO) continue
       const completedOn = rec?.resolution === 'completed'
         ? `${rec.completedDate ?? rec.occurrenceDate}T12:00:00`
         : undefined
@@ -176,7 +169,7 @@ function buildItems(
         ) + (schedule.inheritedFrom ? ' · 继承父任务日期' : ''),
       })
     } else if (r.mode === 'fixed_schedule') {
-      const start = task.startDate ?? todayISO
+      const start = task.startDate ?? civilDateOf(task.startAt) ?? todayISO
       const due = latestFixedOnOrBefore(r, start, task.endDate, todayISO)
       if (!due) continue
       const rec = recMap.get(`${task.id}:fixed:${due}`)
@@ -261,7 +254,7 @@ function buildItems(
       }
     }
   }
-  return items
+  return items.map((item) => ({ ...item, view }))
 }
 
 function SortablePendingRow({
@@ -301,8 +294,8 @@ export default function Today() {
   const [title, setTitle] = useState('')
   const [recurrence, setRecurrence] = useState<Recurrence | undefined>()
   const [categoryId, setCategoryId] = useState<string>('')
-  const [scope, setScope] = useState<TaskScope>(
-    () => (localStorage.getItem('taskScope') as TaskScope) || 'daily',
+  const [scope, setScope] = useState<TaskView>(
+    () => taskViewFromStorage(localStorage.getItem('taskPrimaryViewV1') ?? localStorage.getItem('taskScope')),
   )
   const [fixed, setFixed] = useState(false)
   const [scheduleType, setScheduleType] = useState<TaskScheduleType>('today')
@@ -331,7 +324,7 @@ export default function Today() {
   const toolbarSentinelRef = useRef<HTMLDivElement>(null)
   const submittingRef = useRef(false)
   const syncingPeriodRef = useRef(false)
-  const scrollPositionsRef = useRef<Record<TaskScope, number>>({ daily: 0, weekly: 0 })
+  const scrollPositionsRef = useRef<Record<TaskView, number>>({ today: 0, longTerm: 0 })
 
   function holdInPlace(itemKey: string) {
     setRecentlyDone((prev) => new Set(prev).add(itemKey))
@@ -448,17 +441,20 @@ export default function Today() {
   const done =
     projectedItems?.filter((i) => i.completed && !recentlyDone.has(keyOf(i))) ?? []
   const allDoneCount = items?.filter((item) => item.completed).length ?? 0
-  const taskCounts = {
-    daily: tasks?.filter((task) => taskScopeOf(task) === 'daily').length ?? 0,
-    weekly: tasks?.filter((task) => taskScopeOf(task) === 'weekly').length ?? 0,
-  }
+  const taskCounts = useMemo(() => {
+    if (!tasks || !records) return { today: 0, longTerm: 0 }
+    return {
+      today: applyTaskViewSettings(buildItems(tasks, records, todayISO, 'today'), viewSettings).length,
+      longTerm: applyTaskViewSettings(buildItems(tasks, records, todayISO, 'longTerm'), viewSettings).length,
+    }
+  }, [tasks, records, todayISO, viewSettings])
   const activeSettingCount = activeTaskViewSettingCount(viewSettings)
   const completedDisplayPolicy =
     viewSettings.showCompleted || viewSettings.status === 'completed'
       ? policy === 'hide' ? 'keep' : policy
       : 'hide'
   const dailyHistory = useMemo(() => {
-    if (!tasks || !records || scope !== 'daily') return []
+    if (!tasks || !records || scope !== 'today') return []
     const oldestDate = addDaysISO(todayISO, -6)
     const dailyTaskIds = new Set(tasks
       .filter((task) => taskScopeOf(task) === 'daily')
@@ -475,7 +471,7 @@ export default function Today() {
   }, [tasks, records, scope, todayISO])
 
   useEffect(() => {
-    if (!tasks || scope !== 'daily') return
+    if (!tasks || scope !== 'today') return
     let cancelled = false
     void (async () => {
       await migrateDailyCompletionHistory(tasks)
@@ -490,12 +486,10 @@ export default function Today() {
     weekday: 'long',
   })
 
-  const weeklyRangeLabel = `${weekStartISO(todayISO).slice(5).replace('-', '/')} – ${weekEndISO(todayISO).slice(5).replace('-', '/')}`
-
-  function switchScope(next: TaskScope) {
+  function switchScope(next: TaskView) {
     if (next === scope) return
     setViewSettingsOpen(false)
-    setContentDirection(next === 'weekly' ? 1 : -1)
+    setContentDirection(next === 'longTerm' ? 1 : -1)
     const scrollRoot = document.querySelector('.app-shell main')
     let nextScrollTop: number | undefined
     if (scrollRoot instanceof HTMLElement) {
@@ -518,8 +512,8 @@ export default function Today() {
         : currentScrollTop
     }
     setScope(next)
-    localStorage.setItem('taskScope', next)
-    if (fixed) setRecurrence(defaultFixedRecurrence(next))
+    localStorage.setItem('taskPrimaryViewV1', next)
+    if (!fixed) setScheduleType(next === 'today' ? 'today' : 'longTerm')
     setFeedback('')
     window.requestAnimationFrame(() => {
       window.requestAnimationFrame(() => {
@@ -535,7 +529,8 @@ export default function Today() {
 
   function setTaskType(nextFixed: boolean) {
     setFixed(nextFixed)
-    setRecurrence(nextFixed ? defaultFixedRecurrence(scope) : undefined)
+    setRecurrence(nextFixed ? defaultFixedRecurrence('daily') : undefined)
+    if (nextFixed) setScheduleType('longTerm')
   }
 
   function selectScheduleType(next: TaskScheduleType) {
@@ -552,13 +547,14 @@ export default function Today() {
     if (syncingPeriodRef.current) return
     syncingPeriodRef.current = true
     setSyncingPeriod(true)
-    setFeedback(scope === 'daily' ? '正在同步今日固定任务…' : '正在同步本周固定任务…')
+    setFeedback('正在同步今日周期任务…')
     try {
-      const result = await synchronizeTaskPeriod(scope, todayISO)
-      setFeedback(result.repairs.length > 0
-        ? scope === 'daily'
-          ? '已同步今日固定任务'
-          : '已同步本周固定任务'
+      const [dailyResult, weeklyResult] = await Promise.all([
+        synchronizeTaskPeriod('daily', todayISO),
+        synchronizeTaskPeriod('weekly', todayISO),
+      ])
+      setFeedback(dailyResult.repairs.length + weeklyResult.repairs.length > 0
+        ? '已同步今日周期任务'
         : '当前已是最新')
       window.setTimeout(() => setFeedback(''), 2200)
     } catch (reason) {
@@ -577,12 +573,12 @@ export default function Today() {
     try {
       const result = await addTasksDetailed(
         title,
-        fixed ? (recurrence ?? defaultFixedRecurrence(scope)) : undefined,
+        fixed ? (recurrence ?? defaultFixedRecurrence('daily')) : undefined,
         categoryId || undefined,
         undefined,
-        scope,
+        recurrence?.mode === 'fixed_schedule' && recurrence.frequency === 'weekly' ? 'weekly' : 'daily',
         fixed
-          ? { scheduleType: 'today', startAt: todayISO }
+          ? { scheduleType: 'longTerm', startAt: scheduleStart || todayISO }
           : {
               scheduleType,
               ...(scheduleType !== 'unscheduled' && { startAt: scheduleStart || todayISO }),
@@ -635,11 +631,14 @@ export default function Today() {
         setEditingItem(item)
       },
       onToggle: () => {
+        if (item.kind === 'template') {
+          setEditingItem(item)
+          return
+        }
         void guarded(async () => {
           if (!item.completed) holdInPlace(`${task.id}:${item.occurrenceKey}`)
           if (item.kind === 'single') {
             if (item.completed) await voidRecord(`${task.id}:${item.occurrenceKey}`)
-            else if (scope === 'daily') await completeDailyTask(task, todayISO)
             else await completeTask(task)
           } else if (item.kind === 'fixed') {
             if (item.completed) await voidRecord(`${task.id}:${item.occurrenceKey}`)
@@ -679,7 +678,7 @@ export default function Today() {
     )
     const subtitle =
       [
-        item.kind === 'single' ? '普通' : '固定',
+        item.kind === 'single' ? '普通' : item.kind === 'template' ? '长期' : '固定',
         progress ? `子任务 ${progress.completed}/${progress.total}` : undefined,
         item.conflict,
         catText,
@@ -693,7 +692,7 @@ export default function Today() {
         title={item.task.title}
         subtitle={subtitle}
         colorToken={
-          item.task.visualToken ?? cat?.colorToken ?? (scope === 'weekly' ? 'purple' : 'green')
+          item.task.visualToken ?? cat?.colorToken ?? (scope === 'longTerm' ? 'purple' : 'green')
         }
         markerSymbol={
           item.task.markerSymbol ??
@@ -706,6 +705,7 @@ export default function Today() {
             : extra.featureTone ?? (item.completed ? 'custom' : 'lime')
         }
         completed={item.completed}
+        completionDisabled={item.kind === 'template' && Boolean(item.task.recurrence || taskScopeOf(item.task) === 'weekly')}
         overdue={item.overdue}
         nestingLevel={nestingLevel}
         actions={actionsFor(item)}
@@ -725,9 +725,9 @@ export default function Today() {
   }
 
   async function completeItem(item: TodayItem) {
+    if (item.kind === 'template') return
     if (item.kind === 'single') {
-      if (scope === 'daily') await completeDailyTask(item.task, todayISO)
-      else await completeTask(item.task)
+      await completeTask(item.task)
     }
     else if (item.kind === 'fixed')
       await completeFixedOccurrence(item.task, item.occurrenceDate)
@@ -804,7 +804,7 @@ export default function Today() {
     <section className="app-page page-tasks" data-scope={scope}>
       <PageHeader
         title="任务"
-        eyebrow={scope === 'daily' ? dateLabel : `本周 ${weeklyRangeLabel}`}
+        eyebrow={scope === 'today' ? dateLabel : '持续与未来'}
         actions={(
           <button
             type="button"
@@ -832,8 +832,8 @@ export default function Today() {
       <div ref={toolbarSentinelRef} className="task-toolbar-sentinel" aria-hidden />
       <TaskToolbar
         scope={scope}
-        dailyCount={taskCounts.daily}
-        weeklyCount={taskCounts.weekly}
+        todayCount={taskCounts.today}
+        longTermCount={taskCounts.longTerm}
         activeSettingCount={activeSettingCount}
         syncing={syncingPeriod}
         stuck={toolbarStuck}
@@ -852,7 +852,7 @@ export default function Today() {
         transition={reduceMotion ? MOTION.reduced : MOTION.taskContent}
       >
       <div className="task-progress-line" aria-label="任务进度">
-        <span>{activeSettingCount > 0 ? '筛选结果' : scope === 'daily' ? '今日任务' : '本周任务'} {pending.length + done.length} 项</span>
+        <span>{activeSettingCount > 0 ? '筛选结果' : scope === 'today' ? '今日任务' : '长期任务'} {pending.length + done.length} 项</span>
         <i aria-hidden>·</i>
         <span>已完成 {allDoneCount} 项</span>
       </div>
@@ -1005,10 +1005,10 @@ export default function Today() {
 
       {items === undefined ? null : pending.length + done.length === 0 ? (
         <div className="task-empty-state">
-          <MarkerIcon symbol={scope === 'daily' ? 'flower' : 'star'} color={scope === 'daily' ? 'green' : 'purple'} size={58} />
+          <MarkerIcon symbol={scope === 'today' ? 'flower' : 'star'} color={scope === 'today' ? 'green' : 'purple'} size={58} />
           <strong>{activeSettingCount > 0
             ? '没有符合筛选条件的任务'
-            : scope === 'daily' ? '今天没有任务' : '本周没有任务'}</strong>
+            : scope === 'today' ? '今天没有任务' : '没有长期任务'}</strong>
           <span>{activeSettingCount > 0
             ? '调整任务视图设置即可查看其他任务'
             : '在上方添加普通任务或会按周期更新的固定任务'}</span>
@@ -1135,7 +1135,7 @@ export default function Today() {
           {/* hide：不渲染，已完成记录页可查 */}
         </LayoutGroup>
       )}
-      {scope === 'daily' && (
+      {scope === 'today' && (
         <section className="daily-history-card" aria-labelledby="daily-history-title">
           <button
             type="button"

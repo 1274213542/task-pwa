@@ -1,5 +1,5 @@
 import { useReducedMotion } from 'motion/react'
-import type { TaskScope } from '../lib/db'
+import type { TaskView } from '../lib/taskViews'
 import { MOTION } from '../lib/motion'
 import { shouldSpinTaskSync } from '../lib/taskToolbarMotion'
 import AppIcon from './AppIcon'
@@ -7,8 +7,8 @@ import SegmentedIndicator from './SegmentedIndicator'
 
 export default function TaskToolbar({
   scope,
-  dailyCount,
-  weeklyCount,
+  todayCount,
+  longTermCount,
   activeSettingCount,
   syncing,
   stuck,
@@ -16,13 +16,13 @@ export default function TaskToolbar({
   onOpenSettings,
   onSync,
 }: {
-  scope: TaskScope
-  dailyCount: number
-  weeklyCount: number
+  scope: TaskView
+  todayCount: number
+  longTermCount: number
   activeSettingCount: number
   syncing: boolean
   stuck: boolean
-  onScopeChange: (scope: TaskScope) => void
+  onScopeChange: (scope: TaskView) => void
   onOpenSettings: () => void
   onSync: () => void
 }) {
@@ -48,37 +48,37 @@ export default function TaskToolbar({
           )}
         </button>
 
-        <div className="task-scope-control" data-shared-indicator role="tablist" aria-label="任务周期">
+        <div className="task-scope-control" data-shared-indicator role="tablist" aria-label="任务视图">
           <SegmentedIndicator
             className="task-scope-indicator"
             count={2}
-            index={scope === 'daily' ? 0 : 1}
+            index={scope === 'today' ? 0 : 1}
             transition={MOTION.taskControl}
           />
           <button
             type="button"
             role="tab"
-            aria-selected={scope === 'daily'}
-            onClick={() => onScopeChange('daily')}
+            aria-selected={scope === 'today'}
+            onClick={() => onScopeChange('today')}
           >
-            <span>每日任务</span>
-            <strong>{dailyCount}</strong>
+            <span>今日任务</span>
+            <strong>{todayCount}</strong>
           </button>
           <button
             type="button"
             role="tab"
-            aria-selected={scope === 'weekly'}
-            onClick={() => onScopeChange('weekly')}
+            aria-selected={scope === 'longTerm'}
+            onClick={() => onScopeChange('longTerm')}
           >
-            <span>每周任务</span>
-            <strong>{weeklyCount}</strong>
+            <span>长期任务</span>
+            <strong>{longTermCount}</strong>
           </button>
         </div>
 
         <button
           type="button"
           className="task-toolbar-action task-toolbar-action-sync"
-          aria-label={scope === 'daily' ? '同步今日固定任务' : '同步本周固定任务'}
+          aria-label="同步今日周期任务"
           aria-busy={syncing}
           disabled={syncing}
           onClick={onSync}

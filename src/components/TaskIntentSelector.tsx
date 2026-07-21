@@ -10,14 +10,14 @@ const TASK_INTENTS: Array<{
 }> = [
   {
     id: 'today',
-    title: '今天完成',
-    description: '今天必须处理',
+    title: '今日任务',
+    description: '安排到今天',
     icon: 'today',
   },
   {
     id: 'longTerm',
-    title: '一段时间',
-    description: '设置开始与 DDL',
+    title: '长期任务',
+    description: '持续或面向未来',
     icon: 'calendar',
   },
   {

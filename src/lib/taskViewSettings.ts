@@ -1,6 +1,7 @@
 import type { Task } from './db'
 import { todayLocalISO } from './dates'
 import { effectiveTaskSchedule, taskDueStatus, taskSmartPriority } from './taskSchedule'
+import { effectiveRecurrence, type TaskView } from './taskViews'
 
 export type TaskStatusFilter = 'all' | 'pending' | 'completed'
 export type TaskPropertyFilter = 'all' | 'single' | 'recurring'
@@ -29,6 +30,8 @@ export const DEFAULT_TASK_VIEW_SETTINGS: TaskViewSettings = {
 export interface TaskViewCandidate {
   task: Pick<Task, 'recurrence' | 'createdAt' | 'updatedAt'> & Partial<Task>
   completed: boolean
+  /** The projected list owns the visible classification for generated occurrences. */
+  view?: TaskView
 }
 
 export function parseTaskViewSettings(raw: string | null): TaskViewSettings {
@@ -69,11 +72,11 @@ export function applyTaskViewSettings<T extends TaskViewCandidate>(
     if (settings.status === 'pending' && item.completed) return false
     if (settings.status === 'completed' && !item.completed) return false
     if (!settings.showCompleted && settings.status !== 'completed' && item.completed) return false
-    const recurring = Boolean(item.task.recurrence)
+    const recurring = Boolean(effectiveRecurrence(item.task as Task))
     if (settings.property === 'single' && recurring) return false
     if (settings.property === 'recurring' && !recurring) return false
     const task = item.task as Task
-    const type = effectiveTaskSchedule(task, allTasks).type
+    const type = item.view ?? effectiveTaskSchedule(task, allTasks).type
     const due = taskDueStatus(task, today, allTasks)
     if (settings.schedule === 'today' && type !== 'today') return false
     if (settings.schedule === 'longTerm' && type !== 'longTerm') return false

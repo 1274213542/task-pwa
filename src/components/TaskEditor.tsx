@@ -1,14 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import type { CalItem } from '../lib/calendar'
-import { db, type Category, type ColorToken, type MarkerSymbol, type TaskScheduleType, type TaskScope } from '../lib/db'
+import { db, type Category, type ColorToken, type MarkerSymbol, type TaskScheduleType } from '../lib/db'
 import { softDeleteTask, updateTask } from '../lib/tasks'
-import { taskScopeOf } from '../lib/taskPeriods'
+import type { Recurrence } from '../lib/recurrence'
 import VisualPicker from './VisualPicker'
 import GestureSheet, { type GestureSheetHandle } from './GestureSheet'
 import { civilDateOf, effectiveTaskSchedule, taskDueStatus, taskScheduleTypeOf } from '../lib/taskSchedule'
 import { useCivilDate } from '../lib/useCivilDate'
 import TaskIntentSelector from './TaskIntentSelector'
+import RecurrencePicker from './RecurrencePicker'
+import { effectiveRecurrence } from '../lib/taskViews'
 
 export type EditableTaskStatus = 'pending' | 'completed' | 'skipped'
 
@@ -34,21 +36,21 @@ export default function TaskEditor({
       : 'pending'
   const [title, setTitle] = useState(task.title)
   const [notes, setNotes] = useState(task.notes ?? '')
-  const [date, setDate] = useState(task.startDate ?? item.date)
   const [endDate, setEndDate] = useState(task.endDate ?? '')
   const [categoryId, setCategoryId] = useState(task.categoryId ?? '')
-  const [scope, setScope] = useState<TaskScope>(taskScopeOf(task))
-  const [scheduleType, setScheduleType] = useState<TaskScheduleType>(taskScheduleTypeOf(task))
+  const initialRecurrence = effectiveRecurrence(task)
+  const [scheduleType, setScheduleType] = useState<TaskScheduleType>(initialRecurrence ? 'longTerm' : taskScheduleTypeOf(task))
   const [scheduleStart, setScheduleStart] = useState(
     civilDateOf(task.startAt ?? task.startDate) ?? item.date,
   )
   const [scheduleTime, setScheduleTime] = useState(
     task.startAt?.includes('T') ? task.startAt.slice(11, 16) : '',
   )
-  const [scheduleDue, setScheduleDue] = useState(() => {
-    if (!task.dueAt) return ''
-    return task.dueAt.includes('T') ? task.dueAt.slice(0, 16) : `${task.dueAt}T23:59`
-  })
+  const [scheduleDueDate, setScheduleDueDate] = useState(civilDateOf(task.dueAt) ?? '')
+  const [scheduleDueTime, setScheduleDueTime] = useState(
+    task.dueAt?.includes('T') ? task.dueAt.slice(11, 16) : '',
+  )
+  const [recurrence, setRecurrence] = useState<Recurrence | undefined>(initialRecurrence)
   const [showBeforeStart, setShowBeforeStart] = useState(task.showBeforeStart ?? false)
   const [surfaceDaysBeforeDue, setSurfaceDaysBeforeDue] = useState(task.surfaceDaysBeforeDue ?? 3)
   const [parentTaskId, setParentTaskId] = useState(task.parentTaskId ?? '')
@@ -97,16 +99,21 @@ export default function TaskEditor({
         title,
         notes,
         categoryId: categoryId || undefined,
-        startDate: date,
-        endDate: task.recurrence ? endDate || undefined : undefined,
-        taskScope: scope,
+        startDate: scheduleStart || task.startDate || item.date,
+        endDate: recurrence ? endDate || undefined : undefined,
+        taskScope: recurrence?.mode === 'fixed_schedule' && recurrence.frequency === 'weekly'
+          ? 'weekly'
+          : 'daily',
+        recurrence: recurrence ?? null,
         visualToken,
         markerSymbol,
         scheduleType,
         startAt: scheduleType === 'unscheduled' || inheritsParentSchedule
           ? undefined
           : scheduleTime ? `${scheduleStart}T${scheduleTime}` : scheduleStart,
-        dueAt: scheduleType === 'unscheduled' || inheritsParentSchedule ? undefined : scheduleDue || undefined,
+        dueAt: inheritsParentSchedule || !scheduleDueDate
+          ? undefined
+          : scheduleDueTime ? `${scheduleDueDate}T${scheduleDueTime}` : scheduleDueDate,
         showBeforeStart,
         surfaceDaysBeforeDue,
         parentTaskId: parentTaskId || undefined,
@@ -168,104 +175,138 @@ export default function TaskEditor({
         </div>
 
         <div className="task-editor-scroll">
-        <div className="space-y-3">
-          <label className="block text-[12px] font-medium text-neutral-500">
-            标题
-            <input
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              className="field mt-1"
-            />
+        <div className="task-editor-fields">
+          <label className="task-editor-field">
+            任务名称
+            <input value={title} onChange={(event) => setTitle(event.target.value)} className="field" />
           </label>
-          <label className="block text-[12px] font-medium text-neutral-500">
-            备注
-            <textarea
-              value={notes}
-              onChange={(event) => setNotes(event.target.value)}
-              rows={3}
-              placeholder="补充说明（可选）"
-              className="field mt-1 resize-none"
-            />
-          </label>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <label className="text-[12px] font-medium text-neutral-500">
-              {task.recurrence ? '系列开始日期' : '任务日期'}
-              <input
-                type="date"
-                value={date}
-                onChange={(event) => {
-                  const next = event.target.value
-                  setDate(next)
-                  if (endDate && endDate < next) setEndDate(next)
-                }}
-                className="field mt-1"
-              />
-            </label>
-            {task.recurrence && (
-              <label className="text-[12px] font-medium text-neutral-500">
-                系列结束日期
-                <input
-                  type="date"
-                  min={date}
-                  value={endDate}
-                  onChange={(event) => setEndDate(event.target.value)}
-                  className="field mt-1"
-                />
-              </label>
-            )}
-          </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <label className="text-[12px] font-medium text-neutral-500">
-              状态
-              <select
-                value={status}
-                onChange={(event) => setStatus(event.target.value as EditableTaskStatus)}
-                className="field mt-1"
-              >
-                <option value="pending">待完成</option>
-                <option value="completed">已完成</option>
-                {item.occurrenceKey !== 'single' && <option value="skipped">已跳过</option>}
-              </select>
-            </label>
-            <label className="text-[12px] font-medium text-neutral-500">
-              分类
-              <select
-                value={categoryId}
-                onChange={(event) => setCategoryId(event.target.value)}
-                className="field mt-1"
-              >
-                <option value="">无分类</option>
-                {categories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="text-[12px] font-medium text-neutral-500">
-              范围
-              <select
-                value={scope}
-                disabled={Boolean(task.recurrence)}
-                onChange={(event) => setScope(event.target.value as TaskScope)}
-                className="field mt-1 disabled:opacity-60"
-              >
-                <option value="daily">每日</option>
-                <option value="weekly">每周</option>
-              </select>
-            </label>
-          </div>
-          <section className="task-editor-schedule" aria-labelledby="task-schedule-title">
+
+          <section className="task-editor-core" aria-labelledby="task-belonging-title">
             <div className="task-editor-section-heading">
-              <div>
-                <h3 id="task-schedule-title">排期与 DDL</h3>
-              </div>
+              <h3 id="task-belonging-title">任务归属</h3>
               {dueStatus.label && <strong data-due-tone={dueStatus.tone}>{dueStatus.label}</strong>}
             </div>
-            <label>
+            <TaskIntentSelector
+              value={inheritsParentSchedule ? effective.type : scheduleType}
+              disabled={inheritsParentSchedule}
+              compact
+              onChange={(next) => {
+                setScheduleType(next)
+                if (next !== 'unscheduled' && !scheduleStart) setScheduleStart(todayISO)
+                if (next === 'today') setRecurrence(undefined)
+              }}
+            />
+          </section>
+
+          <section className="task-editor-core" aria-labelledby="task-schedule-title">
+            <div className="task-editor-section-heading">
+              <h3 id="task-schedule-title">时间与排期</h3>
+            </div>
+            <div className="task-editor-schedule-grid" aria-disabled={inheritsParentSchedule || undefined}>
+              {(inheritsParentSchedule ? effective.type : scheduleType) !== 'unscheduled' && (
+                <label className="task-editor-field">
+                  {(inheritsParentSchedule ? effective.type : scheduleType) === 'today' ? '执行日期' : '开始日期'}
+                  <input
+                    type="date"
+                    className="field"
+                    disabled={inheritsParentSchedule}
+                    value={inheritsParentSchedule ? civilDateOf(effective.startAt) ?? '' : scheduleStart}
+                    onChange={(event) => {
+                      const next = event.target.value
+                      setScheduleStart(next)
+                      if (endDate && endDate < next) setEndDate(next)
+                    }}
+                  />
+                </label>
+              )}
+              {(inheritsParentSchedule ? effective.type : scheduleType) !== 'unscheduled' && (
+                <label className="task-editor-field">
+                  具体时间（可选）
+                  <span className="task-editor-time-row">
+                    <input
+                      type="time"
+                      className="field"
+                      disabled={inheritsParentSchedule}
+                      value={inheritsParentSchedule
+                        ? effective.startAt?.includes('T') ? effective.startAt.slice(11, 16) : ''
+                        : scheduleTime}
+                      onChange={(event) => setScheduleTime(event.target.value)}
+                    />
+                    {!inheritsParentSchedule && scheduleTime && (
+                      <button type="button" onClick={() => setScheduleTime('')}>清除时间</button>
+                    )}
+                  </span>
+                  {!scheduleTime && !inheritsParentSchedule && <small>未排定时间</small>}
+                </label>
+              )}
+              <div className="task-editor-due-grid">
+                <label className="task-editor-field">
+                  DDL 日期（可选）
+                  <input
+                    type="date"
+                    className="field"
+                    disabled={inheritsParentSchedule}
+                    min={scheduleStart || undefined}
+                    value={inheritsParentSchedule ? civilDateOf(effective.dueAt) ?? '' : scheduleDueDate}
+                    onChange={(event) => setScheduleDueDate(event.target.value)}
+                  />
+                </label>
+                <label className="task-editor-field">
+                  DDL 时间（可选）
+                  <span className="task-editor-time-row">
+                    <input
+                      type="time"
+                      className="field"
+                      disabled={inheritsParentSchedule || !scheduleDueDate}
+                      value={inheritsParentSchedule && effective.dueAt?.includes('T')
+                        ? effective.dueAt.slice(11, 16)
+                        : scheduleDueTime}
+                      onChange={(event) => setScheduleDueTime(event.target.value)}
+                    />
+                    {!inheritsParentSchedule && scheduleDueTime && (
+                      <button type="button" onClick={() => setScheduleDueTime('')}>清除时间</button>
+                    )}
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            {scheduleType === 'longTerm' && !inheritsParentSchedule && (
+              <div className="task-editor-recurrence">
+                <span>循环规则</span>
+                <RecurrencePicker
+                  value={recurrence}
+                  onChange={(next) => {
+                    setRecurrence(next)
+                    if (next) setScheduleType('longTerm')
+                  }}
+                />
+                {recurrence && (
+                  <label className="task-editor-field">
+                    系列结束日期（可选）
+                    <input type="date" min={scheduleStart} value={endDate} onChange={(event) => setEndDate(event.target.value)} className="field" />
+                  </label>
+                )}
+              </div>
+            )}
+            {scheduleType === 'longTerm' && !inheritsParentSchedule && (
+              <details className="task-schedule-advanced task-editor-schedule-options">
+                <summary>显示规则</summary>
+                <label className="task-editor-switch-row">
+                  <input type="checkbox" checked={showBeforeStart} onChange={(event) => setShowBeforeStart(event.target.checked)} />
+                  <span>开始日期前仍显示</span>
+                </label>
+                <label>提前 <input type="number" min={0} max={90} value={surfaceDaysBeforeDue} onChange={(event) => setSurfaceDaysBeforeDue(Number(event.target.value) || 0)} /> 天进入近期</label>
+              </details>
+            )}
+          </section>
+
+          <section className="task-editor-core" aria-labelledby="task-relation-title">
+            <div className="task-editor-section-heading"><h3 id="task-relation-title">任务关系</h3></div>
+            <label className="task-editor-field">
               父任务
               <select
-                className="field mt-1"
+                className="field"
                 value={parentTaskId}
                 onChange={(event) => {
                   setParentTaskId(event.target.value)
@@ -280,81 +321,9 @@ export default function TaskEditor({
             </label>
             {parentTaskId && (
               <label className="task-editor-switch-row">
-                <input
-                  type="checkbox"
-                  checked={inheritsParentSchedule}
-                  onChange={(event) => setInheritsParentSchedule(event.target.checked)}
-                />
+                <input type="checkbox" checked={inheritsParentSchedule} onChange={(event) => setInheritsParentSchedule(event.target.checked)} />
                 <span>继承父任务的开始日期与 DDL</span>
               </label>
-            )}
-            <TaskIntentSelector
-              value={inheritsParentSchedule ? effective.type : scheduleType}
-              disabled={inheritsParentSchedule}
-              compact
-              onChange={(next) => {
-                setScheduleType(next)
-                if (next !== 'unscheduled' && !scheduleStart) setScheduleStart(todayISO)
-                if (next === 'unscheduled') setScheduleDue('')
-              }}
-            />
-            <div className="task-editor-schedule-grid" aria-disabled={inheritsParentSchedule || undefined}>
-              {(inheritsParentSchedule ? effective.type : scheduleType) !== 'unscheduled' && (
-                <label>
-                  {(inheritsParentSchedule ? effective.type : scheduleType) === 'today' ? '执行日期' : '开始日期'}
-                  <input
-                    type="date"
-                    className="field mt-1"
-                    disabled={inheritsParentSchedule}
-                    value={inheritsParentSchedule ? civilDateOf(effective.startAt) ?? '' : scheduleStart}
-                    onChange={(event) => setScheduleStart(event.target.value)}
-                  />
-                </label>
-              )}
-              {(inheritsParentSchedule ? effective.type : scheduleType) !== 'unscheduled' && (
-                <label>
-                  具体时间（可选）
-                  <input
-                    type="time"
-                    className="field mt-1"
-                    disabled={inheritsParentSchedule}
-                    value={inheritsParentSchedule
-                      ? effective.startAt?.includes('T') ? effective.startAt.slice(11, 16) : ''
-                      : scheduleTime}
-                    onChange={(event) => setScheduleTime(event.target.value)}
-                  />
-                  <span className="task-schedule-time-hint">留空时显示在“未排定时间”</span>
-                </label>
-              )}
-              {(inheritsParentSchedule ? effective.type : scheduleType) !== 'unscheduled' && (
-                <label>
-                  DDL（可选时间）
-                  <input
-                    type="datetime-local"
-                    className="field mt-1"
-                    disabled={inheritsParentSchedule}
-                    min={scheduleStart ? `${scheduleStart}T00:00` : undefined}
-                    value={inheritsParentSchedule
-                      ? effective.dueAt?.includes('T')
-                        ? effective.dueAt.slice(0, 16)
-                        : effective.dueAt ? `${effective.dueAt}T23:59` : ''
-                      : scheduleDue}
-                    onChange={(event) => setScheduleDue(event.target.value)}
-                  />
-                </label>
-              )}
-            </div>
-            {scheduleType === 'longTerm' && !inheritsParentSchedule && (
-              <details className="task-schedule-advanced task-editor-schedule-options">
-                <summary>高级显示规则</summary>
-                <label className="task-editor-switch-row">
-                  <input type="checkbox" checked={showBeforeStart} onChange={(event) => setShowBeforeStart(event.target.checked)} />
-                  <span>开始日期前仍显示</span>
-                </label>
-                <label>
-                  提前 <input type="number" min={0} max={90} value={surfaceDaysBeforeDue} onChange={(event) => setSurfaceDaysBeforeDue(Number(event.target.value) || 0)} /> 天进入近期
-                </label>
-              </details>
             )}
             {parentTaskId && !inheritsParentSchedule && (
               <label className="task-editor-switch-row">
@@ -363,12 +332,40 @@ export default function TaskEditor({
               </label>
             )}
           </section>
-          <VisualPicker
-            color={visualToken}
-            marker={markerSymbol}
-            onColorChange={setVisualToken}
-            onMarkerChange={setMarkerSymbol}
-          />
+
+          <details className="task-editor-more-settings">
+            <summary>更多设置</summary>
+            <div className="task-editor-more-grid">
+              <label className="task-editor-field">分类
+                <select value={categoryId} onChange={(event) => setCategoryId(event.target.value)} className="field">
+                  <option value="">无分类</option>
+                  {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+                </select>
+              </label>
+              <label className="task-editor-field">状态
+                <select
+                  value={status}
+                  disabled={item.occurrenceKey === 'template'}
+                  onChange={(event) => setStatus(event.target.value as EditableTaskStatus)}
+                  className="field"
+                >
+                  <option value="pending">{item.occurrenceKey === 'template' ? '长期模板' : '待完成'}</option>
+                  {item.occurrenceKey !== 'template' && <option value="completed">已完成</option>}
+                  {!['single', 'template'].includes(item.occurrenceKey) && <option value="skipped">已跳过</option>}
+                </select>
+              </label>
+              <label className="task-editor-field task-editor-notes">备注
+                <textarea
+                  value={notes}
+                  onChange={(event) => setNotes(event.target.value)}
+                  rows={2}
+                  placeholder="补充说明（可选）"
+                  className="field"
+                />
+              </label>
+              <VisualPicker color={visualToken} marker={markerSymbol} onColorChange={setVisualToken} onMarkerChange={setMarkerSymbol} />
+            </div>
+          </details>
         </div>
 
         <div className="task-editor-danger-zone">

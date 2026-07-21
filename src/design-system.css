@@ -12406,3 +12406,218 @@ html[lang='zh-CN'] body {
   .calendar-marker-track,
   .daily-history-list { scroll-behavior: auto; }
 }
+
+/* Task editor information hierarchy: one scroll owner, flat sections and
+   explicit optional-time controls. */
+.editor-sheet.editor-sheet-task .task-editor-fields {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-4);
+}
+
+.editor-sheet.editor-sheet-task .task-editor-field {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 560;
+}
+
+.editor-sheet.editor-sheet-task .task-editor-core,
+.editor-sheet.editor-sheet-task .task-editor-more-settings {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-3);
+  border: 0;
+  border-top: 1px solid var(--color-divider);
+  border-radius: 0;
+  background: transparent;
+  padding: var(--space-4) 0 0;
+}
+
+.editor-sheet.editor-sheet-task .task-editor-section-heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.editor-sheet.editor-sheet-task .task-editor-section-heading h3,
+.editor-sheet.editor-sheet-task .task-editor-more-settings > summary {
+  color: var(--color-text-primary);
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 650;
+}
+
+.editor-sheet.editor-sheet-task .task-editor-schedule-grid,
+.editor-sheet.editor-sheet-task .task-editor-more-grid {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-3);
+}
+
+.editor-sheet.editor-sheet-task .task-editor-due-grid {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-3);
+}
+
+.editor-sheet.editor-sheet-task .task-editor-time-row {
+  position: relative;
+  display: block;
+  min-width: 0;
+}
+
+.editor-sheet.editor-sheet-task .task-editor-time-row .field {
+  padding-right: 92px;
+}
+
+.editor-sheet.editor-sheet-task .task-editor-time-row > button {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  min-height: 34px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-secondary);
+  color: var(--color-text-secondary);
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 600;
+  transform: translateY(-50%);
+}
+
+.editor-sheet.editor-sheet-task .task-editor-field > small {
+  color: var(--color-text-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 500;
+}
+
+.editor-sheet.editor-sheet-task .task-editor-recurrence {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-2);
+}
+
+.editor-sheet.editor-sheet-task .task-editor-recurrence > span {
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  font-weight: 560;
+}
+
+.editor-sheet.editor-sheet-task .task-editor-more-settings > summary {
+  min-height: 44px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.editor-sheet.editor-sheet-task .task-editor-more-settings > summary::-webkit-details-marker {
+  display: none;
+}
+
+.editor-sheet.editor-sheet-task .task-editor-notes textarea {
+  min-height: 76px;
+  max-height: 144px;
+  resize: none;
+  overflow-y: auto;
+}
+
+.task-card-check:disabled {
+  cursor: default;
+  opacity: 0.72;
+}
+
+/* Finance rows: attendance/clock-out times remain source data; this layout
+   gives name, pay, time range and settlement a stable three-line grid. */
+.finance-work-records-v2,
+.finance-work-records-v2 > ul,
+.finance-quick-actions,
+.finance-transaction-list,
+.finance-transaction-list > ul {
+  overflow: hidden;
+}
+
+.finance-work-entry-row {
+  display: grid !important;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) !important;
+  align-items: stretch !important;
+  gap: 5px !important;
+  padding: var(--space-3) var(--space-4) !important;
+}
+
+.finance-work-entry-heading,
+.finance-work-entry-footer {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.finance-work-entry-heading strong,
+.finance-work-entry-heading b {
+  min-width: 0;
+  color: var(--color-text-primary);
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 650;
+}
+
+.finance-work-entry-heading b {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.finance-work-entry-timing,
+.finance-work-entry-footer > span {
+  min-width: 0;
+  color: var(--color-text-secondary) !important;
+  font-size: 13px;
+  line-height: 19px;
+  font-weight: 520 !important;
+  overflow-wrap: anywhere;
+}
+
+.finance-work-entry-footer > button,
+.finance-work-entry-footer > em {
+  min-height: 30px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-primary);
+  color: var(--color-text-secondary);
+  padding: 4px 10px;
+  font-size: 12px;
+  line-height: 18px;
+  font-style: normal;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.finance-work-entry-footer .finance-settlement-inline {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.finance-quick-actions > header {
+  padding-top: var(--space-3) !important;
+}
+
+.finance-quick-actions > div,
+.finance-transaction-list > ul {
+  min-width: 0;
+  max-width: 100%;
+}
+
+@media (max-width: 520px) {
+  .editor-sheet.editor-sheet-task .task-editor-due-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
