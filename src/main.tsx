@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { HashRouter } from 'react-router-dom'
+import { registerSW } from 'virtual:pwa-register'
 import App from './App'
 import { db } from './lib/db'
 import {
@@ -13,6 +14,11 @@ import './app-design.css'
 import './design-system.css'
 
 applyVisualPreferences(readStoredVisualPreferences())
+
+// Register explicitly instead of relying on build-time HTML injection. This
+// keeps GitHub Pages and installed iOS PWAs on the same generated app shell,
+// including builds produced by Vite's Rolldown pipeline.
+registerSW({ immediate: true })
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
