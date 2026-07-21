@@ -359,7 +359,10 @@ export default function Overview() {
                 >
                   {itemCompleted(item) && <AppIcon name="check" size={14} />}
                 </button>
-                <div><strong>{itemTitle(item)}</strong><small>{itemSourceLabel(item)}</small></div>
+                <div>
+                  <span className="overview-task-title"><i aria-hidden /><strong>{itemTitle(item)}</strong></span>
+                  <small>{itemSourceLabel(item)}</small>
+                </div>
                 <AppIcon name={item.kind === 'event' ? 'calendar' : 'tasks'} size={17} />
               </li>
             ))}

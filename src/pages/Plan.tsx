@@ -1033,13 +1033,7 @@ export default function Plan() {
           <div className="plan-calendar-column">
             <div className="calendar-toolbar">
               <div className="calendar-toolbar-heading">
-                <span>{mode === 'month' ? '月视图' : '周视图'}</span>
                 <h2>{mode === 'month' ? monthLabel : weekLabel}</h2>
-                {mode === 'month' && (
-                  <button type="button" className="calendar-marker-button" onClick={() => setDateMarkerOpen(true)}>
-                    批量标记
-                  </button>
-                )}
               </div>
               <div className="calendar-panel-action">
                 <button aria-label={mode === 'month' ? '上个月' : '上一周'} onClick={() => changePeriod(-1)}>
@@ -1063,6 +1057,11 @@ export default function Plan() {
                 onKeyDown={onGridKeyDown}
                 className="calendar-card calendar-period-stage"
               >
+                <div className="calendar-card-toolbar">
+                  <button type="button" className="calendar-marker-button" onClick={() => setDateMarkerOpen(true)}>
+                    批量标记
+                  </button>
+                </div>
                 <div className="calendar-week-labels">
                   {weekLabels.map((label) => <span key={label}>{label}</span>)}
                 </div>

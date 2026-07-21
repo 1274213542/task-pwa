@@ -64,6 +64,7 @@ export default function TaskEditor({
   const [error, setError] = useState('')
   const savingRef = useRef(false)
   const dialogRef = useRef<HTMLElement>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
   const sheetRef = useRef<GestureSheetHandle>(null)
   const allTasks = useLiveQuery(
     () => db.tasks.where('lifecycleStatus').equals('active').sortBy('rank'),
@@ -78,6 +79,7 @@ export default function TaskEditor({
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null
     const frame = window.requestAnimationFrame(() => {
       dialogRef.current?.focus({ preventScroll: true })
+      scrollRef.current?.scrollTo({ top: 0 })
     })
     return () => {
       window.cancelAnimationFrame(frame)
@@ -174,7 +176,7 @@ export default function TaskEditor({
           </button>
         </div>
 
-        <div className="task-editor-scroll">
+        <div ref={scrollRef} className="task-editor-scroll">
         <div className="task-editor-fields">
           <label className="task-editor-field">
             任务名称
@@ -221,7 +223,7 @@ export default function TaskEditor({
               )}
               {(inheritsParentSchedule ? effective.type : scheduleType) !== 'unscheduled' && (
                 <label className="task-editor-field">
-                  具体时间（可选）
+                  具体时间
                   <span className="task-editor-time-row">
                     <input
                       type="time"
@@ -241,7 +243,7 @@ export default function TaskEditor({
               )}
               <div className="task-editor-due-grid">
                 <label className="task-editor-field">
-                  DDL 日期（可选）
+                  DDL 日期
                   <input
                     type="date"
                     className="field"
@@ -252,7 +254,7 @@ export default function TaskEditor({
                   />
                 </label>
                 <label className="task-editor-field">
-                  DDL 时间（可选）
+                  DDL 时间
                   <span className="task-editor-time-row">
                     <input
                       type="time"
@@ -283,21 +285,11 @@ export default function TaskEditor({
                 />
                 {recurrence && (
                   <label className="task-editor-field">
-                    系列结束日期（可选）
+                    系列结束日期
                     <input type="date" min={scheduleStart} value={endDate} onChange={(event) => setEndDate(event.target.value)} className="field" />
                   </label>
                 )}
               </div>
-            )}
-            {scheduleType === 'longTerm' && !inheritsParentSchedule && (
-              <details className="task-schedule-advanced task-editor-schedule-options">
-                <summary>显示规则</summary>
-                <label className="task-editor-switch-row">
-                  <input type="checkbox" checked={showBeforeStart} onChange={(event) => setShowBeforeStart(event.target.checked)} />
-                  <span>开始日期前仍显示</span>
-                </label>
-                <label>提前 <input type="number" min={0} max={90} value={surfaceDaysBeforeDue} onChange={(event) => setSurfaceDaysBeforeDue(Number(event.target.value) || 0)} /> 天进入近期</label>
-              </details>
             )}
           </section>
 
@@ -336,6 +328,16 @@ export default function TaskEditor({
           <details className="task-editor-more-settings">
             <summary>更多设置</summary>
             <div className="task-editor-more-grid">
+              {scheduleType === 'longTerm' && !inheritsParentSchedule && (
+                <div className="task-editor-display-rules">
+                  <strong>显示规则</strong>
+                  <label className="task-editor-switch-row">
+                    <input type="checkbox" checked={showBeforeStart} onChange={(event) => setShowBeforeStart(event.target.checked)} />
+                    <span>开始日期前仍显示</span>
+                  </label>
+                  <label>提前 <input type="number" min={0} max={90} value={surfaceDaysBeforeDue} onChange={(event) => setSurfaceDaysBeforeDue(Number(event.target.value) || 0)} /> 天进入近期</label>
+                </div>
+              )}
               <label className="task-editor-field">分类
                 <select value={categoryId} onChange={(event) => setCategoryId(event.target.value)} className="field">
                   <option value="">无分类</option>
@@ -359,7 +361,7 @@ export default function TaskEditor({
                   value={notes}
                   onChange={(event) => setNotes(event.target.value)}
                   rows={2}
-                  placeholder="补充说明（可选）"
+                  placeholder="补充说明"
                   className="field"
                 />
               </label>

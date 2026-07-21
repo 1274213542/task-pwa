@@ -149,6 +149,7 @@ export default function TaskRow({
           onClick={() => actions.onEdit?.()}
           className="task-card-title-button"
         >
+          <i className="task-title-color-dot" aria-hidden />
           <span className="strike" data-done={completed}>
             {title}
           </span>

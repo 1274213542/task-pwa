@@ -1,11 +1,7 @@
 import type { Recurrence, Weekday } from '../lib/recurrence'
 
-/**
- * 重复规则选择器（MS3 精简版；MS4 起换 Radix 弹层与完整参数）。
- * 产出即 v4.2 §7 的结构化规则，不经过任何中间格式。
- */
-
-type Kind = 'none' | 'daily' | 'weekly' | 'monthly' | 'monthlyLast' | 'after'
+type RepeatMode = 'none' | 'fixed' | 'after'
+type FixedFrequency = 'daily' | 'weekly' | 'monthly'
 
 const WEEKDAY_NAMES = ['一', '二', '三', '四', '五', '六', '日']
 
@@ -16,95 +12,104 @@ export default function RecurrencePicker({
   value: Recurrence | undefined
   onChange: (r: Recurrence | undefined) => void
 }) {
-  const kind: Kind = !value
+  const repeatMode: RepeatMode = !value
     ? 'none'
     : value.mode === 'after_completion'
       ? 'after'
-      : value.frequency === 'daily'
-        ? 'daily'
-        : value.frequency === 'weekly'
-          ? 'weekly'
-          : value.dayOfMonth === -1
-            ? 'monthlyLast'
-            : 'monthly'
+      : 'fixed'
+  const fixedFrequency: FixedFrequency = value?.mode === 'fixed_schedule'
+    ? value.frequency
+    : 'daily'
+  const today = new Date()
 
-  function setKind(k: Kind) {
-    const today = new Date()
-    switch (k) {
-      case 'none':
-        return onChange(undefined)
-      case 'daily':
-        return onChange({
-          mode: 'fixed_schedule',
-          frequency: 'daily',
-          interval: 1,
-          overflowPolicy: 'clamp',
-        })
-      case 'weekly':
-        return onChange({
-          mode: 'fixed_schedule',
-          frequency: 'weekly',
-          interval: 1,
-          weekdays: [1], // 默认每周一（原始需求）
-          overflowPolicy: 'clamp',
-        })
-      case 'monthly':
-        return onChange({
-          mode: 'fixed_schedule',
-          frequency: 'monthly',
-          interval: 1,
-          dayOfMonth: today.getDate(),
-          overflowPolicy: 'clamp',
-        })
-      case 'monthlyLast':
-        return onChange({
-          mode: 'fixed_schedule',
-          frequency: 'monthly',
-          interval: 1,
-          dayOfMonth: -1,
-          overflowPolicy: 'clamp',
-        })
-      case 'after':
-        return onChange({
-          mode: 'after_completion',
-          intervalValue: 7,
-          intervalUnit: 'day',
-          overflowPolicy: 'clamp',
-        })
+  function setMode(mode: RepeatMode) {
+    if (mode === 'none') {
+      onChange(undefined)
+      return
     }
+    if (mode === 'after') {
+      onChange({
+        mode: 'after_completion',
+        intervalValue: value?.mode === 'after_completion' ? value.intervalValue : 1,
+        intervalUnit: value?.mode === 'after_completion' ? value.intervalUnit : 'day',
+        overflowPolicy: value?.overflowPolicy ?? 'clamp',
+      })
+      return
+    }
+    setFrequency(value?.mode === 'fixed_schedule' ? value.frequency : 'daily')
   }
 
-  const selectCls =
-    'min-h-11 rounded-xl bg-white px-2 py-1.5 text-[13px] dark:bg-neutral-800'
-
-  const fixedUnit =
-    value?.mode === 'fixed_schedule'
-      ? value.frequency === 'daily'
-        ? '天'
-        : value.frequency === 'weekly'
-          ? '周'
-          : '个月'
-      : ''
+  function setFrequency(frequency: FixedFrequency) {
+    const interval = value?.mode === 'fixed_schedule' ? value.interval : 1
+    const overflowPolicy = value?.overflowPolicy ?? 'clamp'
+    if (frequency === 'daily') {
+      onChange({ mode: 'fixed_schedule', frequency, interval, overflowPolicy })
+      return
+    }
+    if (frequency === 'weekly') {
+      onChange({
+        mode: 'fixed_schedule',
+        frequency,
+        interval,
+        weekdays: value?.mode === 'fixed_schedule' && value.frequency === 'weekly'
+          ? value.weekdays
+          : [1],
+        overflowPolicy,
+      })
+      return
+    }
+    onChange({
+      mode: 'fixed_schedule',
+      frequency,
+      interval,
+      dayOfMonth: value?.mode === 'fixed_schedule' && value.frequency === 'monthly'
+        ? value.dayOfMonth
+        : today.getDate(),
+      overflowPolicy,
+    })
+  }
 
   return (
-    <div className="mt-2 flex flex-wrap items-center gap-2 text-[13px] text-neutral-500">
-      <select
-        aria-label="重复"
-        value={kind}
-        onChange={(e) => setKind(e.target.value as Kind)}
-        className={selectCls}
-      >
-        <option value="none">不重复</option>
-        <option value="daily">每天</option>
-        <option value="weekly">每周</option>
-        <option value="monthly">每月（指定日期）</option>
-        <option value="monthlyLast">每月最后一天</option>
-        <option value="after">完成后再重复</option>
-      </select>
+    <div className="recurrence-editor">
+      <div className="recurrence-mode-control" role="radiogroup" aria-label="循环方式">
+        {([
+          ['none', '不重复'],
+          ['fixed', '固定周期'],
+          ['after', '完成后重复'],
+        ] as const).map(([mode, label]) => (
+          <button
+            key={mode}
+            type="button"
+            role="radio"
+            aria-checked={repeatMode === mode}
+            onClick={() => setMode(mode)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
 
       {value?.mode === 'fixed_schedule' && (
-        <div className="recurrence-interval-control">
-          <label>
+        <div className="recurrence-config-panel">
+          <div className="recurrence-frequency-control" role="radiogroup" aria-label="周期单位">
+            {([
+              ['daily', '按天'],
+              ['weekly', '按周'],
+              ['monthly', '按月'],
+            ] as const).map(([frequency, label]) => (
+              <button
+                key={frequency}
+                type="button"
+                role="radio"
+                aria-checked={fixedFrequency === frequency}
+                onClick={() => setFrequency(frequency)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <label className="recurrence-step-row">
             <span>每</span>
             <input
               type="number"
@@ -112,132 +117,144 @@ export default function RecurrencePicker({
               max={365}
               aria-label="重复间隔"
               value={value.interval}
-              onChange={(event) =>
-                onChange({
-                  ...value,
-                  interval: Math.min(365, Math.max(1, Number(event.target.value) || 1)),
-                })
-              }
+              onChange={(event) => onChange({
+                ...value,
+                interval: Math.min(365, Math.max(1, Number(event.target.value) || 1)),
+              })}
             />
-            <span>{fixedUnit}</span>
+            <strong>{value.frequency === 'daily' ? '天' : value.frequency === 'weekly' ? '周' : '个月'}</strong>
           </label>
+
+          {value.frequency === 'weekly' && (
+            <div className="recurrence-weekdays" role="group" aria-label="每周执行日">
+              {WEEKDAY_NAMES.map((name, index) => {
+                const weekday = (index + 1) as Weekday
+                const selected = value.weekdays?.includes(weekday) ?? false
+                return (
+                  <button
+                    key={weekday}
+                    type="button"
+                    aria-pressed={selected}
+                    onClick={() => {
+                      const current = value.weekdays ?? []
+                      const next = selected
+                        ? current.filter((entry) => entry !== weekday)
+                        : [...current, weekday]
+                      if (next.length === 0) return
+                      onChange({ ...value, weekdays: next.sort() })
+                    }}
+                  >
+                    {name}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+
           {value.frequency === 'monthly' && (
-            <div className="recurrence-quick-values" role="group" aria-label="常用月间隔">
-              {[1, 3, 6].map((interval) => (
+            <div className="recurrence-monthly-config">
+              <div className="recurrence-monthly-mode" role="radiogroup" aria-label="每月执行方式">
                 <button
-                  key={interval}
                   type="button"
-                  aria-pressed={value.interval === interval}
-                  onClick={() => onChange({ ...value, interval })}
+                  role="radio"
+                  aria-checked={value.dayOfMonth !== -1}
+                  onClick={() => onChange({ ...value, dayOfMonth: today.getDate() })}
                 >
-                  {interval === 1 ? '每月' : `${interval} 个月`}
+                  指定日期
                 </button>
-              ))}
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={value.dayOfMonth === -1}
+                  onClick={() => onChange({ ...value, dayOfMonth: -1 })}
+                >
+                  最后一天
+                </button>
+              </div>
+              {value.dayOfMonth !== -1 && (
+                <label className="recurrence-step-row">
+                  <span>每月</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={31}
+                    aria-label="每月日期"
+                    value={value.dayOfMonth ?? 1}
+                    onChange={(event) => onChange({
+                      ...value,
+                      dayOfMonth: Math.min(31, Math.max(1, Number(event.target.value) || 1)),
+                    })}
+                  />
+                  <strong>日</strong>
+                </label>
+              )}
+              {(value.dayOfMonth ?? 1) >= 29 && value.dayOfMonth !== -1 && (
+                <label className="recurrence-overflow-row">
+                  <span>短月份</span>
+                  <select
+                    aria-label="短月处理"
+                    value={value.overflowPolicy}
+                    onChange={(event) => onChange({
+                      ...value,
+                      overflowPolicy: event.target.value as 'clamp' | 'skip',
+                    })}
+                  >
+                    <option value="clamp">使用当月最后一天</option>
+                    <option value="skip">跳过该月</option>
+                  </select>
+                </label>
+              )}
             </div>
           )}
         </div>
       )}
 
-      {value?.mode === 'fixed_schedule' && value.frequency === 'weekly' && (
-        <div className="flex gap-1" role="group" aria-label="星期几">
-          {WEEKDAY_NAMES.map((name, i) => {
-            const wd = (i + 1) as Weekday
-            const on = value.weekdays?.includes(wd) ?? false
-            return (
-              <button
-                key={wd}
-                type="button"
-                aria-pressed={on}
-                onClick={() => {
-                  const cur = value.weekdays ?? []
-                  const next = on ? cur.filter((w) => w !== wd) : [...cur, wd]
-                  if (next.length === 0) return // 至少保留一天
-                  onChange({ ...value, weekdays: next.sort() })
-                }}
-                className={`h-10 w-10 rounded-full text-[12px] transition ${
-                  on
-                    ? 'is-recurrence-active text-black'
-                    : 'bg-white text-neutral-500 dark:bg-neutral-800'
-                }`}
-              >
-                {name}
-              </button>
-            )
-          })}
-        </div>
-      )}
-
-      {value?.mode === 'fixed_schedule' &&
-        value.frequency === 'monthly' &&
-        value.dayOfMonth !== -1 && (
-          <label className="flex items-center gap-1">
-            每月
+      {value?.mode === 'after_completion' && (
+        <div className="recurrence-config-panel">
+          <label className="recurrence-step-row recurrence-after-row">
+            <span>完成后</span>
             <input
               type="number"
               min={1}
-              max={31}
-              value={value.dayOfMonth ?? 1}
-              onChange={(e) =>
-                onChange({
-                  ...value,
-                  dayOfMonth: Math.min(31, Math.max(1, Number(e.target.value))),
-                })
-              }
-              className={`${selectCls} w-14 text-center`}
+              max={365}
+              aria-label="完成后重复间隔"
+              value={value.intervalValue}
+              onChange={(event) => onChange({
+                ...value,
+                intervalValue: Math.min(365, Math.max(1, Number(event.target.value) || 1)),
+              })}
             />
-            日
-            {(value.dayOfMonth ?? 1) >= 29 && (
-              <select
-                aria-label="短月处理"
-                value={value.overflowPolicy}
-                onChange={(e) =>
-                  onChange({
-                    ...value,
-                    overflowPolicy: e.target.value as 'clamp' | 'skip',
-                  })
-                }
-                className={selectCls}
-              >
-                <option value="clamp">短月→月底</option>
-                <option value="skip">短月跳过</option>
-              </select>
-            )}
+            <select
+              aria-label="完成后间隔单位"
+              value={value.intervalUnit}
+              onChange={(event) => onChange({
+                ...value,
+                intervalUnit: event.target.value as 'day' | 'week' | 'month',
+              })}
+            >
+              <option value="day">天</option>
+              <option value="week">周</option>
+              <option value="month">个月</option>
+            </select>
+            <strong>再次出现</strong>
           </label>
-        )}
-
-      {value?.mode === 'after_completion' && (
-        <label className="flex items-center gap-1">
-          完成后
-          <input
-            type="number"
-            min={1}
-            max={365}
-            value={value.intervalValue}
-            onChange={(e) =>
-              onChange({
-                ...value,
-                intervalValue: Math.max(1, Number(e.target.value)),
-              })
-            }
-            className={`${selectCls} w-14 text-center`}
-          />
-          <select
-            aria-label="间隔单位"
-            value={value.intervalUnit}
-            onChange={(e) =>
-              onChange({
-                ...value,
-                intervalUnit: e.target.value as 'day' | 'week' | 'month',
-              })
-            }
-            className={selectCls}
-          >
-            <option value="day">天</option>
-            <option value="week">周</option>
-            <option value="month">个月</option>
-          </select>
-          再来一次
-        </label>
+          {value.intervalUnit === 'month' && (
+            <label className="recurrence-overflow-row">
+              <span>短月份</span>
+              <select
+                aria-label="完成后短月处理"
+                value={value.overflowPolicy}
+                onChange={(event) => onChange({
+                  ...value,
+                  overflowPolicy: event.target.value as 'clamp' | 'skip',
+                })}
+              >
+                <option value="clamp">使用当月最后一天</option>
+                <option value="skip">跳到下个有效月份</option>
+              </select>
+            </label>
+          )}
+        </div>
       )}
     </div>
   )

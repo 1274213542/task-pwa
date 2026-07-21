@@ -393,14 +393,27 @@ html .page-shopping .location-manager-composer {
 }
 
 .calendar-toolbar-heading {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  display: flex;
+  min-width: 0;
   align-items: center;
-  column-gap: 8px;
+  gap: 8px;
 }
-.calendar-toolbar-heading > span { grid-column: 1 / -1; }
 .calendar-toolbar-heading > h2 { min-width: 0; }
-.calendar-toolbar-heading > .calendar-marker-button { grid-column: 2; grid-row: 2; }
+
+.calendar-card-toolbar {
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 2px 6px;
+}
+
+.calendar-card-toolbar .calendar-marker-button {
+  min-height: 36px;
+  border: 0;
+  padding-inline: 12px !important;
+  font-size: 12px;
+}
 
 .date-marker-sheet {
   height: min(84dvh, 720px) !important;
@@ -4762,12 +4775,17 @@ select:focus {
 }
 
 .finance-shift-time-grid > span {
-  display: grid;
+  display: flex;
+  height: var(--ds-control-height);
   min-height: var(--ds-control-height);
-  place-items: center;
+  align-self: end;
+  align-items: center;
+  justify-content: center;
   color: var(--text-tertiary);
   font-size: var(--ds-type-description);
   font-weight: 500;
+  line-height: 1;
+  transform: translateY(1px);
 }
 
 .finance-shift-time-grid input[type='time'] {
@@ -5328,7 +5346,7 @@ select:focus {
   width: min(100%, 32rem);
   height: min(88dvh, calc(var(--visual-viewport-height, 100dvh) - 8px));
   max-height: calc(var(--visual-viewport-height, 100dvh) - 8px) !important;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
   padding: 4px 0 0 !important;
 }
 
@@ -5411,8 +5429,21 @@ select:focus {
 }
 
 .editor-sheet.editor-sheet-task .task-intent-picker[data-compact] > button {
+  grid-template-columns: minmax(0, 1fr);
+  place-items: center;
   min-height: 44px;
   padding: 6px 5px;
+  text-align: center;
+}
+
+.editor-sheet.editor-sheet-task .task-intent-picker[data-compact] > button > svg,
+.editor-sheet.editor-sheet-task .task-intent-picker[data-compact] small {
+  display: none;
+}
+
+.editor-sheet.editor-sheet-task .task-intent-picker[data-compact] > button > span {
+  width: 100%;
+  place-items: center;
 }
 
 .editor-sheet.editor-sheet-task .visual-picker {
@@ -12142,8 +12173,8 @@ html[lang='zh-CN'] body {
   }
 }
 
-/* Final mobile ownership for the month toolbar. Keep the month on one line
-   while the three paging controls retain circle / pill / circle geometry. */
+/* The month title and paging controls form one header. Batch editing belongs
+   to the calendar card as a secondary action instead of floating below it. */
 @media (max-width: 1023px) {
   .page-plan[data-mode='month'] .calendar-toolbar {
     display: grid !important;
@@ -12163,10 +12194,12 @@ html[lang='zh-CN'] body {
     white-space: nowrap;
   }
 
-  .page-plan .calendar-toolbar-heading > .calendar-marker-button {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    justify-self: end;
+  .page-plan[data-mode='month'] .calendar-card-toolbar {
+    min-height: 40px;
+    padding: 0 2px 4px;
+  }
+
+  .page-plan[data-mode='month'] .calendar-card-toolbar .calendar-marker-button {
     width: auto !important;
     min-width: 78px !important;
     min-height: 36px !important;
@@ -12511,14 +12544,158 @@ html[lang='zh-CN'] body {
   font-weight: 560;
 }
 
+.editor-sheet.editor-sheet-task .recurrence-editor,
+.editor-sheet.editor-sheet-task .recurrence-config-panel,
+.editor-sheet.editor-sheet-task .recurrence-monthly-config {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-3);
+}
+
+.editor-sheet.editor-sheet-task .recurrence-mode-control,
+.editor-sheet.editor-sheet-task .recurrence-frequency-control,
+.editor-sheet.editor-sheet-task .recurrence-monthly-mode {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--segment-inset);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-secondary);
+  padding: var(--segment-inset);
+}
+
+.editor-sheet.editor-sheet-task .recurrence-monthly-mode {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.editor-sheet.editor-sheet-task .recurrence-mode-control button,
+.editor-sheet.editor-sheet-task .recurrence-frequency-control button,
+.editor-sheet.editor-sheet-task .recurrence-monthly-mode button {
+  min-width: 0;
+  min-height: 40px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-text-secondary);
+  padding-inline: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.editor-sheet.editor-sheet-task .recurrence-mode-control button[aria-checked='true'],
+.editor-sheet.editor-sheet-task .recurrence-frequency-control button[aria-checked='true'],
+.editor-sheet.editor-sheet-task .recurrence-monthly-mode button[aria-checked='true'] {
+  background: var(--color-surface-primary);
+  color: var(--color-text-primary);
+  box-shadow: var(--ds-shadow-card);
+}
+
+.editor-sheet.editor-sheet-task .recurrence-config-panel {
+  border-top: 1px solid var(--color-divider);
+  padding-top: var(--space-3);
+}
+
+.editor-sheet.editor-sheet-task .recurrence-step-row,
+.editor-sheet.editor-sheet-task .recurrence-overflow-row {
+  display: flex;
+  min-width: 0;
+  min-height: 48px;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  font-weight: 560;
+}
+
+.editor-sheet.editor-sheet-task .recurrence-step-row input {
+  width: 66px !important;
+  flex: 0 0 66px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.editor-sheet.editor-sheet-task .recurrence-step-row select {
+  width: auto;
+  min-width: 82px;
+  flex: 0 1 auto;
+}
+
+.editor-sheet.editor-sheet-task .recurrence-after-row strong {
+  min-width: max-content;
+  color: var(--color-text-primary);
+}
+
+.editor-sheet.editor-sheet-task .recurrence-overflow-row {
+  justify-content: space-between;
+}
+
+.editor-sheet.editor-sheet-task .recurrence-overflow-row select {
+  width: auto;
+  max-width: min(70%, 230px);
+}
+
+.editor-sheet.editor-sheet-task .recurrence-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.editor-sheet.editor-sheet-task .recurrence-weekdays button {
+  aspect-ratio: 1;
+  min-width: 0;
+  min-height: 40px;
+  border: 0;
+  border-radius: var(--radius-circle);
+  background: var(--color-surface-secondary);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.editor-sheet.editor-sheet-task .recurrence-weekdays button[aria-pressed='true'] {
+  background: var(--color-text-primary);
+  color: var(--color-surface-primary);
+}
+
 .editor-sheet.editor-sheet-task .task-editor-more-settings > summary {
   min-height: 44px;
   cursor: pointer;
   list-style: none;
 }
 
+.editor-sheet.editor-sheet-task .task-editor-more-settings > summary::after {
+  float: right;
+  color: var(--color-text-secondary);
+  content: '展开';
+  font-size: 12px;
+  font-weight: 560;
+}
+
+.editor-sheet.editor-sheet-task .task-editor-more-settings[open] > summary::after {
+  content: '收起';
+}
+
 .editor-sheet.editor-sheet-task .task-editor-more-settings > summary::-webkit-details-marker {
   display: none;
+}
+
+.editor-sheet.editor-sheet-task .task-editor-display-rules {
+  display: grid;
+  gap: var(--space-2);
+  border-bottom: 1px solid var(--color-divider);
+  padding-bottom: var(--space-3);
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  font-weight: 560;
+}
+
+.editor-sheet.editor-sheet-task .task-editor-display-rules > strong {
+  color: var(--color-text-primary);
+  font-size: 14px;
+  font-weight: 620;
 }
 
 .editor-sheet.editor-sheet-task .task-editor-notes textarea {
@@ -12531,6 +12708,32 @@ html[lang='zh-CN'] body {
 .task-card-check:disabled {
   cursor: default;
   opacity: 0.72;
+}
+
+.task-card-title-button {
+  display: flex !important;
+  align-items: center;
+  gap: 7px;
+}
+
+.task-title-color-dot,
+.overview-task-title > i {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 6px;
+  border-radius: var(--radius-circle);
+  background: var(--marker-color, var(--color-text-tertiary));
+}
+
+.overview-task-title {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+}
+
+.overview-task-title > strong {
+  min-width: 0;
 }
 
 /* Finance rows: attendance/clock-out times remain source data; this layout
