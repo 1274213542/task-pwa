@@ -3,6 +3,7 @@ import {
   type ColorToken,
   type MarkerSymbol,
   type Task,
+  type TaskNodeRole,
   type TaskScheduleType,
   type TaskScope,
 } from './db'
@@ -12,10 +13,16 @@ import { appendRank, betweenRanks, isFiKey, normalizedRanks } from './rank'
 import {
   parseBatchEntries,
   parseBatchLines,
+  parseTimedBatchEntries,
   type BatchCreateResult,
 } from './batch'
 import { periodAnchorISO } from './taskPeriods'
-import { civilDateOf, effectiveTaskSchedule, wouldCreateParentCycle } from './taskSchedule'
+import {
+  civilDateOf,
+  effectiveTaskSchedule,
+  taskNodeRoleOf,
+  wouldCreateParentCycle,
+} from './taskSchedule'
 
 const now = () => new Date().toISOString()
 const today = todayLocalISO // 本地民用日期，不是 UTC（v4.2 §7.5）
@@ -44,7 +51,9 @@ function scheduleFields(
     showBeforeStart: input?.showBeforeStart ?? false,
     surfaceDaysBeforeDue: Math.max(0, Math.min(90, input?.surfaceDaysBeforeDue ?? 3)),
     ...(input?.parentTaskId && { parentTaskId: input.parentTaskId }),
-    inheritsParentSchedule: Boolean(input?.parentTaskId) && (input?.inheritsParentSchedule ?? true),
+    // New relations remain independently schedulable. Legacy rows with an
+    // omitted flag are still interpreted as inherited by effectiveTaskSchedule.
+    inheritsParentSchedule: Boolean(input?.parentTaskId) && (input?.inheritsParentSchedule ?? false),
   }
 }
 
@@ -185,6 +194,120 @@ export async function addTasksDetailed(
   return { created, failures }
 }
 
+export interface AddTaskBatchOptions {
+  value: string
+  recurrence?: Recurrence
+  categoryId?: string
+  startDate?: string
+  taskScope?: TaskScope
+  schedule?: TaskScheduleInput
+  /** Existing organizational plan. */
+  planId?: string
+  /** Created in the same transaction as the task rows. */
+  newPlanTitle?: string
+}
+
+export interface AddTaskBatchResult extends BatchCreateResult {
+  planId?: string
+}
+
+/**
+ * Atomic quick capture with optional per-line local times and plan membership.
+ * Validation happens before the transaction; one invalid line writes nothing.
+ */
+export async function addTaskBatch(options: AddTaskBatchOptions): Promise<AddTaskBatchResult> {
+  const entries = parseTimedBatchEntries(options.value)
+  const failures = entries
+    .filter((entry) => entry.error || entry.title.length > 500)
+    .map((entry) => ({
+      line: entry.line,
+      value: entry.value,
+      reason: entry.error ?? '标题超过 500 字',
+    }))
+  if (entries.length === 0 || failures.length > 0) return { created: 0, failures }
+
+  const planTitle = options.newPlanTitle?.trim()
+  if (options.newPlanTitle !== undefined && !planTitle) {
+    return { created: 0, failures: [{ line: 0, value: '', reason: '计划名称不能为空' }] }
+  }
+
+  return db.transaction('rw', db.tasks, async () => {
+    const active = await db.tasks.where('lifecycleStatus').equals('active').sortBy('rank')
+    const existingPlan = options.planId
+      ? active.find((task) => task.id === options.planId && taskNodeRoleOf(task) === 'plan')
+      : undefined
+    if (options.planId && !existingPlan) {
+      return { created: 0, failures: [{ line: 0, value: '', reason: '所属计划不存在或已停用' }] }
+    }
+
+    let rank = active.at(-1)?.rank
+    const fallbackBase = Date.now()
+    const date = options.startDate ?? today()
+    const taskScope = options.taskScope ?? 'daily'
+    const anchor = periodAnchorISO(taskScope, date)
+    const timestamp = now()
+    let resolvedPlanId = existingPlan?.id
+    const rows: Task[] = []
+
+    if (planTitle) {
+      rank = rank === undefined || isFiKey(rank)
+        ? appendRank(rank)
+        : fallbackBase.toString(36).padStart(10, '0')
+      resolvedPlanId = crypto.randomUUID()
+      rows.push({
+        id: resolvedPlanId,
+        title: planTitle,
+        nodeRole: 'plan',
+        rank,
+        startDate: date,
+        taskScope: 'daily',
+        scheduleType: 'longTerm',
+        startAt: date,
+        showBeforeStart: false,
+        surfaceDaysBeforeDue: 3,
+        inheritsParentSchedule: false,
+        lifecycleStatus: 'active',
+        templateVersion: 1,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      })
+    }
+
+    entries.forEach((entry, index) => {
+      rank = rank === undefined || isFiKey(rank)
+        ? appendRank(rank)
+        : (fallbackBase + rows.length + index).toString(36).padStart(10, '0')
+      const baseSchedule = scheduleFields({
+        ...options.schedule,
+        ...(resolvedPlanId && { parentTaskId: resolvedPlanId, inheritsParentSchedule: false }),
+      }, date)
+      if (entry.time) baseSchedule.startAt = `${date}T${entry.time}`
+      rows.push({
+        id: crypto.randomUUID(),
+        title: entry.title,
+        nodeRole: 'task',
+        rank,
+        startDate: anchor,
+        taskScope,
+        lifecycleStatus: 'active',
+        templateVersion: 1,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        ...baseSchedule,
+        ...(options.categoryId && { categoryId: options.categoryId }),
+        ...(options.recurrence && { recurrence: options.recurrence }),
+        ...(options.recurrence?.mode === 'after_completion' && {
+          currentSequence: 1,
+          nextDueDate: anchor,
+        }),
+      })
+    })
+
+    await db.tasks.bulkAdd(rows)
+    return { created: entries.length, failures: [], ...(resolvedPlanId && { planId: resolvedPlanId }) }
+  })
+}
+
 export async function renameTask(id: string, title: string): Promise<void> {
   const trimmed = title.trim()
   if (!trimmed) return
@@ -213,6 +336,7 @@ export async function updateTask(
     parentTaskId?: string
     inheritsParentSchedule?: boolean
     extendParentDue?: boolean
+    nodeRole?: TaskNodeRole
   },
 ): Promise<void> {
   const title = changes.title.trim()
@@ -281,7 +405,10 @@ export async function updateTask(
       showBeforeStart: changes.showBeforeStart ?? false,
       surfaceDaysBeforeDue: Math.max(0, Math.min(90, changes.surfaceDaysBeforeDue ?? 3)),
       parentTaskId: changes.parentTaskId || undefined,
-      inheritsParentSchedule: Boolean(changes.parentTaskId) && (changes.inheritsParentSchedule ?? true),
+      inheritsParentSchedule: Boolean(changes.parentTaskId) && (
+        changes.inheritsParentSchedule ?? current.inheritsParentSchedule ?? true
+      ),
+      nodeRole: changes.nodeRole ?? current.nodeRole,
       updatedAt: timestamp,
     })
     if (updated !== 1) throw new Error('任务不存在或已删除')
@@ -289,10 +416,30 @@ export async function updateTask(
 }
 
 export async function softDeleteTask(id: string): Promise<void> {
-  await db.tasks.update(id, {
-    lifecycleStatus: 'deleted',
-    deletedAt: now(),
-    updatedAt: now(),
+  await db.transaction('rw', db.tasks, async () => {
+    const active = await db.tasks.where('lifecycleStatus').equals('active').toArray()
+    const task = active.find((candidate) => candidate.id === id)
+    if (!task) return
+    const timestamp = now()
+    const children = active.filter((child) => child.parentTaskId === id)
+    for (const child of children) {
+      const schedule = effectiveTaskSchedule(child, active)
+      await db.tasks.update(child.id, {
+        parentTaskId: undefined,
+        inheritsParentSchedule: false,
+        scheduleType: schedule.type,
+        startAt: schedule.startAt,
+        dueAt: schedule.dueAt,
+        showBeforeStart: schedule.showBeforeStart,
+        surfaceDaysBeforeDue: schedule.surfaceDaysBeforeDue,
+        updatedAt: timestamp,
+      })
+    }
+    await db.tasks.update(id, {
+      lifecycleStatus: 'deleted',
+      deletedAt: timestamp,
+      updatedAt: timestamp,
+    })
   })
 }
 

@@ -49,4 +49,13 @@ describe('今日任务 / 长期任务 projection', () => {
     expect(effectiveRecurrence(legacy)?.mode).toBe('fixed_schedule')
     expect(taskViewFromStorage('weekly')).toBe('longTerm')
   })
+
+  it('keeps plans and their steps in long-term while plans never become today occurrences', () => {
+    const plan = task('plan', { nodeRole: 'plan', scheduleType: 'longTerm', startAt: today })
+    const step = task('step', { parentTaskId: plan.id, inheritsParentSchedule: false, scheduleType: 'today', startAt: today })
+    expect(isLongTermTaskDefinition(plan, today, [plan, step])).toBe(true)
+    expect(isTodayTaskDefinition(plan, today, [plan, step])).toBe(false)
+    expect(isLongTermTaskDefinition(step, today, [plan, step])).toBe(true)
+    expect(isTodayTaskDefinition(step, today, [plan, step])).toBe(true)
+  })
 })

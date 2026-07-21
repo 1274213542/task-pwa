@@ -1,7 +1,7 @@
 import { Temporal } from 'temporal-polyfill'
 import type { CalendarEvent, CompletionRecord, Task } from './db'
 import { describeRecurrence, fixedOccurrencesInRange } from './recurrence'
-import { civilDateOf, effectiveTaskSchedule, taskDueStatus } from './taskSchedule'
+import { civilDateOf, effectiveTaskSchedule, taskDueStatus, taskNodeRoleOf } from './taskSchedule'
 import { todayLocalISO } from './dates'
 
 /**
@@ -65,6 +65,7 @@ export function buildCalendarItems(
   }
 
   for (const task of tasks) {
+    if (taskNodeRoleOf(task) === 'plan') continue
     const r = task.recurrence
     if (!r) {
       const schedule = effectiveTaskSchedule(task, taskMap)

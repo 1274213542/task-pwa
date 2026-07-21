@@ -6,7 +6,14 @@ import { softDeleteTask, updateTask } from '../lib/tasks'
 import type { Recurrence } from '../lib/recurrence'
 import VisualPicker from './VisualPicker'
 import GestureSheet, { type GestureSheetHandle } from './GestureSheet'
-import { civilDateOf, effectiveTaskSchedule, taskDueStatus, taskScheduleTypeOf } from '../lib/taskSchedule'
+import {
+  civilDateOf,
+  descendantTaskIds,
+  effectiveTaskSchedule,
+  taskDueStatus,
+  taskNodeRoleOf,
+  taskScheduleTypeOf,
+} from '../lib/taskSchedule'
 import { useCivilDate } from '../lib/useCivilDate'
 import TaskIntentSelector from './TaskIntentSelector'
 import RecurrencePicker from './RecurrencePicker'
@@ -29,6 +36,7 @@ export default function TaskEditor({
 }) {
   const todayISO = useCivilDate()
   const { task } = item
+  const isPlan = taskNodeRoleOf(task) === 'plan'
   const originalStatus: EditableTaskStatus = item.skipped
     ? 'skipped'
     : item.completed
@@ -70,6 +78,13 @@ export default function TaskEditor({
     () => db.tasks.where('lifecycleStatus').equals('active').sortBy('rank'),
     [],
   ) ?? []
+  const invalidParentIds = descendantTaskIds(task.id, allTasks)
+  invalidParentIds.add(task.id)
+  const parentCandidates = allTasks.filter((candidate) => !invalidParentIds.has(candidate.id))
+  const planCandidates = parentCandidates.filter((candidate) => taskNodeRoleOf(candidate) === 'plan')
+  const taskParentCandidates = parentCandidates.filter((candidate) => taskNodeRoleOf(candidate) === 'task')
+  const selectedParent = allTasks.find((candidate) => candidate.id === parentTaskId)
+  const selectedParentRole = selectedParent ? taskNodeRoleOf(selectedParent) : undefined
   const effective = effectiveTaskSchedule(task, allTasks)
   const dueStatus = item.completed
     ? { tone: 'completed' as const, label: '已完成', days: null }
@@ -106,7 +121,7 @@ export default function TaskEditor({
         taskScope: recurrence?.mode === 'fixed_schedule' && recurrence.frequency === 'weekly'
           ? 'weekly'
           : 'daily',
-        recurrence: recurrence ?? null,
+        recurrence: isPlan ? null : recurrence ?? null,
         visualToken,
         markerSymbol,
         scheduleType,
@@ -121,8 +136,9 @@ export default function TaskEditor({
         parentTaskId: parentTaskId || undefined,
         inheritsParentSchedule: Boolean(parentTaskId) && inheritsParentSchedule,
         extendParentDue,
+        nodeRole: task.nodeRole,
       })
-      if (status !== originalStatus) await onStatusChange(status)
+      if (!isPlan && status !== originalStatus) await onStatusChange(status)
       sheetRef.current?.close()
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : '保存失败，请重试')
@@ -188,7 +204,9 @@ export default function TaskEditor({
               <h3 id="task-belonging-title">任务归属</h3>
               {dueStatus.label && <strong data-due-tone={dueStatus.tone}>{dueStatus.label}</strong>}
             </div>
-            <TaskIntentSelector
+            {isPlan ? (
+              <p className="task-editor-plan-note">计划用于组织任务，不产生完成记录或时间轴事项。</p>
+            ) : <TaskIntentSelector
               value={inheritsParentSchedule ? effective.type : scheduleType}
               disabled={inheritsParentSchedule}
               compact
@@ -197,7 +215,7 @@ export default function TaskEditor({
                 if (next !== 'unscheduled' && !scheduleStart) setScheduleStart(todayISO)
                 if (next === 'today') setRecurrence(undefined)
               }}
-            />
+            />}
           </section>
 
           <section className="task-editor-core" aria-labelledby="task-schedule-title">
@@ -273,7 +291,7 @@ export default function TaskEditor({
               </div>
             </div>
 
-            {scheduleType === 'longTerm' && !inheritsParentSchedule && (
+            {!isPlan && scheduleType === 'longTerm' && !inheritsParentSchedule && (
               <div className="task-editor-recurrence">
                 <span>循环规则</span>
                 <RecurrencePicker
@@ -293,37 +311,64 @@ export default function TaskEditor({
             )}
           </section>
 
-          <section className="task-editor-core" aria-labelledby="task-relation-title">
+          {!isPlan && <section className="task-editor-core" aria-labelledby="task-relation-title">
             <div className="task-editor-section-heading"><h3 id="task-relation-title">任务关系</h3></div>
             <label className="task-editor-field">
-              父任务
+              所属计划
               <select
                 className="field"
-                value={parentTaskId}
+                value={selectedParentRole === 'plan' ? parentTaskId : ''}
                 onChange={(event) => {
-                  setParentTaskId(event.target.value)
-                  setInheritsParentSchedule(Boolean(event.target.value))
+                  if (event.target.value) {
+                    setParentTaskId(event.target.value)
+                    setInheritsParentSchedule(false)
+                  } else if (selectedParentRole === 'plan') {
+                    setParentTaskId('')
+                  }
                 }}
               >
-                <option value="">无父任务</option>
-                {allTasks.filter((candidate) => candidate.id !== task.id).map((candidate) => (
+                <option value="">不加入计划</option>
+                {planCandidates.map((candidate) => (
                   <option key={candidate.id} value={candidate.id}>{candidate.title}</option>
                 ))}
               </select>
             </label>
-            {parentTaskId && (
-              <label className="task-editor-switch-row">
-                <input type="checkbox" checked={inheritsParentSchedule} onChange={(event) => setInheritsParentSchedule(event.target.checked)} />
-                <span>继承父任务的开始日期与 DDL</span>
+            <details className="task-parent-advanced">
+              <summary>父任务高级设置</summary>
+              <label className="task-editor-field">
+                父任务
+                <select
+                  className="field"
+                  value={selectedParentRole === 'task' ? parentTaskId : ''}
+                  onChange={(event) => {
+                    if (event.target.value) {
+                      setParentTaskId(event.target.value)
+                      setInheritsParentSchedule(false)
+                    } else if (selectedParentRole === 'task') {
+                      setParentTaskId('')
+                    }
+                  }}
+                >
+                  <option value="">无父任务</option>
+                  {taskParentCandidates.map((candidate) => (
+                    <option key={candidate.id} value={candidate.id}>{candidate.title}</option>
+                  ))}
+                </select>
               </label>
-            )}
-            {parentTaskId && !inheritsParentSchedule && (
-              <label className="task-editor-switch-row">
-                <input type="checkbox" checked={extendParentDue} onChange={(event) => setExtendParentDue(event.target.checked)} />
-                <span>若子任务更晚，同步延长父任务 DDL</span>
-              </label>
-            )}
-          </section>
+              {selectedParentRole === 'task' && (
+                <label className="task-editor-switch-row">
+                  <input type="checkbox" checked={inheritsParentSchedule} onChange={(event) => setInheritsParentSchedule(event.target.checked)} />
+                  <span>沿用父任务日期与 DDL</span>
+                </label>
+              )}
+              {selectedParentRole === 'task' && !inheritsParentSchedule && (
+                <label className="task-editor-switch-row">
+                  <input type="checkbox" checked={extendParentDue} onChange={(event) => setExtendParentDue(event.target.checked)} />
+                  <span>若子任务更晚，同步延长父任务 DDL</span>
+                </label>
+              )}
+            </details>
+          </section>}
 
           <details className="task-editor-more-settings">
             <summary>更多设置</summary>
@@ -344,7 +389,7 @@ export default function TaskEditor({
                   {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
                 </select>
               </label>
-              <label className="task-editor-field">状态
+              {!isPlan && <label className="task-editor-field">状态
                 <select
                   value={status}
                   disabled={item.occurrenceKey === 'template'}
@@ -355,7 +400,7 @@ export default function TaskEditor({
                   {item.occurrenceKey !== 'template' && <option value="completed">已完成</option>}
                   {!['single', 'template'].includes(item.occurrenceKey) && <option value="skipped">已跳过</option>}
                 </select>
-              </label>
+              </label>}
               <label className="task-editor-field task-editor-notes">备注
                 <textarea
                   value={notes}
@@ -381,10 +426,12 @@ export default function TaskEditor({
             }`}
           >
             {confirmingDelete
-              ? task.recurrence
+              ? isPlan
+                ? '确认删除计划，保留计划内任务'
+                : task.recurrence
                 ? '确认删除整个系列'
                 : '确认删除任务'
-              : '删除任务'}
+              : isPlan ? '删除计划' : '删除任务'}
           </button>
         </div>
         <p role="status" className="mt-2 min-h-5 text-[13px] text-red-500">

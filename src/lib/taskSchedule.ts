@@ -29,6 +29,24 @@ export const civilDateOf = (value?: string): string | undefined => {
   }
 }
 
+export const taskNodeRoleOf = (task: Pick<Task, 'nodeRole'>): 'task' | 'plan' =>
+  task.nodeRole === 'plan' ? 'plan' : 'task'
+
+export function taskMapOf(tasks: Task[]): Map<string, Task> {
+  return new Map(tasks.map((task) => [task.id, task]))
+}
+
+export function taskChildrenMap(tasks: Task[]): Map<string, Task[]> {
+  const children = new Map<string, Task[]>()
+  for (const task of tasks) {
+    if (task.lifecycleStatus !== 'active' || !task.parentTaskId) continue
+    const list = children.get(task.parentTaskId) ?? []
+    list.push(task)
+    children.set(task.parentTaskId, list)
+  }
+  return children
+}
+
 export function taskScheduleTypeOf(task: Pick<Task, 'scheduleType' | 'recurrence' | 'startDate' | 'endDate'>): TaskScheduleType {
   // 周期规则描述的是持续存在的模板。旧版本曾把这些记录写成
   // scheduleType=today；读取时优先按长期模板解释，避免模板长期占据今日列表。
@@ -180,33 +198,60 @@ export function taskSmartPriority(task: Task, completed: boolean, todayISO: stri
 
 export function leafTaskIds(tasks: Task[]): Set<string> {
   const parents = new Set(tasks.filter((task) => task.lifecycleStatus === 'active' && task.parentTaskId).map((task) => task.parentTaskId!))
-  return new Set(tasks.filter((task) => !parents.has(task.id)).map((task) => task.id))
+  return new Set(tasks
+    .filter((task) => taskNodeRoleOf(task) === 'task' && !parents.has(task.id))
+    .map((task) => task.id))
 }
 
 export function childProgress(
   taskId: string,
-  tasks: Task[],
+  tasks: Task[] | Map<string, Task[]>,
   completedTaskIds: Set<string>,
 ): { completed: number; total: number } | undefined {
-  const children = tasks.filter((task) => task.lifecycleStatus === 'active' && task.parentTaskId === taskId)
-  if (children.length === 0) return undefined
-  const counts = children.map((child) => {
-    const nested = childProgress(child.id, tasks, completedTaskIds)
-    return nested ?? { completed: Number(completedTaskIds.has(child.id)), total: 1 }
-  })
-  return {
-    completed: counts.reduce((sum, count) => sum + count.completed, 0),
-    total: counts.reduce((sum, count) => sum + count.total, 0),
+  const childrenByParent = tasks instanceof Map ? tasks : taskChildrenMap(tasks)
+  const visited = new Set<string>()
+  const count = (parentId: string): { completed: number; total: number } => {
+    if (visited.has(parentId)) return { completed: 0, total: 0 }
+    visited.add(parentId)
+    const result = (childrenByParent.get(parentId) ?? []).reduce((sum, child) => {
+      const nested = count(child.id)
+      if (nested.total > 0) {
+        sum.completed += nested.completed
+        sum.total += nested.total
+      } else if (taskNodeRoleOf(child) === 'task') {
+        sum.completed += Number(completedTaskIds.has(child.id))
+        sum.total += 1
+      }
+      return sum
+    }, { completed: 0, total: 0 })
+    visited.delete(parentId)
+    return result
   }
+  const result = count(taskId)
+  return result.total > 0 ? result : undefined
+}
+
+export function descendantTaskIds(taskId: string, tasks: Task[] | Map<string, Task[]>): Set<string> {
+  const childrenByParent = tasks instanceof Map ? tasks : taskChildrenMap(tasks)
+  const descendants = new Set<string>()
+  const stack = [...(childrenByParent.get(taskId) ?? [])]
+  while (stack.length > 0) {
+    const child = stack.pop()!
+    if (descendants.has(child.id)) continue
+    descendants.add(child.id)
+    stack.push(...(childrenByParent.get(child.id) ?? []))
+  }
+  return descendants
 }
 
 export function wouldCreateParentCycle(taskId: string, parentTaskId: string | undefined, tasks: Task[]): boolean {
+  const map = taskMapOf(tasks)
   let current = parentTaskId
   const visited = new Set<string>([taskId])
   while (current) {
     if (visited.has(current)) return true
     visited.add(current)
-    current = tasks.find((task) => task.id === current)?.parentTaskId
+    current = map.get(current)?.parentTaskId
   }
   return false
 }

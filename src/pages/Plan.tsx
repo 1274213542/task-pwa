@@ -15,7 +15,7 @@ import { useCivilDate } from '../lib/useCivilDate'
 import { addEvent, softDeleteEvent, toggleEventCompletion, updateEvent } from '../lib/events'
 import {
   RecurrenceConflictError,
-  addTasks,
+  addTaskBatch,
   completeFixedOccurrence,
   completeTask,
   resolveAfterCompletion,
@@ -24,7 +24,7 @@ import {
   updateTask,
   voidRecord,
 } from '../lib/tasks'
-import { parseBatchLines } from '../lib/batch'
+import { parseTimedBatchEntries } from '../lib/batch'
 import EventEditor from '../components/EventEditor'
 import TaskEditor, { type EditableTaskStatus } from '../components/TaskEditor'
 import PageHeader from '../components/PageHeader'
@@ -39,6 +39,7 @@ import DateMarkerSheet from '../components/DateMarkerSheet'
 import CalendarMarkerTrack from '../components/CalendarMarkerTrack'
 import { calendarMarkerSummary } from '../lib/calendarMarkers'
 import { formatDurationMinutes } from '../lib/duration'
+import { effectiveTaskSchedule, taskMapOf, taskNodeRoleOf } from '../lib/taskSchedule'
 
 const WEEK_LABELS_MON = ['一', '二', '三', '四', '五', '六', '日']
 const WEEK_LABELS_SUN = ['日', '一', '二', '三', '四', '五', '六']
@@ -292,6 +293,7 @@ export default function Plan() {
     () => new Map((categories ?? []).map((category) => [category.id, category])),
     [categories],
   )
+  const taskMap = useMemo(() => taskMapOf(tasks ?? []), [tasks])
 
   const grid = useMemo(
     () => monthGrid(cursor.year, cursor.month, weekStartsOn),
@@ -421,7 +423,9 @@ export default function Plan() {
   }
 
   function itemTime(item: CalItem) {
-    const value = item.kind === 'event' ? item.event.startAt : item.task.startAt
+    const value = item.kind === 'event'
+      ? item.event.startAt
+      : effectiveTaskSchedule(item.task, taskMap).startAt
     if (!value?.includes('T')) return null
     if (item.kind === 'event') {
       return Temporal.Instant.from(value)
@@ -520,18 +524,29 @@ export default function Plan() {
     setSubmitting(true)
     setFeedback('')
     try {
-      const lines = parseBatchLines(draft)
+      const entries = parseTimedBatchEntries(draft)
+      const invalid = entries.find((entry) => entry.error)
+      if (invalid) throw new Error(`第 ${invalid.line} 行：${invalid.error}`)
       if (draftKind === 'event') {
-        for (const title of lines) {
-          await addEvent({ title, date: selected, time: draftTime || undefined })
+        for (const entry of entries) {
+          await addEvent({ title: entry.title, date: selected, time: (entry.time ?? draftTime) || undefined })
         }
       } else {
-        await addTasks(lines, undefined, undefined, selected, draftScope)
+        const result = await addTaskBatch({
+          value: draft,
+          startDate: selected,
+          taskScope: draftScope,
+          schedule: {
+            scheduleType: 'today',
+            startAt: draftTime ? `${selected}T${draftTime}` : selected,
+          },
+        })
+        if (result.failures.length > 0) throw new Error(result.failures[0].reason)
       }
       setDraft('')
       setDraftTime('')
       const noun = draftKind === 'event' ? '计划' : '任务'
-      setFeedback(lines.length > 1 ? `已添加 ${lines.length} 个${noun}` : `${noun}已添加`)
+      setFeedback(entries.length > 1 ? `已添加 ${entries.length} 个${noun}` : `${noun}已添加`)
       window.setTimeout(() => setFeedback(''), 2200)
     } catch (reason) {
       console.error('添加计划失败', reason)
@@ -756,6 +771,10 @@ export default function Plan() {
       : (['lime', 'purple', 'charcoal'] as const)[index % 3]
     const resolved = item.kind === 'task' ? (item.completed || item.skipped) : item.completed
     const time = itemTime(item)
+    const parent = item.kind === 'task' && item.task.parentTaskId
+      ? taskMap.get(item.task.parentTaskId)
+      : undefined
+    const planTitle = parent && taskNodeRoleOf(parent) === 'plan' ? parent.title : undefined
     const dragDisabled = item.kind === 'task' && Boolean(
       item.task.recurrence || (item.task.parentTaskId && item.task.inheritsParentSchedule !== false),
     )
@@ -805,6 +824,7 @@ export default function Plan() {
           >
             <strong>{itemTitle(item)}</strong>
             {time && <span>{`${itemTimeLabel(item)}${eventEndTime(item) ? '' : ' 开始'}`}</span>}
+            {planTitle && <small className="timeline-plan-label">{planTitle}</small>}
             <MarkerIcon symbol={visual.marker} color={visual.color} size={17} />
           </SwipeActionRow>
         </div>

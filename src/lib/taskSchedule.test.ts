@@ -4,6 +4,7 @@ import { db, type Task } from './db'
 import {
   explicitTaskDueAt,
   childProgress,
+  descendantTaskIds,
   effectiveTaskSchedule,
   isTaskExecutable,
   leafTaskIds,
@@ -15,8 +16,10 @@ import {
 } from './taskScheduleMigration'
 import {
   completeDailyTask,
+  addTaskBatch,
   migrateDailyCompletionHistory,
   pruneDailyCompletionHistory,
+  softDeleteTask,
   updateTask,
   voidRecord,
 } from './tasks'
@@ -91,6 +94,16 @@ describe('task schedules and DDL', () => {
     expect(effectiveTaskSchedule(override, [parent, override]).dueAt).toBe('2026-07-22T18:00')
   })
 
+  it('keeps missing legacy inheritance flags compatible', () => {
+    const parent = task('legacy-parent', { scheduleType: 'longTerm', startAt: '2026-08-01', dueAt: '2026-08-10' })
+    const child = task('legacy-child', { parentTaskId: parent.id })
+    expect(effectiveTaskSchedule(child, [parent, child])).toMatchObject({
+      startAt: '2026-08-01',
+      dueAt: '2026-08-10',
+      inheritedFrom: parent.id,
+    })
+  })
+
   it('counts only leaf tasks for parent progress and daily rate inputs', () => {
     const rows = [
       task('parent'),
@@ -99,6 +112,61 @@ describe('task schedules and DDL', () => {
     ]
     expect(leafTaskIds(rows)).toEqual(new Set(['child-1', 'child-2']))
     expect(childProgress('parent', rows, new Set(['child-1']))).toEqual({ completed: 1, total: 2 })
+  })
+
+  it('treats an organizational plan as a non-completable group', () => {
+    const rows = [
+      task('plan', { nodeRole: 'plan' }),
+      task('step-1', { parentTaskId: 'plan' }),
+      task('step-2', { parentTaskId: 'plan' }),
+    ]
+    expect(leafTaskIds(rows)).toEqual(new Set(['step-1', 'step-2']))
+    expect(childProgress('plan', rows, new Set(['step-2']))).toEqual({ completed: 1, total: 2 })
+    expect(descendantTaskIds('plan', rows)).toEqual(new Set(['step-1', 'step-2']))
+  })
+
+  it('creates a plan and differently timed steps atomically', async () => {
+    const result = await addTaskBatch({
+      value: '8.00 起床\n检查护照\n09:00 公交',
+      startDate: '2026-07-22',
+      newPlanTitle: '回国',
+      schedule: { scheduleType: 'today', startAt: '2026-07-22' },
+    })
+    expect(result).toMatchObject({ created: 3, failures: [] })
+    const rows = (await db.tasks.toArray()).sort((a, b) => a.rank.localeCompare(b.rank))
+    const plan = rows.find((row) => row.nodeRole === 'plan')
+    expect(plan?.title).toBe('回国')
+    expect(rows.filter((row) => row.parentTaskId === plan?.id).map((row) => [row.title, row.startAt])).toEqual([
+      ['起床', '2026-07-22T08:00'],
+      ['检查护照', '2026-07-22'],
+      ['公交', '2026-07-22T09:00'],
+    ])
+
+    const failed = await addTaskBatch({ value: '25:00 不应写入', startDate: '2026-07-22' })
+    expect(failed.created).toBe(0)
+    expect(await db.tasks.count()).toBe(4)
+  })
+
+  it('materializes inherited dates before deleting a parent', async () => {
+    const parent = task('delete-parent', {
+      scheduleType: 'longTerm',
+      startAt: '2026-08-01',
+      dueAt: '2026-08-12',
+    })
+    const child = task('delete-child', {
+      parentTaskId: parent.id,
+      inheritsParentSchedule: true,
+    })
+    await db.tasks.bulkAdd([parent, child])
+    await softDeleteTask(parent.id)
+    const detached = await db.tasks.get(child.id)
+    expect(detached?.parentTaskId).toBeUndefined()
+    expect(detached).toMatchObject({
+      inheritsParentSchedule: false,
+      scheduleType: 'longTerm',
+      startAt: '2026-08-01',
+      dueAt: '2026-08-12',
+    })
   })
 
   it('migrates legacy rows idempotently and can restore the original snapshot', async () => {

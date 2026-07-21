@@ -41,6 +41,11 @@ const baseTask = (over: Partial<Task>): Task => ({
 })
 
 describe('buildCalendarItems（统一投影，任务不复制存储）', () => {
+  it('does not project organizational plans as calendar tasks', () => {
+    const plan = baseTask({ id: 'plan', nodeRole: 'plan', scheduleType: 'longTerm', startAt: '2026-07-10' })
+    expect(buildCalendarItems([plan], [], [], '2026-07-01', '2026-07-31').size).toBe(0)
+  })
+
   it('三类同屏：普通任务、周期实例、日程', () => {
     const tasks = [
       baseTask({ id: 'a', startDate: '2026-07-10' }),

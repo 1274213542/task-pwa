@@ -1,6 +1,12 @@
 import type { Task } from './db'
 import { latestFixedOnOrBefore, type Recurrence, type Weekday } from './recurrence'
-import { civilDateOf, effectiveTaskSchedule, explicitTaskDueAt } from './taskSchedule'
+import {
+  civilDateOf,
+  effectiveTaskSchedule,
+  explicitTaskDueAt,
+  taskMapOf,
+  taskNodeRoleOf,
+} from './taskSchedule'
 import { taskScopeOf } from './taskPeriods'
 
 export type TaskView = 'today' | 'longTerm'
@@ -11,6 +17,7 @@ export type TaskView = 'today' | 'longTerm'
  * they did not yet carry a structured recurrence rule.
  */
 export function effectiveRecurrence(task: Task): Recurrence | undefined {
+  if (taskNodeRoleOf(task) === 'plan') return undefined
   if (task.recurrence) return task.recurrence
   if (taskScopeOf(task) !== 'weekly') return undefined
   const anchor = task.startDate ?? civilDateOf(task.startAt)
@@ -26,7 +33,13 @@ export function effectiveRecurrence(task: Task): Recurrence | undefined {
   }
 }
 
-export function isTodayTaskDefinition(task: Task, todayISO: string, tasks: Task[]): boolean {
+export function isTodayTaskDefinition(
+  task: Task,
+  todayISO: string,
+  tasks: Task[],
+  taskMap = taskMapOf(tasks),
+): boolean {
+  if (taskNodeRoleOf(task) === 'plan') return false
   const recurrence = effectiveRecurrence(task)
   if (recurrence?.mode === 'fixed_schedule') {
     return Boolean(latestFixedOnOrBefore(
@@ -40,19 +53,34 @@ export function isTodayTaskDefinition(task: Task, todayISO: string, tasks: Task[
     return (task.nextDueDate ?? task.startDate ?? todayISO) <= todayISO
   }
 
-  const schedule = effectiveTaskSchedule(task, tasks)
+  const schedule = effectiveTaskSchedule(task, taskMap)
   const startDate = civilDateOf(schedule.startAt) ?? task.startDate
-  const dueDate = civilDateOf(explicitTaskDueAt(task, tasks))
+  const dueDate = civilDateOf(explicitTaskDueAt(task, taskMap))
   if (dueDate && dueDate <= todayISO) return true
   return schedule.type === 'today' && (!startDate || startDate <= todayISO)
 }
 
-export function isLongTermTaskDefinition(task: Task, todayISO: string, tasks: Task[]): boolean {
+export function isLongTermTaskDefinition(
+  task: Task,
+  todayISO: string,
+  tasks: Task[],
+  taskMap = taskMapOf(tasks),
+): boolean {
+  if (taskNodeRoleOf(task) === 'plan') return true
+  let parentId = task.parentTaskId
+  const visited = new Set<string>()
+  while (parentId && !visited.has(parentId)) {
+    visited.add(parentId)
+    const parent = taskMap.get(parentId)
+    if (!parent) break
+    if (taskNodeRoleOf(parent) === 'plan') return true
+    parentId = parent.parentTaskId
+  }
   if (effectiveRecurrence(task)) return true
   if (taskScopeOf(task) === 'weekly') return true
-  const schedule = effectiveTaskSchedule(task, tasks)
+  const schedule = effectiveTaskSchedule(task, taskMap)
   const startDate = civilDateOf(schedule.startAt) ?? task.startDate
-  const dueDate = civilDateOf(explicitTaskDueAt(task, tasks))
+  const dueDate = civilDateOf(explicitTaskDueAt(task, taskMap))
   return schedule.type === 'longTerm' ||
     schedule.type === 'unscheduled' ||
     Boolean(startDate && startDate > todayISO) ||

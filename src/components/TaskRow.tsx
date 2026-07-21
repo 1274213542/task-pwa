@@ -28,6 +28,7 @@ export default function TaskRow({
   featureTone = 'custom',
   completed,
   completionDisabled = false,
+  organizational = false,
   overdue,
   actions,
   liRef,
@@ -47,6 +48,7 @@ export default function TaskRow({
   featureTone?: FeatureTone
   completed: boolean
   completionDisabled?: boolean
+  organizational?: boolean
   overdue?: boolean
   actions: RowActions
   liRef?: (el: HTMLElement | null) => void
@@ -115,7 +117,11 @@ export default function TaskRow({
           dragProps ? 'task-sortable' : ''
         }`}
       >
-      <button
+      {organizational ? (
+        <span className="task-card-check task-card-plan-indicator" aria-label="计划">
+          <AppIcon name="list" size={18} />
+        </span>
+      ) : <button
         type="button"
         onClick={actions.onToggle}
         disabled={completionDisabled}
@@ -139,7 +145,7 @@ export default function TaskRow({
             <span className="task-card-check-empty" />
           )}
         </motion.span>
-      </button>
+      </button>}
 
       <div className="task-card-copy">
         <button
@@ -155,7 +161,7 @@ export default function TaskRow({
           </span>
         </button>
         <span className={`task-card-meta ${overdue && !completed ? 'is-overdue' : ''}`}>
-          <AppIcon name="clock" size={14} />
+          <AppIcon name={organizational ? 'list' : 'clock'} size={14} />
           <span>{subtitle || '今天'}</span>
         </span>
       </div>

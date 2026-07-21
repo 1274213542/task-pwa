@@ -31,12 +31,15 @@ export type LifecycleStatus = 'active' | 'deleted'
 export type Resolution = 'completed' | 'skipped' | 'voided'
 export type TaskScope = 'daily' | 'weekly'
 export type TaskScheduleType = 'today' | 'longTerm' | 'unscheduled'
+export type TaskNodeRole = 'task' | 'plan'
 export type MarkerSymbol = 'dot' | 'flower' | 'star' | 'diamond' | 'spark' | 'squircle'
 export type UIThemeId = 'violet-lime' | 'aqua-garden' | 'mono-green' | 'soft-mix'
 
 export interface Task {
   id: string
   title: string
+  /** Missing on legacy rows and therefore read as an executable task. */
+  nodeRole?: TaskNodeRole
   notes?: string
   categoryId?: string
   rank: string

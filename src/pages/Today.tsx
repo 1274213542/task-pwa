@@ -41,7 +41,7 @@ import { addDaysISO, todayLocalISO } from '../lib/dates'
 import { useCivilDate } from '../lib/useCivilDate'
 import {
   RecurrenceConflictError,
-  addTasksDetailed,
+  addTaskBatch,
   completeFixedOccurrence,
   completeTask,
   migrateDailyCompletionHistory,
@@ -54,6 +54,7 @@ import {
   undoAfterCompletion,
   voidRecord,
 } from '../lib/tasks'
+import { parseTimedBatchEntries } from '../lib/batch'
 import TaskRow from '../components/TaskRow'
 import AppIcon from '../components/AppIcon'
 import MarkerIcon from '../components/MarkerIcon'
@@ -80,7 +81,10 @@ import {
   childProgress,
   civilDateOf,
   effectiveTaskSchedule,
+  taskChildrenMap,
   taskDueStatus,
+  taskMapOf,
+  taskNodeRoleOf,
   taskScheduleLabel,
 } from '../lib/taskSchedule'
 import {
@@ -95,7 +99,7 @@ import {
 interface TodayItem {
   task: Task
   view?: TaskView
-  kind: 'single' | 'fixed' | 'ac' | 'template'
+  kind: 'single' | 'fixed' | 'ac' | 'template' | 'plan'
   occurrenceDate: string
   occurrenceKey: string
   completed: boolean
@@ -126,9 +130,24 @@ function buildItems(
   const taskMap = new Map(tasks.map((task) => [task.id, task]))
 
   for (const task of tasks) {
+    const role = taskNodeRoleOf(task)
+    if (role === 'plan') {
+      if (view === 'longTerm') {
+        items.push({
+          task,
+          kind: 'plan',
+          occurrenceDate: civilDateOf(task.startAt) ?? task.startDate ?? todayISO,
+          occurrenceKey: 'plan',
+          completed: false,
+          overdue: false,
+          subtitle: undefined,
+        })
+      }
+      continue
+    }
     const r = effectiveRecurrence(task)
     if (view === 'longTerm') {
-      if (!isLongTermTaskDefinition(task, todayISO, tasks)) continue
+      if (!isLongTermTaskDefinition(task, todayISO, tasks, taskMap)) continue
       const single = recMap.get(`${task.id}:single`)
       items.push({
         task,
@@ -142,7 +161,7 @@ function buildItems(
       continue
     }
 
-    if (!isTodayTaskDefinition(task, todayISO, tasks)) continue
+    if (!isTodayTaskDefinition(task, todayISO, tasks, taskMap)) continue
     if (!r) {
       const legacyDailyKey = `daily:${todayISO}`
       const occurrenceKey = recMap.has(`${task.id}:${legacyDailyKey}`) ? legacyDailyKey : 'single'
@@ -294,6 +313,8 @@ export default function Today() {
   const [title, setTitle] = useState('')
   const [recurrence, setRecurrence] = useState<Recurrence | undefined>()
   const [categoryId, setCategoryId] = useState<string>('')
+  const [planId, setPlanId] = useState('')
+  const [newPlanTitle, setNewPlanTitle] = useState('')
   const [scope, setScope] = useState<TaskView>(
     () => taskViewFromStorage(localStorage.getItem('taskPrimaryViewV1') ?? localStorage.getItem('taskScope')),
   )
@@ -429,6 +450,15 @@ export default function Today() {
 
   const todayISO = useCivilDate() // 跨零点与 iOS 后台恢复时刷新本地民用日期
   const catMap = new Map((categories ?? []).map((c) => [c.id, c]))
+  const taskMap = useMemo(() => taskMapOf(tasks ?? []), [tasks])
+  const childrenByParent = useMemo(() => taskChildrenMap(tasks ?? []), [tasks])
+  const activePlans = useMemo(
+    () => (tasks ?? []).filter((task) => taskNodeRoleOf(task) === 'plan'),
+    [tasks],
+  )
+  const timedEntries = useMemo(() => parseTimedBatchEntries(title), [title])
+  const batchInputInvalid = timedEntries.some((entry) => entry.error) ||
+    (planId === '__new__' && !newPlanTitle.trim())
   const items =
     tasks && records ? buildItems(tasks, records, todayISO, scope) : undefined
   const keyOf = (i: TodayItem) => `${i.task.id}:${i.occurrenceKey}`
@@ -440,14 +470,25 @@ export default function Today() {
     projectedItems?.filter((i) => !i.completed || recentlyDone.has(keyOf(i))) ?? []
   const done =
     projectedItems?.filter((i) => i.completed && !recentlyDone.has(keyOf(i))) ?? []
+  const visiblePlanCount = projectedItems?.filter((item) => taskNodeRoleOf(item.task) === 'plan').length ?? 0
+  const visibleTaskCount = (projectedItems?.length ?? 0) - visiblePlanCount
   const allDoneCount = items?.filter((item) => item.completed).length ?? 0
   const taskCounts = useMemo(() => {
     if (!tasks || !records) return { today: 0, longTerm: 0 }
     return {
-      today: applyTaskViewSettings(buildItems(tasks, records, todayISO, 'today'), viewSettings).length,
-      longTerm: applyTaskViewSettings(buildItems(tasks, records, todayISO, 'longTerm'), viewSettings).length,
+      today: applyTaskViewSettings(buildItems(tasks, records, todayISO, 'today'), viewSettings)
+        .filter((item) => taskNodeRoleOf(item.task) === 'task').length,
+      longTerm: applyTaskViewSettings(buildItems(tasks, records, todayISO, 'longTerm'), viewSettings)
+        .filter((item) => taskNodeRoleOf(item.task) === 'task').length,
     }
   }, [tasks, records, todayISO, viewSettings])
+  const currentCompletedTaskIds = useMemo(() => {
+    if (!tasks || !records) return new Set<string>()
+    return new Set([
+      ...buildItems(tasks, records, todayISO, 'today'),
+      ...buildItems(tasks, records, todayISO, 'longTerm'),
+    ].filter((item) => item.completed).map((item) => item.task.id))
+  }, [tasks, records, todayISO])
   const activeSettingCount = activeTaskViewSettingCount(viewSettings)
   const completedDisplayPolicy =
     viewSettings.showCompleted || viewSettings.status === 'completed'
@@ -566,18 +607,20 @@ export default function Today() {
   }
 
   async function submit() {
-    if (submittingRef.current || !title.trim()) return
+    if (submittingRef.current || !title.trim() || batchInputInvalid) return
     submittingRef.current = true
     setSubmitting(true)
     setFeedback('')
     try {
-      const result = await addTasksDetailed(
-        title,
-        fixed ? (recurrence ?? defaultFixedRecurrence('daily')) : undefined,
-        categoryId || undefined,
-        undefined,
-        recurrence?.mode === 'fixed_schedule' && recurrence.frequency === 'weekly' ? 'weekly' : 'daily',
-        fixed
+      const result = await addTaskBatch({
+        value: title,
+        recurrence: fixed ? (recurrence ?? defaultFixedRecurrence('daily')) : undefined,
+        categoryId: categoryId || undefined,
+        startDate: scheduleStart || todayISO,
+        taskScope: recurrence?.mode === 'fixed_schedule' && recurrence.frequency === 'weekly' ? 'weekly' : 'daily',
+        planId: planId && planId !== '__new__' ? planId : undefined,
+        newPlanTitle: planId === '__new__' ? newPlanTitle : undefined,
+        schedule: fixed
           ? { scheduleType: 'longTerm', startAt: scheduleStart || todayISO }
           : {
               scheduleType,
@@ -586,10 +629,12 @@ export default function Today() {
               showBeforeStart,
               surfaceDaysBeforeDue,
             },
-      )
+      })
       if (result.created > 0) {
         setTitle('')
         setCategoryId('')
+        setPlanId('')
+        setNewPlanTitle('')
         setComposerOpen(false)
         setScheduleType('today')
         setScheduleStart(todayISO)
@@ -631,7 +676,7 @@ export default function Today() {
         setEditingItem(item)
       },
       onToggle: () => {
-        if (item.kind === 'template') {
+        if (item.kind === 'template' || item.kind === 'plan') {
           setEditingItem(item)
           return
         }
@@ -663,7 +708,7 @@ export default function Today() {
     let parentId = item.task.parentTaskId
     const visitedParents = new Set<string>()
     while (parentId && !visitedParents.has(parentId) && nestingLevel < 4) {
-      const parent = tasks?.find((candidate) => candidate.id === parentId)
+      const parent = taskMap.get(parentId)
       if (!parent || parent.lifecycleStatus !== 'active') break
       visitedParents.add(parentId)
       nestingLevel += 1
@@ -673,12 +718,12 @@ export default function Today() {
     const catText = cat ? cat.name : undefined
     const progress = childProgress(
       item.task.id,
-      tasks ?? [],
-      new Set((records ?? []).filter((record) => record.resolution === 'completed').map((record) => record.taskId)),
+      childrenByParent,
+      currentCompletedTaskIds,
     )
     const subtitle =
       [
-        item.kind === 'single' ? '普通' : item.kind === 'template' ? '长期' : '固定',
+        item.kind === 'plan' ? '计划' : item.kind === 'single' ? '普通' : item.kind === 'template' ? '长期' : '固定',
         progress ? `子任务 ${progress.completed}/${progress.total}` : undefined,
         item.conflict,
         catText,
@@ -705,7 +750,8 @@ export default function Today() {
             : extra.featureTone ?? (item.completed ? 'custom' : 'lime')
         }
         completed={item.completed}
-        completionDisabled={item.kind === 'template' && Boolean(item.task.recurrence || taskScopeOf(item.task) === 'weekly')}
+        organizational={item.kind === 'plan'}
+        completionDisabled={item.kind === 'plan' || (item.kind === 'template' && Boolean(item.task.recurrence || taskScopeOf(item.task) === 'weekly'))}
         overdue={item.overdue}
         nestingLevel={nestingLevel}
         actions={actionsFor(item)}
@@ -725,7 +771,7 @@ export default function Today() {
   }
 
   async function completeItem(item: TodayItem) {
-    if (item.kind === 'template') return
+    if (item.kind === 'template' || item.kind === 'plan') return
     if (item.kind === 'single') {
       await completeTask(item.task)
     }
@@ -852,7 +898,10 @@ export default function Today() {
         transition={reduceMotion ? MOTION.reduced : MOTION.taskContent}
       >
       <div className="task-progress-line" aria-label="任务进度">
-        <span>{activeSettingCount > 0 ? '筛选结果' : scope === 'today' ? '今日任务' : '长期任务'} {pending.length + done.length} 项</span>
+        <span>
+          {activeSettingCount > 0 ? '筛选结果' : scope === 'today' ? '今日任务' : '长期任务'} {visibleTaskCount} 项
+          {visiblePlanCount > 0 ? ` · ${visiblePlanCount} 个计划` : ''}
+        </span>
         <i aria-hidden>·</i>
         <span>已完成 {allDoneCount} 项</span>
       </div>
@@ -884,7 +933,7 @@ export default function Today() {
           />
           <button
             onClick={() => void submit()}
-            disabled={!title.trim() || submitting}
+            disabled={!title.trim() || submitting || batchInputInvalid}
             aria-label="添加"
             className="primary-action h-11 w-11 shrink-0 rounded-xl text-xl
               text-white transition active:scale-95 disabled:opacity-40"
@@ -893,110 +942,79 @@ export default function Today() {
           </button>
         </div>
         <p className="batch-input-hint">
-          <span className="mobile-composer-hint">每行一个任务</span>
-          <span className="desktop-composer-hint">Enter 换行 · ⌘/Ctrl + Enter 添加全部</span>
+          <span className="mobile-composer-hint">可在行首输入 8.30 或 08:30</span>
+          <span className="desktop-composer-hint">每行一个任务 · 行首时间可选 · ⌘/Ctrl + Enter 添加全部</span>
         </p>
-        <div className="mt-1 flex flex-wrap items-center gap-2 px-1 pb-1">
-          <div className="segmented-control task-type-switch text-[12px]" role="group" aria-label="任务类型">
-            <button
-              onClick={() => setTaskType(false)}
-              aria-pressed={!fixed}
-              className={!fixed ? 'is-active' : ''}
-            >
-              普通任务
-            </button>
-            <button
-              onClick={() => setTaskType(true)}
-              aria-pressed={fixed}
-              className={fixed ? 'is-active' : ''}
-            >
-              固定任务
-            </button>
+        {timedEntries.some((entry) => entry.time || entry.error) && (
+          <div className="task-batch-preview" aria-label="批量任务解析预览">
+            {timedEntries.map((entry) => (
+              <span key={`${entry.line}:${entry.value}`} data-error={entry.error || undefined}>
+                <b>{entry.time ?? (entry.error ? '!' : '—')}</b>
+                {entry.title || entry.value}
+              </span>
+            ))}
           </div>
-          {fixed && title.trim() && (
-            <details className="w-full">
-              <summary className="cursor-pointer px-1 text-[12px] text-neutral-400">
-                调整重复周期
-              </summary>
-              <RecurrencePicker value={recurrence} onChange={setRecurrence} />
-            </details>
+        )}
+        {title.trim() && <div className="task-quick-primary-fields">
+          <label className="task-plan-picker">
+            <span>所属计划</span>
+            <select value={planId} onChange={(event) => setPlanId(event.target.value)} aria-label="所属计划">
+              <option value="">不加入计划</option>
+              {activePlans.map((plan) => <option key={plan.id} value={plan.id}>{plan.title}</option>)}
+              <option value="__new__">＋ 新建计划</option>
+            </select>
+          </label>
+          {scheduleType !== 'unscheduled' && <label className="task-plan-picker">
+            <span>{scheduleType === 'longTerm' ? '开始日期' : '日期'}</span>
+            <input type="date" value={scheduleStart} onChange={(event) => setScheduleStart(event.target.value)} />
+          </label>}
+          {planId === '__new__' && (
+            <label className="task-plan-picker task-plan-name-field">
+              <span>计划名称</span>
+              <input value={newPlanTitle} onChange={(event) => setNewPlanTitle(event.target.value)} placeholder="例如 回国" autoComplete="off" />
+            </label>
           )}
-          {title.trim() && (
-            <>
-            {(categories?.length ?? 0) > 0 && (
-              <select
-                aria-label="分类"
-                value={categoryId}
-                onChange={(e) => setCategoryId(e.target.value)}
-                className="min-h-11 rounded-xl bg-white px-2 py-1.5 text-[13px]
-                  text-neutral-500 dark:bg-neutral-800"
-              >
-                <option value="">无分类</option>
-                {categories!.map((c: Category) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-              )}
-            </>
-          )}
-          {!fixed && (
-            <div className="task-schedule-composer" aria-label="任务时间设置">
-              <div className="task-schedule-intent-heading">
-                <span>先选择这件事的时间意图</span>
-                <strong>{scheduleType === 'today' ? '今天' : scheduleType === 'longTerm' ? '长期' : '收集箱'}</strong>
-              </div>
-              <TaskIntentSelector value={scheduleType} onChange={selectScheduleType} compact />
-              {scheduleType !== 'unscheduled' && (
-                <label>
-                  {scheduleType === 'today' ? '执行日期' : '开始日期'}
-                  <input
-                    type="date"
-                    value={scheduleStart}
-                    onChange={(event) => setScheduleStart(event.target.value)}
-                  />
-                </label>
-              )}
-              {scheduleType !== 'unscheduled' && (
-                <label>
-                  DDL（可选时间）
-                  <input
-                    type="datetime-local"
-                    min={scheduleStart ? `${scheduleStart}T00:00` : undefined}
-                    value={scheduleDue}
-                    onChange={(event) => setScheduleDue(event.target.value)}
-                  />
-                </label>
-              )}
-              {scheduleType === 'longTerm' && (
-                <details className="task-schedule-advanced">
-                  <summary>高级显示规则</summary>
-                  <label className="task-schedule-toggle">
-                    <input
-                      type="checkbox"
-                      checked={showBeforeStart}
-                      onChange={(event) => setShowBeforeStart(event.target.checked)}
-                    />
-                    开始日期前仍显示
-                  </label>
-                  <label>
-                    提前进入近期
-                    <span className="task-surface-days-input">
-                      <input
-                        type="number"
-                        min={0}
-                        max={90}
-                        value={surfaceDaysBeforeDue}
-                        onChange={(event) => setSurfaceDaysBeforeDue(Number(event.target.value) || 0)}
-                      /> 天
-                    </span>
-                  </label>
-                </details>
-              )}
+        </div>}
+        {title.trim() && <details className="task-quick-advanced">
+          <summary>更多设置</summary>
+          <div className="task-quick-advanced-body">
+            <div className="segmented-control task-type-switch text-[12px]" role="group" aria-label="任务类型">
+              <button onClick={() => setTaskType(false)} aria-pressed={!fixed} className={!fixed ? 'is-active' : ''}>普通任务</button>
+              <button onClick={() => setTaskType(true)} aria-pressed={fixed} className={fixed ? 'is-active' : ''}>固定任务</button>
             </div>
-          )}
-        </div>
+            {fixed && <RecurrencePicker value={recurrence} onChange={setRecurrence} />}
+            {(categories?.length ?? 0) > 0 && (
+              <select aria-label="分类" value={categoryId} onChange={(event) => setCategoryId(event.target.value)}>
+                <option value="">无分类</option>
+                {categories!.map((category: Category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+              </select>
+            )}
+            {!fixed && <div className="task-schedule-composer" aria-label="任务时间设置">
+              <TaskIntentSelector value={scheduleType} onChange={selectScheduleType} compact />
+              {scheduleType !== 'unscheduled' && <label>
+                DDL
+                <input
+                  type="datetime-local"
+                  min={scheduleStart ? `${scheduleStart}T00:00` : undefined}
+                  value={scheduleDue}
+                  onChange={(event) => setScheduleDue(event.target.value)}
+                />
+              </label>}
+              {scheduleType === 'longTerm' && <details className="task-schedule-advanced">
+                <summary>显示规则</summary>
+                <label className="task-schedule-toggle">
+                  <input type="checkbox" checked={showBeforeStart} onChange={(event) => setShowBeforeStart(event.target.checked)} />
+                  开始日期前仍显示
+                </label>
+                <label>提前进入近期
+                  <span className="task-surface-days-input">
+                    <input type="number" min={0} max={90} value={surfaceDaysBeforeDue} onChange={(event) => setSurfaceDaysBeforeDue(Number(event.target.value) || 0)} /> 天
+                  </span>
+                </label>
+              </details>}
+            </div>}
+          </div>
+        </details>}
       </motion.div>}
       </AnimatePresence>
       <p role="status" className="min-h-5 px-2 pt-1 text-[12px] text-neutral-500">
