@@ -4750,6 +4750,62 @@ select:focus {
   grid-column: 1 / -1;
 }
 
+.finance-shift-time-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: end;
+  gap: var(--ds-space-2);
+}
+
+.finance-shift-time-grid > label {
+  min-width: 0;
+}
+
+.finance-shift-time-grid > span {
+  display: grid;
+  min-height: var(--ds-control-height);
+  place-items: center;
+  color: var(--text-tertiary);
+  font-size: var(--ds-type-description);
+  font-weight: 500;
+}
+
+.finance-shift-time-grid input[type='time'] {
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.finance-shift-summary {
+  display: grid;
+  min-width: 0;
+  align-content: center;
+  gap: 2px;
+  border-radius: var(--radius-control);
+  background: var(--neutral-control);
+  padding: 10px 12px;
+}
+
+.finance-shift-summary > span,
+.finance-shift-summary > small {
+  color: var(--text-secondary);
+  font-size: var(--ds-type-description);
+  font-weight: 500;
+  line-height: var(--ds-leading-description);
+}
+
+.finance-shift-summary > strong {
+  color: var(--text-primary);
+  font-size: var(--ds-type-section);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.finance-shift-summary.is-invalid > strong,
+.finance-shift-summary.is-invalid > small:last-child {
+  color: var(--color-danger-text, #a7332a);
+}
+
 .finance-work-actions {
   align-items: center;
   justify-content: space-between;

@@ -11,6 +11,7 @@ import SelectionPickerSheet, { type SelectionPickerItem } from '../components/Se
 import { AmountPrivacyToggle, PrivateAmount } from '../components/AmountPrivacy'
 import { db, type ColorToken, type ExpenseCategory, type MarkerSymbol } from '../lib/db'
 import { cachedRate, convertWithCachedRate, refreshExchangeRate, saveManualExchangeRate } from '../lib/exchangeRates'
+import { calculateDurationMinutes } from '../lib/finance'
 import { MOTION } from '../lib/motion'
 import {
   calculateAccountBalances,
@@ -116,6 +117,14 @@ function formatMinutes(minutes: number) {
   const hours = Math.floor(minutes / 60)
   const rest = minutes % 60
   return rest ? `${hours}小时 ${rest}分` : `${hours}小时`
+}
+
+function formatWorkEntryTiming(entry: WorkEntry) {
+  const timeRange = entry.startTime && entry.endTime
+    ? `${entry.startTime}–${entry.endTime}${entry.endTime < entry.startTime ? '（次日）' : ''}`
+    : '未记录出退勤'
+  const breakLabel = entry.breakMinutes > 0 ? ` · 休息 ${entry.breakMinutes} 分` : ''
+  return `${entry.date} · ${timeRange} · ${formatMinutes(entry.durationMinutes)}${breakLabel}`
 }
 
 const FINANCE_ENTRY_DEFAULTS_KEY = 'financeEntryDefaultsV1'
@@ -803,7 +812,8 @@ function WorkView({
   const wageSettings = useLiveQuery(() => db.wageSettings.get('#wage'), [])
   const lastDefaultsApplied = useRef(false)
   const [date, setDate] = useState(initialDate)
-  const [hours, setHours] = useState('8')
+  const [startTime, setStartTime] = useState('09:00')
+  const [endTime, setEndTime] = useState('18:00')
   const [breakMinutes, setBreakMinutes] = useState('60')
   const [hourlyRate, setHourlyRate] = useState('1250')
   const [currency, setCurrency] = useState<CurrencyCode>('JPY')
@@ -818,6 +828,7 @@ function WorkView({
   const [settlementEntryId, setSettlementEntryId] = useState('')
   const [actualPaidAmount, setActualPaidAmount] = useState('')
   const [settling, setSettling] = useState(false)
+  const [legacyDurationMinutes, setLegacyDurationMinutes] = useState<number | null>(null)
 
   const activeEntries = [...entries].sort((a, b) => b.date.localeCompare(a.date))
   const pending = activeEntries.filter((entry) => entry.settlementStatus === 'unsettled' && entry.worked)
@@ -830,6 +841,20 @@ function WorkView({
         formatMoney(amount, entryCurrency),
       ).join(' + ')
     : formatMoney(0, currency)
+  const normalizedBreakMinutes = Math.max(0, Number(breakMinutes) || 0)
+  const hasCompleteTimeRange = Boolean(startTime && endTime)
+  const hasPartialTimeRange = Boolean(startTime || endTime) && !hasCompleteTimeRange
+  const calculatedDurationMinutes = hasCompleteTimeRange
+    ? calculateDurationMinutes({ startTime, endTime, breakMinutes: normalizedBreakMinutes })
+    : 0
+  const effectiveDurationMinutes = hasCompleteTimeRange
+    ? calculatedDurationMinutes
+    : legacyDurationMinutes ?? 0
+  const crossesMidnight = hasCompleteTimeRange && endTime < startTime
+  const canSaveWorkEntry = !saving && (
+    (hasCompleteTimeRange && calculatedDurationMinutes > 0) ||
+    (Boolean(editingWorkEntryId) && !startTime && !endTime && (legacyDurationMinutes ?? 0) > 0)
+  )
 
   useEffect(() => {
     if (lastDefaultsApplied.current) return
@@ -838,6 +863,10 @@ function WorkView({
       setContent(last.workContent ?? '')
       setLocation(last.workLocation ?? '')
       setEmployer(last.employer ?? '')
+      if (last.startTime && last.endTime) {
+        setStartTime(last.startTime)
+        setEndTime(last.endTime)
+      }
       setBreakMinutes(String(last.breakMinutes))
       setHourlyRate(String(fromMinor(last.hourlyRateMinor, last.currency)))
       setCurrency(last.currency)
@@ -866,10 +895,20 @@ function WorkView({
   async function submit(event: FormEvent) {
     event.preventDefault()
     if (saving) return
+    if (hasPartialTimeRange) {
+      onFeedback('请同时填写出勤时间和退勤时间')
+      return
+    }
+    if (!hasCompleteTimeRange && !legacyDurationMinutes) {
+      onFeedback('请填写出勤时间和退勤时间')
+      return
+    }
+    if (hasCompleteTimeRange && calculatedDurationMinutes <= 0) {
+      onFeedback('退勤时间与休息时间无法形成有效工时')
+      return
+    }
     setSaving(true)
     try {
-      const grossMinutes = Math.round(Number(hours) * 60)
-      const unpaidBreak = Math.max(0, Number(breakMinutes) || 0)
       await saveWorkEntry({
         id: editingWorkEntryId || undefined,
         date,
@@ -877,8 +916,10 @@ function WorkView({
         workContent: content,
         employer,
         workLocation: location,
-        durationMinutes: Math.max(0, grossMinutes - unpaidBreak),
-        breakMinutes: unpaidBreak,
+        startTime: startTime || undefined,
+        endTime: endTime || undefined,
+        durationMinutes: effectiveDurationMinutes,
+        breakMinutes: normalizedBreakMinutes,
         paidBreak: false,
         hourlyRateMinor: toMinor(Number(hourlyRate) || 0, currency),
         currency,
@@ -886,6 +927,7 @@ function WorkView({
         templateId: templateId || undefined,
       })
       setEditingWorkEntryId('')
+      setLegacyDurationMinutes(null)
       onFeedback(editingWorkEntryId ? '工作记录已更新' : '工作记录已保存；预计工资不会提前增加账户余额')
     } catch (error) {
       onFeedback(error instanceof Error ? error.message : '工作记录保存失败')
@@ -901,7 +943,9 @@ function WorkView({
     }
     setEditingWorkEntryId(entry.id)
     setDate(entry.date)
-    setHours(String((entry.durationMinutes + entry.breakMinutes) / 60))
+    setStartTime(entry.startTime ?? '')
+    setEndTime(entry.endTime ?? '')
+    setLegacyDurationMinutes(entry.startTime && entry.endTime ? null : entry.durationMinutes)
     setBreakMinutes(String(entry.breakMinutes))
     setHourlyRate(String(fromMinor(entry.hourlyRateMinor, entry.currency)))
     setCurrency(entry.currency)
@@ -981,8 +1025,19 @@ function WorkView({
         <header><div><span>预计工资不计入余额</span><h2>{editingWorkEntryId ? '编辑工作记录' : '记录工作'}</h2></div>{templates.length > 0 && <select value={templateId} onChange={(event) => applyTemplate(event.target.value)}><option value="">选择模板</option>{templates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select>}</header>
         <div className="finance-form-grid-v2">
           <label>日期<input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label>
-          <label>工作时长<input inputMode="decimal" value={hours} onChange={(event) => setHours(event.target.value)} /></label>
-          <label>休息分钟<input inputMode="numeric" value={breakMinutes} onChange={(event) => setBreakMinutes(event.target.value)} /></label>
+          <div className="finance-shift-time-grid wide" role="group" aria-label="出勤与退勤时间">
+            <label>出勤时间<input required={!editingWorkEntryId || legacyDurationMinutes === null} type="time" value={startTime} onChange={(event) => setStartTime(event.target.value)} /></label>
+            <span aria-hidden="true">至</span>
+            <label>退勤时间<input required={!editingWorkEntryId || legacyDurationMinutes === null} type="time" value={endTime} onChange={(event) => setEndTime(event.target.value)} /></label>
+          </div>
+          <label>休息时间（分钟）<input min="0" inputMode="numeric" type="number" value={breakMinutes} onChange={(event) => setBreakMinutes(event.target.value)} /></label>
+          <div className={`finance-shift-summary ${effectiveDurationMinutes <= 0 ? 'is-invalid' : ''}`} aria-live="polite">
+            <span>自动计算有效工时</span>
+            <strong>{effectiveDurationMinutes > 0 ? formatMinutes(effectiveDurationMinutes) : '等待完整时间'}</strong>
+            {hasCompleteTimeRange && <small>{startTime}–{endTime}{crossesMidnight ? ' · 次日退勤' : ''}{normalizedBreakMinutes > 0 ? ` · 扣除休息 ${normalizedBreakMinutes} 分` : ''}</small>}
+            {!hasCompleteTimeRange && legacyDurationMinutes !== null && <small>这是旧记录；未补录时间时将保留原工时。</small>}
+            {hasPartialTimeRange && <small>请同时填写出勤与退勤时间。</small>}
+          </div>
           <label>时薪<input inputMode="decimal" value={hourlyRate} onChange={(event) => setHourlyRate(event.target.value)} /></label>
           <label>币种<select value={currency} onChange={(event) => setCurrency(event.target.value as CurrencyCode)}><option value="JPY">JPY</option><option value="CNY">CNY</option></select></label>
           <label>工资入账账户<select value={payoutAccountId} onChange={(event) => setPayoutAccountId(event.target.value)}><option value="">稍后选择</option>{payoutAccounts.filter((account) => account.currency === currency).map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>
@@ -990,7 +1045,7 @@ function WorkView({
           <label>工作地点<input value={location} onChange={(event) => setLocation(event.target.value)} /></label>
           <label className="wide">雇主 / 项目<input value={employer} onChange={(event) => setEmployer(event.target.value)} /></label>
         </div>
-        <div className="finance-work-actions"><div><input value={templateName} onChange={(event) => setTemplateName(event.target.value)} placeholder="模板名称" /><button type="button" onClick={() => void createTemplate()}>保存为模板</button></div><button className="primary" disabled={saving}>{saving ? '保存中…' : editingWorkEntryId ? '更新工作记录' : '保存工作记录'}</button></div>
+        <div className="finance-work-actions"><div><input value={templateName} onChange={(event) => setTemplateName(event.target.value)} placeholder="模板名称" /><button type="button" onClick={() => void createTemplate()}>保存为模板</button></div><button className="primary" disabled={!canSaveWorkEntry}>{saving ? '保存中…' : editingWorkEntryId ? '更新工作记录' : '保存工作记录'}</button></div>
       </form>
       <section className="finance-section-card finance-work-records-v2">
         <header><div><span>按日期查看</span><h2>工作记录</h2></div><strong>{activeEntries.length} 条</strong></header>
@@ -1005,7 +1060,7 @@ function WorkView({
             { label: '更多', icon: 'more', tone: 'neutral', onSelect: () => beginWorkEdit(entry) },
             { label: '删除', icon: 'trash', tone: 'danger', disabled: entry.settlementStatus === 'settled', onSelect: () => void removeWorkEntry(entry) },
           ]}
-        ><div><strong>{entry.workContent || entry.employer || '工作'}</strong><span>{entry.date} · {formatMinutes(entry.durationMinutes)}{entry.workLocation ? ` · ${entry.workLocation}` : ''}</span></div><b><PrivateAmount>{formatMoney(entry.estimatedGrossMinor, entry.currency)}</PrivateAmount></b>{entry.settlementStatus === 'settled' ? <em>已入账</em> : settlementEntryId === entry.id ? <div className="finance-settlement-inline"><label>实际到账<input autoFocus inputMode="decimal" value={actualPaidAmount} onChange={(event) => setActualPaidAmount(event.target.value)} /></label><button type="button" disabled={settling || !actualPaidAmount} onClick={() => void settleOne(entry)}>{settling ? '入账中…' : '确认入账'}</button><button type="button" disabled={settling} onClick={() => setSettlementEntryId('')}>取消</button></div> : <button type="button" data-no-row-swipe onClick={() => beginSettlement(entry)}>实际入账</button>}</SwipeActionRow>)}</ul> : <div className="finance-empty-state">还没有工作记录</div>}
+        ><div><strong>{entry.workContent || entry.employer || '工作'}</strong><span>{formatWorkEntryTiming(entry)}{entry.workLocation ? ` · ${entry.workLocation}` : ''}</span></div><b><PrivateAmount>{formatMoney(entry.estimatedGrossMinor, entry.currency)}</PrivateAmount></b>{entry.settlementStatus === 'settled' ? <em>已入账</em> : settlementEntryId === entry.id ? <div className="finance-settlement-inline"><label>实际到账<input autoFocus inputMode="decimal" value={actualPaidAmount} onChange={(event) => setActualPaidAmount(event.target.value)} /></label><button type="button" disabled={settling || !actualPaidAmount} onClick={() => void settleOne(entry)}>{settling ? '入账中…' : '确认入账'}</button><button type="button" disabled={settling} onClick={() => setSettlementEntryId('')}>取消</button></div> : <button type="button" data-no-row-swipe onClick={() => beginSettlement(entry)}>实际入账</button>}</SwipeActionRow>)}</ul> : <div className="finance-empty-state">还没有工作记录</div>}
       </section>
     </div>
   )

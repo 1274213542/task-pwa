@@ -111,6 +111,28 @@ afterAll(async () => {
 })
 
 describe('财务账本持久化约束', () => {
+  it('工作记录保留出退勤时间，并以扣除休息后的有效工时计算预计工资', async () => {
+    const db = testState.db as Dexie
+    const id = await ledger.saveWorkEntry({
+      date: '2026-07-21',
+      worked: true,
+      startTime: '22:00',
+      endTime: '02:00',
+      durationMinutes: 210,
+      breakMinutes: 30,
+      hourlyRateMinor: 1200,
+      currency: 'JPY',
+    })
+
+    expect(await db.table('workEntries').get(id)).toMatchObject({
+      startTime: '22:00',
+      endTime: '02:00',
+      durationMinutes: 210,
+      breakMinutes: 30,
+      estimatedGrossMinor: 4200,
+    })
+  })
+
   it('支出分类可新增、重命名、排序并在归档时迁移既有流水', async () => {
     const db = testState.db as Dexie
     const foodId = await expenseCategories.saveExpenseCategory({ name: '餐饮' })
