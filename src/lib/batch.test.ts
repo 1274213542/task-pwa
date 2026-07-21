@@ -37,7 +37,18 @@ describe('多行批量输入', () => {
     expect(parseTimedBatchEntries('25:10 出发')[0]).toMatchObject({
       line: 1,
       title: '出发',
+      errorCode: 'invalid_time',
       error: '时间格式无效',
+    })
+  })
+
+  it('纯时间输入需要补充任务名称，不进入可提交状态', () => {
+    expect(parseTimedBatchEntries('18:00')[0]).toMatchObject({
+      line: 1,
+      value: '18:00',
+      title: '',
+      errorCode: 'missing_title',
+      error: '时间后缺少任务名称',
     })
   })
 })

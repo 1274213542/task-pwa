@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointer
 import { useLiveQuery } from 'dexie-react-hooks'
 import { motion, useReducedMotion } from 'motion/react'
 import { Temporal } from 'temporal-polyfill'
-import { useNavigate } from 'react-router-dom'
 import {
   db,
   type CalendarEvent,
@@ -38,7 +37,6 @@ import SwipeActionRow from '../components/SwipeActionRow'
 import DateMarkerSheet from '../components/DateMarkerSheet'
 import CalendarMarkerTrack from '../components/CalendarMarkerTrack'
 import { calendarMarkerSummary } from '../lib/calendarMarkers'
-import { formatDurationMinutes } from '../lib/duration'
 import { effectiveTaskSchedule, taskMapOf, taskNodeRoleOf } from '../lib/taskSchedule'
 
 const WEEK_LABELS_MON = ['一', '二', '三', '四', '五', '六', '日']
@@ -218,7 +216,6 @@ function TimelineScheduleRow({
 }
 
 export default function Plan() {
-  const navigate = useNavigate()
   const todayISO = useCivilDate()
   const reduceMotion = useReducedMotion()
   const [mode, setMode] = useState<PlanMode>(() => {
@@ -283,10 +280,6 @@ export default function Plan() {
   ) ?? []
   const categories = useLiveQuery(
     () => db.categories.where('lifecycleStatus').equals('active').toArray(),
-    [],
-  )
-  const workRecords = useLiveQuery(
-    () => db.workEntries.where('lifecycleStatus').equals('active').toArray(),
     [],
   )
   const catMap = useMemo(
@@ -629,24 +622,23 @@ export default function Plan() {
     const isToday = dateISO === todayISO
     const isSelected = dateISO === selected
     const items = itemsForDate(dateISO)
-    const dayWork = (workRecords ?? []).filter((record) => record.date === dateISO && record.worked)
     const markerTypeIds = new Set(dateTypeMarkers
       .filter((marker) => marker.date === dateISO)
       .map((marker) => marker.typeId))
     const markerTypes = dateTypeDefinitions.filter((definition) => markerTypeIds.has(definition.id))
-    const totalCount = items.length + dayWork.length + markerTypes.length
+    const totalCount = items.length + markerTypes.length
     const firstVisual = items[0] ? itemVisual(items[0]) : undefined
     const markers = calendarMarkerSummary({
       date: dateISO,
       definitions: dateTypeDefinitions,
       markers: dateTypeMarkers,
-      hasCalendarItems: items.length + dayWork.length > 0,
+      hasCalendarItems: items.length > 0,
     })
     return (
       <button
         key={dateISO}
         role="gridcell"
-        aria-label={`${dateISO}${totalCount ? `：${[...markerTypes.map((item) => item.name), ...items.map(itemTitle), ...(dayWork.length ? [`工作 ${formatDurationMinutes(dayWork.reduce((sum, record) => sum + record.durationMinutes, 0))}`] : [])].join('、')}` : '：无安排'}`}
+        aria-label={`${dateISO}${totalCount ? `：${[...markerTypes.map((item) => item.name), ...items.map(itemTitle)].join('、')}` : '：无安排'}`}
         aria-selected={isSelected}
         tabIndex={isSelected ? 0 : -1}
         onClick={() => selectDay(dateISO)}
@@ -676,12 +668,6 @@ export default function Plan() {
         </span>
         <span className="calendar-summaries" aria-hidden>
           {items.slice(0, 3).map(compactItem)}
-          {items.length < 3 && dayWork.slice(0, 1).map((record) => (
-            <span key={record.id} className="calendar-summary calendar-work-summary">
-              <AppIcon name="work" size={11} />
-              <span>工作 {formatDurationMinutes(record.durationMinutes)}</span>
-            </span>
-          ))}
           {totalCount > 3 && <span className="calendar-more">+{totalCount - 3}</span>}
         </span>
         <CalendarMarkerTrack summary={markers} />
@@ -837,7 +823,6 @@ export default function Plan() {
     // keeps “未来 30 天” from repeating the same rows immediately below.
     .filter((group) => group.date !== selected && group.items.length > 0)
   const futureAgendaCount = futureAgendaGroups.reduce((sum, group) => sum + group.items.length, 0)
-  const selectedWork = (workRecords ?? []).filter((record) => record.date === selected)
   const selectedSummaryCount = selectedItems.length + selectedDateTypes.length
   const monthLabel = `${cursor.year} 年 ${cursor.month} 月`
   const weekLabel = `${dateLabel(weekDates[0], { month: 'short', day: 'numeric' })} – ${dateLabel(weekDates[6], { month: 'short', day: 'numeric' })}`
@@ -854,7 +839,6 @@ export default function Plan() {
       >
         <div className="day-panel-heading">
           <div>
-            <p>当天安排</p>
             <h2>{dateLabel(selected, { month: 'long', day: 'numeric', weekday: 'long' })}</h2>
           </div>
           <div className="day-panel-heading-actions">
@@ -870,30 +854,12 @@ export default function Plan() {
           </div>
         </div>
 
-        <section className="calendar-work-panel">
-          <header>
-            <div><span>今日累计工时</span><strong>{formatDurationMinutes(selectedWork.filter((record) => record.worked).reduce((sum, record) => sum + record.durationMinutes, 0))}</strong></div>
-            <button onClick={() => navigate(`/finance?mode=work&date=${selected}&new=1`)}>
-              <AppIcon name="plus" size={17} /> 记录工时
-            </button>
-          </header>
-          {selectedWork.length > 0 && (
-            <ul>{selectedWork.map((record) => (
-              <li key={record.id}>
-                <AppIcon name="work" size={17} />
-                <span>{record.worked ? formatDurationMinutes(record.durationMinutes) : '休息日'}</span>
-                <small>{record.workLocation || record.workContent || record.note || '未填写备注'}</small>
-              </li>
-            ))}</ul>
-          )}
-        </section>
-
         {selectedDateTypes.length > 0 && (
           <ul className="calendar-date-type-list" aria-label="日期类型标记">
             {selectedDateTypes.map((definition) => (
               <li key={definition.id} data-color-token={definition.colorToken}>
                 <i aria-hidden />
-                <div><strong>{definition.name}</strong><small>批量日期标记</small></div>
+                <strong>{definition.name}</strong>
               </li>
             ))}
           </ul>
@@ -962,7 +928,11 @@ export default function Plan() {
         ) : selectedDateTypes.length > 0 || composerOpen ? null : (
           <div className="calendar-empty-day">
             <MarkerIcon symbol="flower" color="green" size={42} />
-            <span>这一天暂无安排</span>
+            <strong>这一天暂无安排</strong>
+            <span>添加计划，或在上方选择其他日期</span>
+            <button type="button" onClick={() => setComposerOpen(true)}>
+              <AppIcon name="plus" size={16} /> 添加计划
+            </button>
           </div>
         )}
       </motion.div>
@@ -1055,7 +1025,7 @@ export default function Plan() {
               <div className="calendar-toolbar-heading">
                 <h2>{mode === 'month' ? monthLabel : weekLabel}</h2>
               </div>
-              <div className="calendar-panel-action">
+              <nav className="calendar-panel-action calendar-period-navigation" aria-label={mode === 'month' ? '月份导航' : '周导航'}>
                 <button aria-label={mode === 'month' ? '上个月' : '上一周'} onClick={() => changePeriod(-1)}>
                   <AppIcon name="chevronLeft" size={19} />
                 </button>
@@ -1063,7 +1033,7 @@ export default function Plan() {
                 <button aria-label={mode === 'month' ? '下个月' : '下一周'} onClick={() => changePeriod(1)}>
                   <AppIcon name="chevronRight" size={19} />
                 </button>
-              </div>
+              </nav>
             </div>
 
             {mode === 'month' ? (
@@ -1078,6 +1048,7 @@ export default function Plan() {
                 className="calendar-card calendar-period-stage"
               >
                 <div className="calendar-card-toolbar">
+                  <strong>日期标记</strong>
                   <button type="button" className="calendar-marker-button" onClick={() => setDateMarkerOpen(true)}>
                     批量标记
                   </button>
@@ -1139,7 +1110,17 @@ export default function Plan() {
                       )}
                     </>
                   ) : (
-                    <div className="mobile-timeline-empty">选择上方日期或添加新安排</div>
+                    <div className="mobile-timeline-empty">
+                      <MarkerIcon symbol="star" color="gray" size={36} />
+                      <strong>当天尚未排期</strong>
+                      <span>选择其他日期，或添加一项安排</span>
+                      <button type="button" onClick={() => {
+                        switchMode('agenda')
+                        setComposerOpen(true)
+                      }}>
+                        <AppIcon name="plus" size={16} /> 添加安排
+                      </button>
+                    </div>
                   )}
                   </motion.div>
                 </div>
@@ -1295,9 +1276,12 @@ export default function Plan() {
             ))}
             {byDay && futureAgendaGroups.length === 0 && (
               <div className="calendar-empty-agenda">
-                <MarkerIcon symbol="star" color="green" size={72} />
+                <MarkerIcon symbol="star" color="green" size={48} />
                 <strong>未来 30 天暂无安排</strong>
-                <span>切回月历或周历，为某一天添加计划</span>
+                <span>为某一天添加计划后，会按日期显示在这里</span>
+                <button type="button" onClick={() => setComposerOpen(true)}>
+                  <AppIcon name="plus" size={16} /> 添加计划
+                </button>
               </div>
             )}
           </div>

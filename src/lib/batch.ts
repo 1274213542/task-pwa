@@ -23,6 +23,7 @@ export interface TimedBatchEntry {
   title: string
   /** Device-local wall-clock time, never an Instant. */
   time?: string
+  errorCode?: 'invalid_time' | 'missing_title'
   error?: string
 }
 
@@ -44,9 +45,16 @@ export function parseTimedBatchEntries(value: string): TimedBatchEntry[] {
       const minute = Number(matched[2])
       const title = matched[3].trim()
       if (hour > 23 || minute > 59) {
-        return { ...entry, title, error: '时间格式无效' }
+        return { ...entry, title, errorCode: 'invalid_time' as const, error: '时间格式无效' }
       }
-      if (!title) return { ...entry, title, error: '时间后缺少任务名称' }
+      if (!title) {
+        return {
+          ...entry,
+          title,
+          errorCode: 'missing_title' as const,
+          error: '时间后缺少任务名称',
+        }
+      }
       return {
         ...entry,
         title,

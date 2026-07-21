@@ -25,7 +25,6 @@ import { CSS } from '@dnd-kit/utilities'
 import { FOCUS_QUICK_ADD_EVENT } from '../lib/appEvents'
 import {
   db,
-  type Category,
   type CompletionRecord,
   type Task,
   type TaskScheduleType,
@@ -54,17 +53,16 @@ import {
   undoAfterCompletion,
   voidRecord,
 } from '../lib/tasks'
-import { parseTimedBatchEntries } from '../lib/batch'
+import { parseTimedBatchEntries, type TimedBatchEntry } from '../lib/batch'
 import TaskRow from '../components/TaskRow'
 import AppIcon from '../components/AppIcon'
 import MarkerIcon from '../components/MarkerIcon'
-import RecurrencePicker from '../components/RecurrencePicker'
 import PageHeader from '../components/PageHeader'
 import MobilePageHeader from '../components/MobilePageHeader'
 import TaskToolbar from '../components/TaskToolbar'
 import TaskViewSettingsSheet from '../components/TaskViewSettingsSheet'
 import TaskEditor, { type EditableTaskStatus } from '../components/TaskEditor'
-import TaskIntentSelector from '../components/TaskIntentSelector'
+import BatchTaskSettingsSheet from '../components/BatchTaskSettingsSheet'
 import { MOTION } from '../lib/motion'
 import {
   defaultFixedRecurrence,
@@ -117,6 +115,16 @@ type TaskRowProjectionExtra = {
   selected?: boolean
   onMetaClick?: () => void
   divider?: boolean
+}
+
+function timedBatchErrorMessage(entry: TimedBatchEntry): string {
+  if (entry.errorCode === 'missing_title') {
+    return `第 ${entry.line} 行只有时间，请补充任务名称，例如“18:00 吃饭”`
+  }
+  if (entry.errorCode === 'invalid_time') {
+    return `第 ${entry.line} 行时间无效，请使用 00:00–23:59`
+  }
+  return `第 ${entry.line} 行${entry.error ? `：${entry.error}` : '无法识别'}`
 }
 
 function buildItems(
@@ -319,7 +327,9 @@ export default function Today() {
     () => taskViewFromStorage(localStorage.getItem('taskPrimaryViewV1') ?? localStorage.getItem('taskScope')),
   )
   const [fixed, setFixed] = useState(false)
-  const [scheduleType, setScheduleType] = useState<TaskScheduleType>('today')
+  const [scheduleType, setScheduleType] = useState<TaskScheduleType>(
+    () => scope === 'today' ? 'today' : 'longTerm',
+  )
   const [scheduleStart, setScheduleStart] = useState(() => todayLocalISO())
   const [scheduleDue, setScheduleDue] = useState('')
   const [showBeforeStart, setShowBeforeStart] = useState(false)
@@ -327,6 +337,7 @@ export default function Today() {
   const [feedback, setFeedback] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [composerOpen, setComposerOpen] = useState(false)
+  const [batchSettingsOpen, setBatchSettingsOpen] = useState(false)
   const [viewSettingsOpen, setViewSettingsOpen] = useState(false)
   const [viewSettings, setViewSettings] = useState<TaskViewSettings>(() =>
     parseTaskViewSettings(localStorage.getItem('taskViewSettingsV1')),
@@ -457,8 +468,22 @@ export default function Today() {
     [tasks],
   )
   const timedEntries = useMemo(() => parseTimedBatchEntries(title), [title])
-  const batchInputInvalid = timedEntries.some((entry) => entry.error) ||
-    (planId === '__new__' && !newPlanTitle.trim())
+  const firstTimedEntryError = timedEntries.find((entry) => entry.error)
+  const newPlanNameMissing = planId === '__new__' && !newPlanTitle.trim()
+  const batchInputInvalid = Boolean(firstTimedEntryError) || newPlanNameMissing
+  const batchValidationMessage = firstTimedEntryError
+    ? timedBatchErrorMessage(firstTimedEntryError)
+    : newPlanNameMissing
+      ? '请填写新计划名称'
+      : ''
+  const selectedCategoryName = categories?.find((category) => category.id === categoryId)?.name
+  const batchSettingsSummary = fixed
+    ? describeRecurrence(recurrence ?? defaultFixedRecurrence('daily'))
+    : [
+        scheduleType === 'today' ? '今日任务' : scheduleType === 'longTerm' ? '长期任务' : '暂不排期',
+        selectedCategoryName,
+        scheduleDue ? '已设 DDL' : undefined,
+      ].filter(Boolean).join(' · ')
   const items =
     tasks && records ? buildItems(tasks, records, todayISO, scope) : undefined
   const keyOf = (i: TodayItem) => `${i.task.id}:${i.occurrenceKey}`
@@ -632,11 +657,13 @@ export default function Today() {
       })
       if (result.created > 0) {
         setTitle('')
+        setFixed(false)
+        setRecurrence(undefined)
         setCategoryId('')
         setPlanId('')
         setNewPlanTitle('')
         setComposerOpen(false)
-        setScheduleType('today')
+        setScheduleType(scope === 'today' ? 'today' : 'longTerm')
         setScheduleStart(todayISO)
         setScheduleDue('')
         setShowBeforeStart(false)
@@ -723,8 +750,7 @@ export default function Today() {
     )
     const subtitle =
       [
-        item.kind === 'plan' ? '计划' : item.kind === 'single' ? '普通' : item.kind === 'template' ? '长期' : '固定',
-        progress ? `子任务 ${progress.completed}/${progress.total}` : undefined,
+        item.kind === 'plan' ? undefined : item.kind === 'single' ? '普通' : item.kind === 'template' ? '长期' : '固定',
         item.conflict,
         catText,
         item.subtitle,
@@ -754,6 +780,7 @@ export default function Today() {
         completionDisabled={item.kind === 'plan' || (item.kind === 'template' && Boolean(item.task.recurrence || taskScopeOf(item.task) === 'weekly'))}
         overdue={item.overdue}
         nestingLevel={nestingLevel}
+        childProgress={progress}
         actions={actionsFor(item)}
         rowId={`${item.task.id}:${item.occurrenceKey}`}
         {...extra}
@@ -915,7 +942,7 @@ export default function Today() {
         transition={reduceMotion ? MOTION.reduced : MOTION.sheet}
         className="quick-card task-composer-card"
       >
-        <div className="flex items-center gap-2">
+        <div className="task-composer-input-block">
           <textarea
             ref={inputRef}
             value={title}
@@ -928,29 +955,26 @@ export default function Today() {
             }}
             rows={3}
             placeholder="每行一个任务；Enter 换行…"
-            className="min-h-11 min-w-0 flex-1 resize-none rounded-xl bg-transparent px-3
+            aria-describedby="task-batch-hint"
+            aria-errormessage={firstTimedEntryError ? `task-batch-error-${firstTimedEntryError.line}` : undefined}
+            aria-invalid={firstTimedEntryError ? true : undefined}
+            className="task-composer-input min-h-11 min-w-0 resize-none rounded-xl bg-transparent px-3
               py-2.5 text-[16px] leading-6 outline-none placeholder:text-neutral-400"
           />
-          <button
-            onClick={() => void submit()}
-            disabled={!title.trim() || submitting || batchInputInvalid}
-            aria-label="添加"
-            className="primary-action h-11 w-11 shrink-0 rounded-xl text-xl
-              text-white transition active:scale-95 disabled:opacity-40"
-          >
-            <AppIcon name="plus" size={23} />
-          </button>
         </div>
-        <p className="batch-input-hint">
+        <p id="task-batch-hint" className="batch-input-hint">
           <span className="mobile-composer-hint">可在行首输入 8.30 或 08:30</span>
           <span className="desktop-composer-hint">每行一个任务 · 行首时间可选 · ⌘/Ctrl + Enter 添加全部</span>
         </p>
         {timedEntries.some((entry) => entry.time || entry.error) && (
-          <div className="task-batch-preview" aria-label="批量任务解析预览">
+          <div className="task-batch-preview" aria-label="批量任务解析预览" aria-live="polite">
             {timedEntries.map((entry) => (
               <span key={`${entry.line}:${entry.value}`} data-error={entry.error || undefined}>
                 <b>{entry.time ?? (entry.error ? '!' : '—')}</b>
-                {entry.title || entry.value}
+                <span className="task-batch-preview-copy">
+                  <strong>{entry.title || entry.value}</strong>
+                  {entry.error && <em id={`task-batch-error-${entry.line}`}>{timedBatchErrorMessage(entry)}</em>}
+                </span>
               </span>
             ))}
           </div>
@@ -975,46 +999,46 @@ export default function Today() {
             </label>
           )}
         </div>}
-        {title.trim() && <details className="task-quick-advanced">
-          <summary>更多设置</summary>
-          <div className="task-quick-advanced-body">
-            <div className="segmented-control task-type-switch text-[12px]" role="group" aria-label="任务类型">
-              <button onClick={() => setTaskType(false)} aria-pressed={!fixed} className={!fixed ? 'is-active' : ''}>普通任务</button>
-              <button onClick={() => setTaskType(true)} aria-pressed={fixed} className={fixed ? 'is-active' : ''}>固定任务</button>
-            </div>
-            {fixed && <RecurrencePicker value={recurrence} onChange={setRecurrence} />}
-            {(categories?.length ?? 0) > 0 && (
-              <select aria-label="分类" value={categoryId} onChange={(event) => setCategoryId(event.target.value)}>
-                <option value="">无分类</option>
-                {categories!.map((category: Category) => <option key={category.id} value={category.id}>{category.name}</option>)}
-              </select>
-            )}
-            {!fixed && <div className="task-schedule-composer" aria-label="任务时间设置">
-              <TaskIntentSelector value={scheduleType} onChange={selectScheduleType} compact />
-              {scheduleType !== 'unscheduled' && <label>
-                DDL
-                <input
-                  type="datetime-local"
-                  min={scheduleStart ? `${scheduleStart}T00:00` : undefined}
-                  value={scheduleDue}
-                  onChange={(event) => setScheduleDue(event.target.value)}
-                />
-              </label>}
-              {scheduleType === 'longTerm' && <details className="task-schedule-advanced">
-                <summary>显示规则</summary>
-                <label className="task-schedule-toggle">
-                  <input type="checkbox" checked={showBeforeStart} onChange={(event) => setShowBeforeStart(event.target.checked)} />
-                  开始日期前仍显示
-                </label>
-                <label>提前进入近期
-                  <span className="task-surface-days-input">
-                    <input type="number" min={0} max={90} value={surfaceDaysBeforeDue} onChange={(event) => setSurfaceDaysBeforeDue(Number(event.target.value) || 0)} /> 天
-                  </span>
-                </label>
-              </details>}
-            </div>}
-          </div>
-        </details>}
+        <button
+          type="button"
+          className="task-batch-settings-trigger"
+          onClick={() => setBatchSettingsOpen(true)}
+        >
+          <AppIcon name="filter" size={18} />
+          <span>
+            <strong>批量设置</strong>
+            <small>{batchSettingsSummary}</small>
+          </span>
+          <AppIcon name="chevronRight" size={16} />
+        </button>
+        <div className="task-composer-footer">
+          <span
+            id="task-batch-status"
+            className="task-composer-status"
+            data-error={batchValidationMessage || undefined}
+            role={batchValidationMessage ? 'alert' : 'status'}
+            aria-live="polite"
+          >
+            {firstTimedEntryError
+              ? '请修正上方内容'
+              : batchValidationMessage || (timedEntries.length > 0
+              ? `准备添加 ${timedEntries.length} 项`
+              : '输入后即可添加')}
+          </span>
+          <button
+            type="button"
+            onClick={() => void submit()}
+            disabled={!title.trim() || submitting || batchInputInvalid}
+            className="primary-action task-composer-submit"
+          >
+            <AppIcon name="plus" size={18} />
+            <span>{submitting
+              ? '添加中…'
+              : timedEntries.length > 0
+                ? `添加 ${timedEntries.length} 项`
+                : '添加任务'}</span>
+          </button>
+        </div>
       </motion.div>}
       </AnimatePresence>
       <p role="status" className="min-h-5 px-2 pt-1 text-[12px] text-neutral-500">
@@ -1200,6 +1224,27 @@ export default function Today() {
           settings={viewSettings}
           onChange={setViewSettings}
           onClose={() => setViewSettingsOpen(false)}
+        />
+      )}
+      {batchSettingsOpen && (
+        <BatchTaskSettingsSheet
+          fixed={fixed}
+          recurrence={recurrence}
+          categories={categories ?? []}
+          categoryId={categoryId}
+          scheduleType={scheduleType}
+          scheduleStart={scheduleStart}
+          scheduleDue={scheduleDue}
+          showBeforeStart={showBeforeStart}
+          surfaceDaysBeforeDue={surfaceDaysBeforeDue}
+          onTaskTypeChange={setTaskType}
+          onRecurrenceChange={setRecurrence}
+          onCategoryChange={setCategoryId}
+          onScheduleTypeChange={selectScheduleType}
+          onScheduleDueChange={setScheduleDue}
+          onShowBeforeStartChange={setShowBeforeStart}
+          onSurfaceDaysBeforeDueChange={setSurfaceDaysBeforeDue}
+          onClose={() => setBatchSettingsOpen(false)}
         />
       )}
       {editingItem && (

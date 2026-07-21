@@ -39,6 +39,7 @@ export default function TaskRow({
   dragging,
   rowId,
   nestingLevel = 0,
+  childProgress,
   divider = false,
 }: {
   title: string
@@ -59,9 +60,12 @@ export default function TaskRow({
   dragging?: boolean
   rowId?: string
   nestingLevel?: number
+  childProgress?: { completed: number; total: number }
   divider?: boolean
 }) {
   const reduceMotion = useReducedMotion()
+  const isChild = nestingLevel > 0
+  const hierarchyLabel = organizational ? '计划' : isChild ? '子任务' : childProgress ? '父任务' : undefined
 
   return (
     <motion.li
@@ -76,7 +80,7 @@ export default function TaskRow({
         as="div"
         id={`task:${rowId ?? title}`}
         label={title}
-        className="task-card-swipe-row"
+        className={`task-card-swipe-row ${isChild ? 'task-card-swipe-row-child' : childProgress ? 'task-card-swipe-row-parent' : ''}`}
         contentClassName="task-card-swipe-content"
         divider={divider}
         resetKey={`${rowId ?? title}:${dragging ? 'dragging' : 'idle'}`}
@@ -107,6 +111,8 @@ export default function TaskRow({
         data-overdue={overdue || undefined}
         data-dragging={dragging || undefined}
         data-task-depth={nestingLevel || undefined}
+        data-has-children={childProgress ? true : undefined}
+        data-task-role={organizational ? 'plan' : isChild ? 'child' : childProgress ? 'parent' : 'task'}
         onClick={(event) => {
           if ((event.metaKey || event.ctrlKey) && onMetaClick) {
             event.preventDefault()
@@ -148,21 +154,35 @@ export default function TaskRow({
       </button>}
 
       <div className="task-card-copy">
-        <button
-          type="button"
-          data-row-swipe-handle
-          aria-label={`编辑任务 ${title}`}
-          onClick={() => actions.onEdit?.()}
-          className="task-card-title-button"
-        >
-          <i className="task-title-color-dot" aria-hidden />
-          <span className="strike" data-done={completed}>
-            {title}
-          </span>
-        </button>
+        <div className="task-card-title-line">
+          <button
+            type="button"
+            data-row-swipe-handle
+            aria-label={`编辑任务 ${title}`}
+            onClick={() => actions.onEdit?.()}
+            className="task-card-title-button"
+          >
+            <i className="task-title-color-dot" aria-hidden />
+            <span className="strike" data-done={completed}>
+              {title}
+            </span>
+          </button>
+          {childProgress && (
+            <span
+              className="task-card-child-progress"
+              aria-label={`子任务完成 ${childProgress.completed} 项，共 ${childProgress.total} 项`}
+            >
+              {childProgress.completed}/{childProgress.total}
+            </span>
+          )}
+        </div>
         <span className={`task-card-meta ${overdue && !completed ? 'is-overdue' : ''}`}>
-          <AppIcon name={organizational ? 'list' : 'clock'} size={14} />
-          <span>{subtitle || '今天'}</span>
+          {hierarchyLabel ? (
+            <b className="task-card-hierarchy-label">{hierarchyLabel}</b>
+          ) : (
+            <AppIcon name="clock" size={14} />
+          )}
+          {(subtitle || !hierarchyLabel) && <span>{subtitle || '今天'}</span>}
         </span>
       </div>
 
