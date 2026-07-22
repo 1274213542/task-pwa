@@ -1,5 +1,5 @@
 import { Temporal } from 'temporal-polyfill'
-import type { Task, TaskScheduleType } from './db'
+import type { Task, TaskChildKind, TaskScheduleType } from './db'
 
 export interface EffectiveTaskSchedule {
   type: TaskScheduleType
@@ -31,6 +31,28 @@ export const civilDateOf = (value?: string): string | undefined => {
 
 export const taskNodeRoleOf = (task: Pick<Task, 'nodeRole'>): 'task' | 'plan' =>
   task.nodeRole === 'plan' ? 'plan' : 'task'
+
+/**
+ * Compatibility projection for data written before childKind existed.
+ * Explicit semantics always win. A timed direct child of an organizational
+ * plan is treated as a timeline step; every other legacy child remains a
+ * checklist subtask, preserving its historical completion behaviour.
+ */
+export function taskChildKindOf(
+  task: Pick<Task, 'parentTaskId' | 'childKind' | 'startAt'>,
+  tasks: Task[] | Map<string, Task> = [],
+): TaskChildKind | undefined {
+  if (!task.parentTaskId) return undefined
+  if (task.childKind) return task.childKind
+  const map = tasks instanceof Map ? tasks : taskMapOf(tasks)
+  const parent = map.get(task.parentTaskId)
+  if (parent && taskNodeRoleOf(parent) === 'plan' && task.startAt?.includes('T')) return 'timeline'
+  return 'checklist'
+}
+
+export function isTimelineTask(task: Task, tasks: Task[] | Map<string, Task> = []): boolean {
+  return taskChildKindOf(task, tasks) === 'timeline'
+}
 
 export function taskMapOf(tasks: Task[]): Map<string, Task> {
   return new Map(tasks.map((task) => [task.id, task]))
@@ -197,9 +219,17 @@ export function taskSmartPriority(task: Task, completed: boolean, todayISO: stri
 }
 
 export function leafTaskIds(tasks: Task[]): Set<string> {
-  const parents = new Set(tasks.filter((task) => task.lifecycleStatus === 'active' && task.parentTaskId).map((task) => task.parentTaskId!))
+  const map = taskMapOf(tasks)
+  const checklistTasks = tasks.filter((task) =>
+    task.lifecycleStatus === 'active' &&
+    taskNodeRoleOf(task) === 'task' &&
+    taskChildKindOf(task, map) !== 'timeline')
+  const parents = new Set(checklistTasks.filter((task) => task.parentTaskId).map((task) => task.parentTaskId!))
   return new Set(tasks
-    .filter((task) => taskNodeRoleOf(task) === 'task' && !parents.has(task.id))
+    .filter((task) =>
+      taskNodeRoleOf(task) === 'task' &&
+      taskChildKindOf(task, map) !== 'timeline' &&
+      !parents.has(task.id))
     .map((task) => task.id))
 }
 
@@ -209,11 +239,15 @@ export function childProgress(
   completedTaskIds: Set<string>,
 ): { completed: number; total: number } | undefined {
   const childrenByParent = tasks instanceof Map ? tasks : taskChildrenMap(tasks)
+  const taskById = tasks instanceof Map
+    ? new Map([...tasks.values()].flat().map((task) => [task.id, task]))
+    : taskMapOf(tasks)
   const visited = new Set<string>()
   const count = (parentId: string): { completed: number; total: number } => {
     if (visited.has(parentId)) return { completed: 0, total: 0 }
     visited.add(parentId)
     const result = (childrenByParent.get(parentId) ?? []).reduce((sum, child) => {
+      if (taskChildKindOf(child, taskById) === 'timeline') return sum
       const nested = count(child.id)
       if (nested.total > 0) {
         sum.completed += nested.completed

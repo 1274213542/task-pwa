@@ -2,14 +2,16 @@ import { useMemo, useRef, useState } from 'react'
 import { Temporal } from 'temporal-polyfill'
 import AppIcon from './AppIcon'
 import GestureSheet, { type GestureSheetHandle } from './GestureSheet'
-import type { DateTypeDefinition, DateTypeMarker } from '../lib/db'
+import type { ColorToken, DateTypeDefinition, DateTypeMarker } from '../lib/db'
 import {
   applyDateTypeMarkers,
   clearDateTypeMarkers,
+  deleteDateTypeDefinition,
   saveDateTypeDefinition,
 } from '../lib/dateTypeMarkers'
 
 const WEEK_LABELS = ['一', '二', '三', '四', '五', '六', '日']
+const TYPE_COLORS: ColorToken[] = ['gray', 'blue', 'green', 'orange', 'pink', 'purple']
 
 function monthDates(month: Temporal.PlainDate) {
   const first = month.with({ day: 1 })
@@ -38,6 +40,9 @@ export default function DateMarkerSheet({
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [typeId, setTypeId] = useState(definitions[0]?.id ?? '')
   const [customName, setCustomName] = useState('')
+  const [manageOpen, setManageOpen] = useState(false)
+  const [managedName, setManagedName] = useState('')
+  const [managedColor, setManagedColor] = useState<ColorToken>('orange')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -105,6 +110,47 @@ export default function DateMarkerSheet({
     }
   }
 
+  function beginManage() {
+    const current = definitions.find((definition) => definition.id === typeId)
+    if (!current) return
+    setManagedName(current.name)
+    setManagedColor(current.colorToken)
+    setManageOpen(true)
+  }
+
+  async function saveManagedType() {
+    if (!typeId || !managedName.trim() || saving) return
+    setSaving(true)
+    setError('')
+    try {
+      await saveDateTypeDefinition({ id: typeId, name: managedName, colorToken: managedColor })
+      setManageOpen(false)
+      onFeedback('日期类型已更新')
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '更新类型失败')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function removeManagedType() {
+    if (!typeId || saving) return
+    const current = definitions.find((definition) => definition.id === typeId)
+    if (!current || !window.confirm(`删除“${current.name}”及其全部日期标记？`)) return
+    setSaving(true)
+    setError('')
+    try {
+      await deleteDateTypeDefinition(typeId)
+      setTypeId(definitions.find((definition) => definition.id !== typeId)?.id ?? '')
+      setManageOpen(false)
+      onFeedback('日期类型及其标记已删除')
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '删除类型失败')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <GestureSheet
       ref={sheetRef}
@@ -161,6 +207,35 @@ export default function DateMarkerSheet({
             <input value={customName} onChange={(event) => setCustomName(event.target.value)} placeholder="新增其他类型" />
             <button type="button" disabled={!customName.trim()} onClick={() => void addCustomType()}><AppIcon name="plus" size={17} /> 添加</button>
           </div>
+          {typeId && (
+            <section className="date-marker-type-management" aria-label="管理日期类型">
+              <button type="button" className="date-marker-manage-trigger" aria-expanded={manageOpen} onClick={beginManage}>
+                <span>管理当前类型</span>
+                <AppIcon name="chevronDown" size={16} />
+              </button>
+              {manageOpen && (
+                <div className="date-marker-manage-fields">
+                  <input value={managedName} onChange={(event) => setManagedName(event.target.value)} aria-label="类型名称" />
+                  <div className="date-marker-color-options" role="radiogroup" aria-label="类型颜色">
+                    {TYPE_COLORS.map((color) => (
+                      <button
+                        type="button"
+                        key={color}
+                        data-color-token={color}
+                        role="radio"
+                        aria-checked={managedColor === color}
+                        onClick={() => setManagedColor(color)}
+                      ><span aria-hidden /></button>
+                    ))}
+                  </div>
+                  <div className="date-marker-manage-actions">
+                    <button type="button" disabled={!managedName.trim() || saving} onClick={() => void saveManagedType()}>保存修改</button>
+                    <button type="button" className="danger" disabled={saving} onClick={() => void removeManagedType()}>删除类型</button>
+                  </div>
+                </div>
+              )}
+            </section>
+          )}
           <button type="button" className="date-marker-clear" disabled={!selected.size || saving} onClick={() => void clear()}>清除所选日期的当前类型</button>
           {error && <p role="alert">{error}</p>}
         </div>

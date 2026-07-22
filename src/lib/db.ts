@@ -32,6 +32,13 @@ export type Resolution = 'completed' | 'skipped' | 'voided'
 export type TaskScope = 'daily' | 'weekly'
 export type TaskScheduleType = 'today' | 'longTerm' | 'unscheduled'
 export type TaskNodeRole = 'task' | 'plan'
+/**
+ * A child relationship is orthogonal to the task node role:
+ * - checklist children participate in completion/progress;
+ * - timeline children are dated itinerary nodes and never become checkboxes.
+ * Missing values are kept for legacy rows and resolved by taskChildKindOf().
+ */
+export type TaskChildKind = 'checklist' | 'timeline'
 export type MarkerSymbol = 'dot' | 'flower' | 'star' | 'diamond' | 'spark' | 'squircle'
 export type UIThemeId = 'violet-lime' | 'aqua-garden' | 'mono-green' | 'soft-mix'
 
@@ -56,6 +63,7 @@ export interface Task {
   surfaceDaysBeforeDue?: number
   completedAt?: string
   parentTaskId?: string
+  childKind?: TaskChildKind
   inheritsParentSchedule?: boolean
   taskScope?: TaskScope // v7：旧记录缺省按 daily 读取，迁移时补齐
   visualToken?: ColorToken // 可选视觉覆盖；缺省继承分类或当前主题

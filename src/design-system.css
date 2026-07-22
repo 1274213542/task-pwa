@@ -12865,13 +12865,16 @@ html[lang='zh-CN'] body {
 }
 
 .task-batch-preview-copy strong {
+  display: -webkit-box;
   overflow: hidden;
   color: inherit;
   font-size: 13px;
   line-height: 18px;
   font-weight: 620;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .task-batch-preview-copy em {
@@ -12897,7 +12900,8 @@ html[lang='zh-CN'] body {
 }
 
 .task-plan-picker > select,
-.task-plan-picker > input {
+.task-plan-picker > input,
+.task-plan-picker-button {
   width: 100%;
   min-width: 0;
   min-height: 44px;
@@ -12908,6 +12912,20 @@ html[lang='zh-CN'] body {
   padding: 0 14px;
   font-size: 14px;
   font-weight: 560;
+}
+
+.task-plan-picker-button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  text-align: left;
+}
+
+.task-plan-picker > small {
+  min-height: 16px;
+  color: var(--color-text-tertiary);
+  font-size: 11px;
+  line-height: 16px;
 }
 
 .task-quick-primary-fields {
@@ -13670,4 +13688,385 @@ html[lang='zh-CN'] body {
     min-width: 62px !important;
     padding-inline: var(--space-3) !important;
   }
+}
+
+/* Semantic task children -------------------------------------------------- */
+.task-card-timeline-preview {
+  display: grid;
+  gap: 0;
+  margin-top: 9px;
+  border-top: 1px solid var(--color-separator);
+  padding-top: 5px;
+}
+
+.task-card-timeline-preview > span {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  align-items: baseline;
+  gap: 8px;
+  min-height: 26px;
+  padding-block: 3px;
+}
+
+.task-card-timeline-preview time {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 620;
+}
+
+.task-card-timeline-preview b {
+  overflow: hidden;
+  color: var(--color-text-primary);
+  font-size: 13px;
+  line-height: 19px;
+  font-weight: 590;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-card-timeline-preview > small {
+  padding: 4px 0 1px 56px;
+  color: var(--color-text-tertiary);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.task-editor-child-kind {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  border: 0;
+  padding: 0;
+}
+
+.task-editor-child-kind legend {
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  line-height: 19px;
+  font-weight: 590;
+}
+
+.task-child-kind-segment {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  min-height: 46px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-secondary);
+  padding: 4px;
+}
+
+.task-child-kind-segment > button {
+  min-width: 0;
+  min-height: 38px;
+  border-radius: var(--radius-pill);
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 620;
+}
+
+.task-child-kind-segment > button[aria-checked='true'] {
+  background: var(--color-surface-primary);
+  color: var(--color-text-primary);
+  box-shadow: var(--shadow-control);
+}
+
+.task-editor-child-kind > small {
+  color: var(--color-text-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+/* Plan picker and management --------------------------------------------- */
+.task-plan-picker-layout,
+.task-plan-picker-body,
+.task-plan-list {
+  min-width: 0;
+}
+
+.task-plan-picker-layout {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: min(78dvh, 680px);
+}
+
+.task-plan-picker-header {
+  display: grid;
+  grid-template-columns: minmax(70px, 1fr) auto minmax(70px, 1fr);
+  align-items: center;
+  min-height: 64px;
+  border-bottom: 1px solid var(--color-separator);
+  padding: 8px 16px;
+}
+
+.task-plan-picker-header h2 {
+  margin: 0;
+  font-size: 17px;
+  line-height: 22px;
+  font-weight: 700;
+}
+
+.task-plan-picker-header > button {
+  min-height: 44px;
+  justify-self: start;
+  color: var(--color-text-secondary);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.task-plan-picker-header > button:last-child { justify-self: end; }
+.task-plan-picker-header > button.primary { color: var(--color-text-primary); }
+
+.task-plan-picker-body {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 16px 16px calc(24px + env(safe-area-inset-bottom));
+}
+
+.task-plan-create {
+  display: grid;
+  gap: 12px;
+  border-radius: var(--radius-card);
+  background: var(--color-surface-secondary);
+  padding: 16px;
+}
+
+.task-plan-create > div:first-child { display: grid; gap: 2px; }
+.task-plan-create strong { font-size: 16px; line-height: 22px; }
+.task-plan-create small { color: var(--color-text-secondary); font-size: 12px; line-height: 18px; }
+
+.task-plan-create-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.task-plan-create-fields input,
+.task-plan-manage-row > input {
+  min-width: 0;
+  min-height: 44px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-primary);
+  padding: 0 14px;
+  font-size: 15px;
+}
+
+.task-plan-create-fields button {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 44px;
+  border-radius: var(--radius-pill);
+  background: var(--color-text-primary);
+  color: var(--color-surface-primary);
+  padding: 0 14px;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.task-plan-list {
+  display: grid;
+  margin-top: 16px;
+  overflow: hidden;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-card);
+  background: var(--color-surface-primary);
+}
+
+.task-plan-manage-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 68px;
+  padding: 8px 12px;
+}
+
+.task-plan-manage-row + .task-plan-manage-row { border-top: 1px solid var(--color-separator); }
+.task-plan-manage-row[data-selected] { background: var(--color-surface-secondary); }
+
+.task-plan-select {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) 20px;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 44px;
+  text-align: left;
+}
+
+.task-plan-select > span { overflow: hidden; font-size: 15px; font-weight: 620; text-overflow: ellipsis; white-space: nowrap; }
+.task-plan-row-actions { display: flex; gap: 4px; }
+.task-plan-row-actions > button { min-height: 36px; border-radius: var(--radius-pill); padding: 0 9px; color: var(--color-text-secondary); font-size: 12px; font-weight: 620; }
+.task-plan-row-actions > button.danger { color: var(--color-danger); }
+.task-plan-empty { margin: 0; padding: 20px; color: var(--color-text-secondary); text-align: center; }
+.task-plan-picker-error { color: var(--color-danger); font-size: 13px; }
+
+/* Calendar timeline steps ------------------------------------------------ */
+.calendar-timeline-step-row {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  align-items: stretch;
+  min-height: 62px;
+  background: var(--color-surface-primary);
+}
+
+.calendar-timeline-step-row > time {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  border-right: 1px solid var(--color-separator);
+  padding-right: 12px;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  line-height: 20px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+}
+
+.calendar-timeline-step-row > button {
+  display: grid;
+  align-content: center;
+  gap: 1px;
+  min-width: 0;
+  padding: 9px 14px;
+  text-align: left;
+}
+
+.calendar-timeline-step-row strong { font-size: 15px; line-height: 21px; font-weight: 650; }
+.calendar-timeline-step-row span { color: var(--color-text-secondary); font-size: 12px; line-height: 18px; }
+
+.mobile-timeline-plan-group {
+  overflow: hidden;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-card);
+  background: var(--color-surface-primary);
+}
+
+.mobile-timeline-plan-group > header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 50px;
+  border-bottom: 1px solid var(--color-separator);
+  padding: 13px 16px;
+}
+
+.mobile-timeline-plan-group > header span { font-size: 16px; line-height: 22px; font-weight: 700; }
+.mobile-timeline-plan-group > header small { color: var(--color-text-secondary); font-size: 12px; line-height: 18px; }
+.mobile-timeline-plan-steps { padding: 0 14px 4px; }
+
+/* A plan owns one grouped surface. Timeline steps are flat itinerary rows,
+   never nested task cards; dragging alone temporarily restores elevation. */
+.mobile-timeline-plan-group .timeline-schedule-row,
+.mobile-timeline-plan-group .mobile-timeline-row,
+.mobile-timeline-plan-group .mobile-timeline-swipe,
+.mobile-timeline-plan-group .mobile-timeline-event {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.mobile-timeline-plan-group .mobile-timeline-row {
+  min-height: 58px !important;
+  grid-template-columns: 46px minmax(0, 1fr) !important;
+  gap: 8px !important;
+  padding: 0 !important;
+}
+
+.mobile-timeline-plan-group .mobile-timeline-row > time {
+  align-self: center;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.mobile-timeline-plan-group .mobile-timeline-swipe > .mobile-timeline-event {
+  min-height: 58px !important;
+  align-content: center;
+  padding: 10px 4px 10px 12px !important;
+}
+
+.mobile-timeline-plan-group .mobile-timeline-event strong {
+  font-size: 15px;
+  line-height: 21px;
+  font-weight: 650;
+}
+
+.mobile-timeline-plan-group .mobile-timeline-swipe .apple-swipe-divider {
+  right: 0 !important;
+  left: 12px !important;
+}
+
+.mobile-timeline-plan-group .timeline-schedule-row:last-child .apple-swipe-divider {
+  opacity: 0 !important;
+}
+
+.mobile-timeline-plan-group .timeline-schedule-row[data-dragging],
+.mobile-timeline-plan-group .timeline-schedule-row[data-dragging] .mobile-timeline-row,
+.mobile-timeline-plan-group .timeline-schedule-row[data-dragging] .mobile-timeline-swipe,
+.mobile-timeline-plan-group .timeline-schedule-row[data-dragging] .mobile-timeline-event {
+  overflow: visible !important;
+  border-radius: var(--radius-card) !important;
+  background: var(--color-surface-primary) !important;
+  box-shadow: var(--shadow-floating) !important;
+}
+
+/* Date type management --------------------------------------------------- */
+.date-marker-type-management {
+  display: grid;
+  overflow: hidden;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-card);
+  background: var(--color-surface-primary);
+}
+
+.date-marker-manage-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 48px;
+  padding: 0 14px;
+  font-size: 14px;
+  font-weight: 620;
+}
+
+.date-marker-manage-fields {
+  display: grid;
+  gap: 12px;
+  border-top: 1px solid var(--color-separator);
+  padding: 14px;
+}
+
+.date-marker-manage-fields > input {
+  min-height: 44px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-secondary);
+  padding: 0 14px;
+  font-size: 15px;
+}
+
+.date-marker-color-options { display: grid; grid-template-columns: repeat(6, 1fr); gap: 7px; }
+.date-marker-color-options > button { display: grid; place-items: center; min-width: 0; min-height: 38px; border-radius: var(--radius-pill); }
+.date-marker-color-options > button > span { width: 22px; height: 22px; border: 2px solid var(--color-surface-primary); border-radius: 50%; background: var(--marker-color, var(--color-text-tertiary)); box-shadow: 0 0 0 1px var(--color-border-strong); }
+.date-marker-color-options > button[aria-checked='true'] { background: var(--color-surface-secondary); }
+.date-marker-manage-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.date-marker-manage-actions > button { min-height: 40px; border-radius: var(--radius-pill); padding: 0 14px; font-size: 13px; font-weight: 650; }
+.date-marker-manage-actions > button:first-child { background: var(--color-text-primary); color: var(--color-surface-primary); }
+.date-marker-manage-actions > button.danger { color: var(--color-danger); }
+
+@media (max-width: 390px) {
+  .task-plan-create-fields { grid-template-columns: 1fr; }
+  .task-plan-create-fields button { justify-content: center; }
+  .task-plan-manage-row { grid-template-columns: 1fr; }
+  .task-plan-row-actions { justify-content: flex-end; }
 }

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import type { CalItem } from '../lib/calendar'
-import { db, type Category, type ColorToken, type MarkerSymbol, type TaskScheduleType } from '../lib/db'
+import { db, type Category, type ColorToken, type MarkerSymbol, type TaskChildKind, type TaskScheduleType } from '../lib/db'
 import { softDeleteTask, updateTask } from '../lib/tasks'
 import type { Recurrence } from '../lib/recurrence'
 import VisualPicker from './VisualPicker'
@@ -11,6 +11,7 @@ import {
   descendantTaskIds,
   effectiveTaskSchedule,
   taskDueStatus,
+  taskChildKindOf,
   taskNodeRoleOf,
   taskScheduleTypeOf,
 } from '../lib/taskSchedule'
@@ -62,6 +63,9 @@ export default function TaskEditor({
   const [showBeforeStart, setShowBeforeStart] = useState(task.showBeforeStart ?? false)
   const [surfaceDaysBeforeDue, setSurfaceDaysBeforeDue] = useState(task.surfaceDaysBeforeDue ?? 3)
   const [parentTaskId, setParentTaskId] = useState(task.parentTaskId ?? '')
+  const [childKind, setChildKind] = useState<TaskChildKind | undefined>(
+    task.childKind ?? (task.parentTaskId ? task.startAt?.includes('T') ? 'timeline' : 'checklist' : undefined),
+  )
   const [inheritsParentSchedule, setInheritsParentSchedule] = useState(task.inheritsParentSchedule ?? Boolean(task.parentTaskId))
   const [extendParentDue, setExtendParentDue] = useState(false)
   const [visualToken, setVisualToken] = useState<ColorToken | undefined>(task.visualToken)
@@ -85,6 +89,7 @@ export default function TaskEditor({
   const taskParentCandidates = parentCandidates.filter((candidate) => taskNodeRoleOf(candidate) === 'task')
   const selectedParent = allTasks.find((candidate) => candidate.id === parentTaskId)
   const selectedParentRole = selectedParent ? taskNodeRoleOf(selectedParent) : undefined
+  const effectiveChildKind = parentTaskId ? childKind ?? taskChildKindOf(task, allTasks) ?? 'checklist' : undefined
   const effective = effectiveTaskSchedule(task, allTasks)
   const dueStatus = item.completed
     ? { tone: 'completed' as const, label: '已完成', days: null }
@@ -106,6 +111,10 @@ export default function TaskEditor({
     if (savingRef.current) return
     if (!title.trim()) {
       setError('请输入标题')
+      return
+    }
+    if (effectiveChildKind === 'timeline' && !scheduleTime) {
+      setError('时间步骤需要设置具体时间')
       return
     }
     savingRef.current = true
@@ -134,6 +143,7 @@ export default function TaskEditor({
         showBeforeStart,
         surfaceDaysBeforeDue,
         parentTaskId: parentTaskId || undefined,
+        childKind: effectiveChildKind,
         inheritsParentSchedule: Boolean(parentTaskId) && inheritsParentSchedule,
         extendParentDue,
         nodeRole: task.nodeRole,
@@ -321,9 +331,11 @@ export default function TaskEditor({
                 onChange={(event) => {
                   if (event.target.value) {
                     setParentTaskId(event.target.value)
+                    setChildKind(task.startAt?.includes('T') ? 'timeline' : 'checklist')
                     setInheritsParentSchedule(false)
                   } else if (selectedParentRole === 'plan') {
                     setParentTaskId('')
+                    setChildKind(undefined)
                   }
                 }}
               >
@@ -333,6 +345,26 @@ export default function TaskEditor({
                 ))}
               </select>
             </label>
+            {parentTaskId && (
+              <fieldset className="task-editor-child-kind">
+                <legend>在计划中的形式</legend>
+                <div className="task-child-kind-segment" role="radiogroup" aria-label="内容形式">
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={effectiveChildKind === 'checklist'}
+                    onClick={() => setChildKind('checklist')}
+                  >清单子任务</button>
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={effectiveChildKind === 'timeline'}
+                    onClick={() => { setChildKind('timeline'); setInheritsParentSchedule(false) }}
+                  >时间步骤</button>
+                </div>
+                <small>{effectiveChildKind === 'timeline' ? '显示在计划页时间轴，不产生完成记录' : '可勾选，并计入父级进度'}</small>
+              </fieldset>
+            )}
             <details className="task-parent-advanced">
               <summary>父任务高级设置</summary>
               <label className="task-editor-field">
@@ -343,9 +375,11 @@ export default function TaskEditor({
                   onChange={(event) => {
                     if (event.target.value) {
                       setParentTaskId(event.target.value)
+                      setChildKind('checklist')
                       setInheritsParentSchedule(false)
                     } else if (selectedParentRole === 'task') {
                       setParentTaskId('')
+                      setChildKind(undefined)
                     }
                   }}
                 >

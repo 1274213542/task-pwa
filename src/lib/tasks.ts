@@ -3,6 +3,7 @@ import {
   type ColorToken,
   type MarkerSymbol,
   type Task,
+  type TaskChildKind,
   type TaskNodeRole,
   type TaskScheduleType,
   type TaskScope,
@@ -19,7 +20,9 @@ import {
 import { periodAnchorISO } from './taskPeriods'
 import {
   civilDateOf,
+  descendantTaskIds,
   effectiveTaskSchedule,
+  taskChildKindOf,
   taskNodeRoleOf,
   wouldCreateParentCycle,
 } from './taskSchedule'
@@ -35,6 +38,7 @@ export interface TaskScheduleInput {
   surfaceDaysBeforeDue?: number
   parentTaskId?: string
   inheritsParentSchedule?: boolean
+  childKind?: TaskChildKind
 }
 
 function scheduleFields(
@@ -51,6 +55,7 @@ function scheduleFields(
     showBeforeStart: input?.showBeforeStart ?? false,
     surfaceDaysBeforeDue: Math.max(0, Math.min(90, input?.surfaceDaysBeforeDue ?? 3)),
     ...(input?.parentTaskId && { parentTaskId: input.parentTaskId }),
+    ...(input?.parentTaskId && input.childKind && { childKind: input.childKind }),
     // New relations remain independently schedulable. Legacy rows with an
     // omitted flag are still interpreted as inherited by effectiveTaskSchedule.
     inheritsParentSchedule: Boolean(input?.parentTaskId) && (input?.inheritsParentSchedule ?? false),
@@ -211,6 +216,84 @@ export interface AddTaskBatchResult extends BatchCreateResult {
   planId?: string
 }
 
+export async function saveTaskPlan(input: { id?: string; title: string; startDate?: string }): Promise<string> {
+  const title = input.title.trim()
+  if (!title) throw new Error('请输入计划名称')
+  const active = await db.tasks.where('lifecycleStatus').equals('active').sortBy('rank')
+  if (input.id) {
+    const current = active.find((task) => task.id === input.id && taskNodeRoleOf(task) === 'plan')
+    if (!current) throw new Error('计划不存在或已删除')
+    await db.tasks.update(current.id, { title, updatedAt: now() })
+    return current.id
+  }
+  const timestamp = now()
+  const date = input.startDate ?? today()
+  const id = crypto.randomUUID()
+  await db.tasks.add({
+    id,
+    title,
+    nodeRole: 'plan',
+    rank: appendRank(active.at(-1)?.rank),
+    startDate: date,
+    taskScope: 'daily',
+    scheduleType: 'longTerm',
+    startAt: date,
+    showBeforeStart: false,
+    surfaceDaysBeforeDue: 3,
+    inheritsParentSchedule: false,
+    lifecycleStatus: 'active',
+    templateVersion: 1,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  })
+  return id
+}
+
+/**
+ * Removing a plan defaults to detaching its contents so an organizational
+ * action cannot silently destroy executable work. Cascade deletion is an
+ * explicit second choice in the confirmation UI.
+ */
+export async function deleteTaskPlan(id: string, mode: 'detach' | 'cascade' = 'detach'): Promise<void> {
+  await db.transaction('rw', db.tasks, async () => {
+    const active = await db.tasks.where('lifecycleStatus').equals('active').toArray()
+    const plan = active.find((task) => task.id === id && taskNodeRoleOf(task) === 'plan')
+    if (!plan) return
+    const timestamp = now()
+    const descendants = descendantTaskIds(id, active)
+    if (mode === 'cascade') {
+      for (const childId of descendants) {
+        await db.tasks.update(childId, {
+          lifecycleStatus: 'deleted',
+          deletedAt: timestamp,
+          updatedAt: timestamp,
+        })
+      }
+    } else {
+      for (const child of active.filter((task) => task.parentTaskId === id)) {
+        const schedule = effectiveTaskSchedule(child, active)
+        const timeline = taskChildKindOf(child, active) === 'timeline'
+        await db.tasks.update(child.id, {
+          parentTaskId: undefined,
+          childKind: undefined,
+          inheritsParentSchedule: false,
+          scheduleType: timeline ? child.scheduleType ?? schedule.type : schedule.type,
+          startAt: timeline ? child.startAt ?? schedule.startAt : schedule.startAt,
+          dueAt: timeline ? child.dueAt ?? schedule.dueAt : schedule.dueAt,
+          showBeforeStart: schedule.showBeforeStart,
+          surfaceDaysBeforeDue: schedule.surfaceDaysBeforeDue,
+          updatedAt: timestamp,
+        })
+      }
+    }
+    await db.tasks.update(id, {
+      lifecycleStatus: 'deleted',
+      deletedAt: timestamp,
+      updatedAt: timestamp,
+    })
+  })
+}
+
 /**
  * Atomic quick capture with optional per-line local times and plan membership.
  * Validation happens before the transaction; one invalid line writes nothing.
@@ -279,7 +362,11 @@ export async function addTaskBatch(options: AddTaskBatchOptions): Promise<AddTas
         : (fallbackBase + rows.length + index).toString(36).padStart(10, '0')
       const baseSchedule = scheduleFields({
         ...options.schedule,
-        ...(resolvedPlanId && { parentTaskId: resolvedPlanId, inheritsParentSchedule: false }),
+        ...(resolvedPlanId && {
+          parentTaskId: resolvedPlanId,
+          childKind: entry.time ? 'timeline' : 'checklist',
+          inheritsParentSchedule: false,
+        }),
       }, date)
       if (entry.time) baseSchedule.startAt = `${date}T${entry.time}`
       rows.push({
@@ -337,6 +424,7 @@ export async function updateTask(
     inheritsParentSchedule?: boolean
     extendParentDue?: boolean
     nodeRole?: TaskNodeRole
+    childKind?: TaskChildKind
   },
 ): Promise<void> {
   const title = changes.title.trim()
@@ -350,6 +438,9 @@ export async function updateTask(
   }
   const current = allTasks.find((task) => task.id === id)
   if (!current) throw new Error('任务不存在或已删除')
+  if (changes.childKind === 'timeline' && (!changes.parentTaskId || !changes.startAt?.includes('T'))) {
+    throw new Error('时间步骤需要所属计划和具体时间')
+  }
   const parent = changes.parentTaskId
     ? allTasks.find((task) => task.id === changes.parentTaskId)
     : undefined
@@ -405,6 +496,9 @@ export async function updateTask(
       showBeforeStart: changes.showBeforeStart ?? false,
       surfaceDaysBeforeDue: Math.max(0, Math.min(90, changes.surfaceDaysBeforeDue ?? 3)),
       parentTaskId: changes.parentTaskId || undefined,
+      childKind: changes.parentTaskId
+        ? (changes.childKind ?? current.childKind ?? 'checklist')
+        : undefined,
       inheritsParentSchedule: Boolean(changes.parentTaskId) && (
         changes.inheritsParentSchedule ?? current.inheritsParentSchedule ?? true
       ),
@@ -424,12 +518,14 @@ export async function softDeleteTask(id: string): Promise<void> {
     const children = active.filter((child) => child.parentTaskId === id)
     for (const child of children) {
       const schedule = effectiveTaskSchedule(child, active)
+      const timeline = taskChildKindOf(child, active) === 'timeline'
       await db.tasks.update(child.id, {
         parentTaskId: undefined,
+        childKind: undefined,
         inheritsParentSchedule: false,
-        scheduleType: schedule.type,
-        startAt: schedule.startAt,
-        dueAt: schedule.dueAt,
+        scheduleType: timeline ? child.scheduleType ?? schedule.type : schedule.type,
+        startAt: timeline ? child.startAt ?? schedule.startAt : schedule.startAt,
+        dueAt: timeline ? child.dueAt ?? schedule.dueAt : schedule.dueAt,
         showBeforeStart: schedule.showBeforeStart,
         surfaceDaysBeforeDue: schedule.surfaceDaysBeforeDue,
         updatedAt: timestamp,

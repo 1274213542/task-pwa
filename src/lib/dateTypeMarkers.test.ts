@@ -63,4 +63,18 @@ describe('月历日期类型标记', () => {
     expect(restored).toMatchObject({ lifecycleStatus: 'active' })
     expect(restored?.deletedAt).toBeUndefined()
   })
+
+  it('可重命名类型，并在删除类型时同步删除其日期标记', async () => {
+    const db = state.db as Dexie
+    const typeId = await markers.saveDateTypeDefinition({ name: '旅行', colorToken: 'blue' })
+    await markers.applyDateTypeMarkers(['2026-07-21'], typeId)
+    await markers.saveDateTypeDefinition({ id: typeId, name: '出行', colorToken: 'purple' })
+    expect(await db.table('dateTypeDefinitions').get(typeId)).toMatchObject({
+      name: '出行',
+      colorToken: 'purple',
+    })
+    await markers.deleteDateTypeDefinition(typeId)
+    expect(await db.table('dateTypeDefinitions').get(typeId)).toMatchObject({ lifecycleStatus: 'deleted' })
+    expect(await db.table('dateTypeMarkers').get(`2026-07-21:${typeId}`)).toMatchObject({ lifecycleStatus: 'deleted' })
+  })
 })

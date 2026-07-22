@@ -28,6 +28,7 @@ import {
   saveTransfer,
   saveWorkEntry,
   saveWorkTemplate,
+  softDeleteWorkTemplate,
   setAccountArchived,
   settlePaycheck,
   softDeleteFinanceTransaction,
@@ -890,7 +891,11 @@ function WorkView({
   function applyTemplate(id: string) {
     setTemplateId(id)
     const template = templates.find((item) => item.id === id)
-    if (!template) return
+    if (!template) {
+      setTemplateName('')
+      return
+    }
+    setTemplateName(template.name)
     setContent(template.workContent ?? '')
     setLocation(template.workLocation ?? '')
     setEmployer(template.employer ?? '')
@@ -977,6 +982,7 @@ function WorkView({
   async function createTemplate() {
     try {
       await saveWorkTemplate({
+        id: templateId || undefined,
         name: templateName || content || '常用工作',
         workContent: content,
         employer,
@@ -987,10 +993,23 @@ function WorkView({
         currency,
         payoutAccountId: payoutAccountId || undefined,
       })
-      setTemplateName('')
-      onFeedback('工作模板已保存，下次可一键带入')
+      onFeedback(templateId ? '工作模板已更新' : '工作模板已保存，下次可一键带入')
     } catch (error) {
       onFeedback(error instanceof Error ? error.message : '模板保存失败')
+    }
+  }
+
+  async function removeTemplate() {
+    if (!templateId) return
+    const template = templates.find((item) => item.id === templateId)
+    if (!template || !window.confirm(`删除工作模板“${template.name}”？历史工作记录不会受影响。`)) return
+    try {
+      await softDeleteWorkTemplate(template.id)
+      setTemplateId('')
+      setTemplateName('')
+      onFeedback('工作模板已删除')
+    } catch (error) {
+      onFeedback(error instanceof Error ? error.message : '模板删除失败')
     }
   }
 
@@ -1053,7 +1072,7 @@ function WorkView({
           <label>工作地点<input value={location} onChange={(event) => setLocation(event.target.value)} /></label>
           <label className="wide">雇主 / 项目<input value={employer} onChange={(event) => setEmployer(event.target.value)} /></label>
         </div>
-        <div className="finance-work-actions"><div><input value={templateName} onChange={(event) => setTemplateName(event.target.value)} placeholder="模板名称" /><button type="button" onClick={() => void createTemplate()}>保存为模板</button></div><button className="primary" disabled={!canSaveWorkEntry}>{saving ? '保存中…' : editingWorkEntryId ? '更新工作记录' : '保存工作记录'}</button></div>
+        <div className="finance-work-actions"><div><input value={templateName} onChange={(event) => setTemplateName(event.target.value)} placeholder="模板名称" /><button type="button" onClick={() => void createTemplate()}>{templateId ? '更新模板' : '保存为模板'}</button>{templateId && <button type="button" className="danger" onClick={() => void removeTemplate()}>删除模板</button>}</div><button className="primary" disabled={!canSaveWorkEntry}>{saving ? '保存中…' : editingWorkEntryId ? '更新工作记录' : '保存工作记录'}</button></div>
       </form>
       <section className="finance-section-card finance-work-records-v2">
         <header><div><span>按日期查看</span><h2>工作记录</h2></div><strong>{activeEntries.length} 条</strong></header>

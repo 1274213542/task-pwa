@@ -789,6 +789,16 @@ export async function saveWorkTemplate(input: {
   return id
 }
 
+export async function softDeleteWorkTemplate(id: string): Promise<void> {
+  const template = await db.workTemplates.get(id)
+  if (!template || template.lifecycleStatus !== 'active') return
+  const timestamp = now()
+  await db.workTemplates.update(id, {
+    lifecycleStatus: 'deleted',
+    updatedAt: timestamp,
+  })
+}
+
 export async function saveWorkEntry(input: {
   id?: string
   date: string

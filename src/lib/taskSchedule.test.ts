@@ -17,9 +17,11 @@ import {
 import {
   completeDailyTask,
   addTaskBatch,
+  deleteTaskPlan,
   migrateDailyCompletionHistory,
   pruneDailyCompletionHistory,
   softDeleteTask,
+  saveTaskPlan,
   updateTask,
   voidRecord,
 } from './tasks'
@@ -125,6 +127,16 @@ describe('task schedules and DDL', () => {
     expect(descendantTaskIds('plan', rows)).toEqual(new Set(['step-1', 'step-2']))
   })
 
+  it('keeps timeline steps out of checklist progress and completion-rate leaves', () => {
+    const rows = [
+      task('plan', { nodeRole: 'plan' }),
+      task('check', { parentTaskId: 'plan', childKind: 'checklist' }),
+      task('timed', { parentTaskId: 'plan', childKind: 'timeline', startAt: '2026-07-22T08:00' }),
+    ]
+    expect(leafTaskIds(rows)).toEqual(new Set(['check']))
+    expect(childProgress('plan', rows, new Set(['timed']))).toEqual({ completed: 0, total: 1 })
+  })
+
   it('creates a plan and differently timed steps atomically', async () => {
     const result = await addTaskBatch({
       value: '8.00 起床\n检查护照\n09:00 公交',
@@ -136,15 +148,33 @@ describe('task schedules and DDL', () => {
     const rows = (await db.tasks.toArray()).sort((a, b) => a.rank.localeCompare(b.rank))
     const plan = rows.find((row) => row.nodeRole === 'plan')
     expect(plan?.title).toBe('回国')
-    expect(rows.filter((row) => row.parentTaskId === plan?.id).map((row) => [row.title, row.startAt])).toEqual([
-      ['起床', '2026-07-22T08:00'],
-      ['检查护照', '2026-07-22'],
-      ['公交', '2026-07-22T09:00'],
+    expect(rows.filter((row) => row.parentTaskId === plan?.id).map((row) => [row.title, row.startAt, row.childKind])).toEqual([
+      ['起床', '2026-07-22T08:00', 'timeline'],
+      ['检查护照', '2026-07-22', 'checklist'],
+      ['公交', '2026-07-22T09:00', 'timeline'],
     ])
 
     const failed = await addTaskBatch({ value: '25:00 不应写入', startDate: '2026-07-22' })
     expect(failed.created).toBe(0)
     expect(await db.tasks.count()).toBe(4)
+  })
+
+  it('creates, renames and safely removes a plan without destroying its contents', async () => {
+    const planId = await saveTaskPlan({ title: '回国', startDate: '2026-07-22' })
+    await saveTaskPlan({ id: planId, title: '回国准备' })
+    const child = task('kept-child', {
+      parentTaskId: planId,
+      childKind: 'timeline',
+      scheduleType: 'today',
+      startAt: '2026-07-22T08:00',
+    })
+    await db.tasks.add(child)
+    await deleteTaskPlan(planId, 'detach')
+    expect(await db.tasks.get(planId)).toMatchObject({ title: '回国准备', lifecycleStatus: 'deleted' })
+    const detached = await db.tasks.get(child.id)
+    expect(detached).toMatchObject({ lifecycleStatus: 'active', startAt: '2026-07-22T08:00' })
+    expect(detached?.parentTaskId).toBeUndefined()
+    expect(detached?.childKind).toBeUndefined()
   })
 
   it('materializes inherited dates before deleting a parent', async () => {

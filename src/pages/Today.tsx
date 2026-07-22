@@ -63,6 +63,7 @@ import TaskToolbar from '../components/TaskToolbar'
 import TaskViewSettingsSheet from '../components/TaskViewSettingsSheet'
 import TaskEditor, { type EditableTaskStatus } from '../components/TaskEditor'
 import BatchTaskSettingsSheet from '../components/BatchTaskSettingsSheet'
+import TaskPlanPickerSheet from '../components/TaskPlanPickerSheet'
 import { MOTION } from '../lib/motion'
 import {
   defaultFixedRecurrence,
@@ -80,6 +81,7 @@ import {
   civilDateOf,
   effectiveTaskSchedule,
   taskChildrenMap,
+  taskChildKindOf,
   taskDueStatus,
   taskMapOf,
   taskNodeRoleOf,
@@ -140,7 +142,12 @@ function buildItems(
   for (const task of tasks) {
     const role = taskNodeRoleOf(task)
     if (role === 'plan') {
-      if (view === 'longTerm') {
+      const hasTodayChecklistChild = view === 'today' && tasks.some((child) => (
+        child.parentTaskId === task.id
+        && taskChildKindOf(child, taskMap) === 'checklist'
+        && isTodayTaskDefinition(child, todayISO, tasks, taskMap)
+      ))
+      if (view === 'longTerm' || hasTodayChecklistChild) {
         items.push({
           task,
           kind: 'plan',
@@ -148,11 +155,14 @@ function buildItems(
           occurrenceKey: 'plan',
           completed: false,
           overdue: false,
-          subtitle: undefined,
+          subtitle: hasTodayChecklistChild ? '今日清单' : undefined,
         })
       }
       continue
     }
+    // Timeline steps are itinerary data. They are projected by the Plan page
+    // and previewed under their parent, never flattened into checkable tasks.
+    if (taskChildKindOf(task, taskMap) === 'timeline') continue
     const r = effectiveRecurrence(task)
     if (view === 'longTerm') {
       if (!isLongTermTaskDefinition(task, todayISO, tasks, taskMap)) continue
@@ -322,7 +332,7 @@ export default function Today() {
   const [recurrence, setRecurrence] = useState<Recurrence | undefined>()
   const [categoryId, setCategoryId] = useState<string>('')
   const [planId, setPlanId] = useState('')
-  const [newPlanTitle, setNewPlanTitle] = useState('')
+  const [planPickerOpen, setPlanPickerOpen] = useState(false)
   const [scope, setScope] = useState<TaskView>(
     () => taskViewFromStorage(localStorage.getItem('taskPrimaryViewV1') ?? localStorage.getItem('taskScope')),
   )
@@ -469,13 +479,18 @@ export default function Today() {
   )
   const timedEntries = useMemo(() => parseTimedBatchEntries(title), [title])
   const firstTimedEntryError = timedEntries.find((entry) => entry.error)
-  const newPlanNameMissing = planId === '__new__' && !newPlanTitle.trim()
-  const batchInputInvalid = Boolean(firstTimedEntryError) || newPlanNameMissing
+  const batchInputInvalid = Boolean(firstTimedEntryError)
   const batchValidationMessage = firstTimedEntryError
     ? timedBatchErrorMessage(firstTimedEntryError)
-    : newPlanNameMissing
-      ? '请填写新计划名称'
-      : ''
+    : ''
+  const selectedPlan = activePlans.find((plan) => plan.id === planId)
+  const batchContentSummary = !planId
+    ? '独立任务'
+    : timedEntries.every((entry) => Boolean(entry.time))
+      ? '时间步骤'
+      : timedEntries.some((entry) => Boolean(entry.time))
+        ? '时间步骤与子任务'
+        : '清单子任务'
   const selectedCategoryName = categories?.find((category) => category.id === categoryId)?.name
   const batchSettingsSummary = fixed
     ? describeRecurrence(recurrence ?? defaultFixedRecurrence('daily'))
@@ -643,8 +658,7 @@ export default function Today() {
         categoryId: categoryId || undefined,
         startDate: scheduleStart || todayISO,
         taskScope: recurrence?.mode === 'fixed_schedule' && recurrence.frequency === 'weekly' ? 'weekly' : 'daily',
-        planId: planId && planId !== '__new__' ? planId : undefined,
-        newPlanTitle: planId === '__new__' ? newPlanTitle : undefined,
+        planId: planId || undefined,
         schedule: fixed
           ? { scheduleType: 'longTerm', startAt: scheduleStart || todayISO }
           : {
@@ -661,7 +675,6 @@ export default function Today() {
         setRecurrence(undefined)
         setCategoryId('')
         setPlanId('')
-        setNewPlanTitle('')
         setComposerOpen(false)
         setScheduleType(scope === 'today' ? 'today' : 'longTerm')
         setScheduleStart(todayISO)
@@ -745,9 +758,18 @@ export default function Today() {
     const catText = cat ? cat.name : undefined
     const progress = childProgress(
       item.task.id,
-      childrenByParent,
+      tasks ?? [],
       currentCompletedTaskIds,
     )
+    const timelinePreview = (childrenByParent.get(item.task.id) ?? [])
+      .filter((child) => taskChildKindOf(child, taskMap) === 'timeline')
+      .sort((a, b) => (a.startAt ?? '').localeCompare(b.startAt ?? ''))
+      .slice(0, 4)
+      .map((child) => ({
+        id: child.id,
+        time: child.startAt?.slice(11, 16) ?? '',
+        title: child.title,
+      }))
     const subtitle =
       [
         item.kind === 'plan' ? undefined : item.kind === 'single' ? '普通' : item.kind === 'template' ? '长期' : '固定',
@@ -781,6 +803,7 @@ export default function Today() {
         overdue={item.overdue}
         nestingLevel={nestingLevel}
         childProgress={progress}
+        timelinePreview={timelinePreview}
         actions={actionsFor(item)}
         rowId={`${item.task.id}:${item.occurrenceKey}`}
         {...extra}
@@ -980,24 +1003,18 @@ export default function Today() {
           </div>
         )}
         {title.trim() && <div className="task-quick-primary-fields">
-          <label className="task-plan-picker">
-            <span>所属计划</span>
-            <select value={planId} onChange={(event) => setPlanId(event.target.value)} aria-label="所属计划">
-              <option value="">不加入计划</option>
-              {activePlans.map((plan) => <option key={plan.id} value={plan.id}>{plan.title}</option>)}
-              <option value="__new__">＋ 新建计划</option>
-            </select>
-          </label>
+          <div className="task-plan-picker">
+            <span>归属对象</span>
+            <button type="button" className="task-plan-picker-button" onClick={() => setPlanPickerOpen(true)}>
+              <span>{selectedPlan?.title ?? '不加入计划'}</span>
+              <AppIcon name="chevronRight" size={16} />
+            </button>
+            <small>{batchContentSummary}</small>
+          </div>
           {scheduleType !== 'unscheduled' && <label className="task-plan-picker">
             <span>{scheduleType === 'longTerm' ? '开始日期' : '日期'}</span>
             <input type="date" value={scheduleStart} onChange={(event) => setScheduleStart(event.target.value)} />
           </label>}
-          {planId === '__new__' && (
-            <label className="task-plan-picker task-plan-name-field">
-              <span>计划名称</span>
-              <input value={newPlanTitle} onChange={(event) => setNewPlanTitle(event.target.value)} placeholder="例如 回国" autoComplete="off" />
-            </label>
-          )}
         </div>}
         <button
           type="button"
@@ -1245,6 +1262,16 @@ export default function Today() {
           onShowBeforeStartChange={setShowBeforeStart}
           onSurfaceDaysBeforeDueChange={setSurfaceDaysBeforeDue}
           onClose={() => setBatchSettingsOpen(false)}
+        />
+      )}
+      {planPickerOpen && (
+        <TaskPlanPickerSheet
+          plans={activePlans}
+          selectedId={planId}
+          startDate={scheduleStart || todayISO}
+          onSelect={setPlanId}
+          onClose={() => setPlanPickerOpen(false)}
+          onFeedback={setFeedback}
         />
       )}
       {editingItem && (

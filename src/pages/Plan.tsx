@@ -37,7 +37,7 @@ import SwipeActionRow from '../components/SwipeActionRow'
 import DateMarkerSheet from '../components/DateMarkerSheet'
 import CalendarMarkerTrack from '../components/CalendarMarkerTrack'
 import { calendarMarkerSummary } from '../lib/calendarMarkers'
-import { effectiveTaskSchedule, taskMapOf, taskNodeRoleOf } from '../lib/taskSchedule'
+import { effectiveTaskSchedule, taskChildKindOf, taskMapOf, taskNodeRoleOf } from '../lib/taskSchedule'
 
 const WEEK_LABELS_MON = ['一', '二', '三', '四', '五', '六', '日']
 const WEEK_LABELS_SUN = ['日', '一', '二', '三', '四', '五', '六']
@@ -453,6 +453,10 @@ export default function Plan() {
 
   function toggleItem(item: CalItem) {
     if (item.kind === 'task') {
+      if (taskChildKindOf(item.task, taskMap) === 'timeline') {
+        openItem(item)
+        return
+      }
       void setTaskStatus(item, item.completed ? 'pending' : 'completed')
     } else {
       void toggleEventCompletion(item.event)
@@ -500,6 +504,7 @@ export default function Plan() {
           showBeforeStart: task.showBeforeStart,
           surfaceDaysBeforeDue: task.surfaceDaysBeforeDue,
           parentTaskId: task.parentTaskId,
+          childKind: task.childKind,
           inheritsParentSchedule: task.inheritsParentSchedule,
         })
       }
@@ -686,6 +691,8 @@ export default function Plan() {
     const categoryId = item.kind === 'event' ? item.event.categoryId : item.task.categoryId
     const category = categoryId ? catMap.get(categoryId) : undefined
     const timeLabel = itemTimeLabel(item)
+    const timelineStep = item.kind === 'task' && taskChildKindOf(item.task, taskMap) === 'timeline'
+    const timelineParent = timelineStep && item.task.parentTaskId ? taskMap.get(item.task.parentTaskId) : undefined
     const subtitle =
       item.kind === 'event'
         ? [timeLabel, item.event.startDate !== item.event.endDate ? `${item.event.startDate.slice(5)} → ${item.event.endDate.slice(5)}` : null]
@@ -694,6 +701,29 @@ export default function Plan() {
         : [category?.name, item.subtitle, item.skipped ? '已跳过' : null]
             .filter(Boolean)
             .join(' · ')
+    if (timelineStep) {
+      return (
+        <SwipeActionRow
+          key={`timeline-detail:${item.task.id}:${item.date}`}
+          id={`timeline-detail:${item.task.id}:${item.date}`}
+          label={itemTitle(item)}
+          className="calendar-item-swipe calendar-timeline-step-swipe"
+          contentClassName="calendar-timeline-step-row"
+          divider={index > 0}
+          resetKey={`${mode}:${selected}`}
+          actions={[
+            { label: '更多', icon: 'more', tone: 'neutral', onSelect: () => openItem(item) },
+            { label: '删除', icon: 'trash', tone: 'danger', onSelect: () => void softDeleteTask(item.task.id) },
+          ]}
+        >
+          <time>{itemTime(item) ?? '—'}</time>
+          <button type="button" onClick={() => openItem(item)}>
+            <strong>{itemTitle(item)}</strong>
+            {timelineParent && <span>{timelineParent.title} · 时间步骤</span>}
+          </button>
+        </SwipeActionRow>
+      )
+    }
     return (
       <SwipeActionRow
         key={`${item.kind}:${item.kind === 'event' ? item.event.id : item.task.id}:${item.date}:${item.kind === 'task' ? item.occurrenceKey : ''}`}
@@ -747,8 +777,22 @@ export default function Plan() {
     (item) => !itemTime(item) && !(item.kind === 'event' && item.event.allDay),
   )
   const selectedTimedItems = selectedItems.filter((item) => Boolean(itemTime(item)))
+  const selectedTimelineSteps = selectedTimedItems.filter(
+    (item) => item.kind === 'task' && taskChildKindOf(item.task, taskMap) === 'timeline',
+  )
+  const selectedOrdinaryTimedItems = selectedTimedItems.filter(
+    (item) => !(item.kind === 'task' && taskChildKindOf(item.task, taskMap) === 'timeline'),
+  )
+  const selectedTimelineGroups = [...selectedTimelineSteps.reduce((groups, item) => {
+    if (item.kind !== 'task') return groups
+    const parentId = item.task.parentTaskId ?? '#independent'
+    const rows = groups.get(parentId) ?? []
+    rows.push(item)
+    groups.set(parentId, rows)
+    return groups
+  }, new Map<string, CalItem[]>())]
 
-  function timelineItemRow(item: CalItem, index: number) {
+  function timelineItemRow(item: CalItem, index: number, groupedStep = false) {
     const visual = itemVisual(item)
     const source = item.kind === 'event' ? item.event : item.task
     const category = source.categoryId ? catMap.get(source.categoryId) : undefined
@@ -809,8 +853,8 @@ export default function Plan() {
             ]}
           >
             <strong>{itemTitle(item)}</strong>
-            {time && <span>{`${itemTimeLabel(item)}${eventEndTime(item) ? '' : ' 开始'}`}</span>}
-            {planTitle && <small className="timeline-plan-label">{planTitle}</small>}
+            {time && !groupedStep && <span>{`${itemTimeLabel(item)}${eventEndTime(item) ? '' : ' 开始'}`}</span>}
+            {planTitle && !groupedStep && <small className="timeline-plan-label">{planTitle}</small>}
             <MarkerIcon symbol={visual.marker} color={visual.color} size={17} />
           </SwipeActionRow>
         </div>
@@ -924,7 +968,36 @@ export default function Plan() {
         </div>}
         <p role="status" className="calendar-feedback">{feedback}</p>
         {selectedItems.length > 0 ? (
-          <ul className="calendar-item-list">{selectedItems.map(itemRow)}</ul>
+          <div className="calendar-selected-items">
+            {selectedItems.some((item) => !(
+              item.kind === 'task' && taskChildKindOf(item.task, taskMap) === 'timeline'
+            )) && (
+              <ul className="calendar-item-list">
+                {selectedItems
+                  .filter((item) => !(
+                    item.kind === 'task' && taskChildKindOf(item.task, taskMap) === 'timeline'
+                  ))
+                  .map(itemRow)}
+              </ul>
+            )}
+            {selectedTimelineGroups.map(([parentId, steps]) => (
+              <section
+                key={`agenda:${parentId}`}
+                className="mobile-timeline-plan-group calendar-day-plan-group"
+                aria-label={`${taskMap.get(parentId)?.title ?? '独立安排'}时间表`}
+              >
+                <header>
+                  <span>{taskMap.get(parentId)?.title ?? '独立安排'}</span>
+                  <small>{steps.length} 个时间节点</small>
+                </header>
+                <div className="mobile-timeline-plan-steps">
+                  {steps
+                    .sort((a, b) => (itemTime(a) ?? '').localeCompare(itemTime(b) ?? ''))
+                    .map((item, index) => timelineItemRow(item, index, true))}
+                </div>
+              </section>
+            ))}
+          </div>
         ) : selectedDateTypes.length > 0 || composerOpen ? null : (
           <div className="calendar-empty-day">
             <MarkerIcon symbol="flower" color="green" size={42} />
@@ -1094,20 +1167,33 @@ export default function Plan() {
                       {selectedAllDayItems.length > 0 && (
                         <section className="mobile-timeline-all-day" aria-label="全天计划">
                           <header><span>全天计划</span><small>不占用具体时间段</small></header>
-                          {selectedAllDayItems.map(timelineItemRow)}
+                          {selectedAllDayItems.map((item, index) => timelineItemRow(item, index))}
                         </section>
                       )}
                       {selectedUnscheduledItems.length > 0 && (
                         <section className="mobile-timeline-unscheduled" aria-label="未排定时间">
                           <header><span>未排定时间</span><small>{selectedUnscheduledItems.length} 项</small></header>
-                          {selectedUnscheduledItems.map(timelineItemRow)}
+                          {selectedUnscheduledItems.map((item, index) => timelineItemRow(item, index))}
                         </section>
                       )}
-                      {selectedTimedItems.length > 0 && (
+                      {selectedOrdinaryTimedItems.length > 0 && (
                         <section className="mobile-timeline-scheduled" aria-label="已排定时间">
-                          {selectedTimedItems.map(timelineItemRow)}
+                          {selectedOrdinaryTimedItems.map((item, index) => timelineItemRow(item, index))}
                         </section>
                       )}
+                      {selectedTimelineGroups.map(([parentId, steps]) => (
+                        <section key={parentId} className="mobile-timeline-plan-group" aria-label={`${taskMap.get(parentId)?.title ?? '独立安排'}时间表`}>
+                          <header>
+                            <span>{taskMap.get(parentId)?.title ?? '独立安排'}</span>
+                            <small>{steps.length} 个时间节点</small>
+                          </header>
+                          <div className="mobile-timeline-plan-steps">
+                            {steps
+                              .sort((a, b) => (itemTime(a) ?? '').localeCompare(itemTime(b) ?? ''))
+                              .map((item, index) => timelineItemRow(item, index, true))}
+                          </div>
+                        </section>
+                      ))}
                     </>
                   ) : (
                     <div className="mobile-timeline-empty">

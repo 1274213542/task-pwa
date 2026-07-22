@@ -40,6 +40,7 @@ export default function TaskRow({
   rowId,
   nestingLevel = 0,
   childProgress,
+  timelinePreview = [],
   divider = false,
 }: {
   title: string
@@ -61,6 +62,7 @@ export default function TaskRow({
   rowId?: string
   nestingLevel?: number
   childProgress?: { completed: number; total: number }
+  timelinePreview?: { id: string; time: string; title: string }[]
   divider?: boolean
 }) {
   const reduceMotion = useReducedMotion()
@@ -184,6 +186,17 @@ export default function TaskRow({
           )}
           {(subtitle || !hierarchyLabel) && <span>{subtitle || '今天'}</span>}
         </span>
+        {timelinePreview.length > 0 && (
+          <div className="task-card-timeline-preview" aria-label="时间步骤预览">
+            {timelinePreview.map((step) => (
+              <span key={step.id}>
+                <time>{step.time}</time>
+                <b>{step.title}</b>
+              </span>
+            ))}
+            {(childProgress || timelinePreview.length === 4) && <small>在计划页查看完整安排</small>}
+          </div>
+        )}
       </div>
 
       </div>
