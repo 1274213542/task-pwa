@@ -178,14 +178,16 @@ export default function TaskRow({
             </span>
           )}
         </div>
-        <span className={`task-card-meta ${overdue && !completed ? 'is-overdue' : ''}`}>
-          {hierarchyLabel ? (
-            <b className="task-card-hierarchy-label">{hierarchyLabel}</b>
-          ) : (
-            <AppIcon name="clock" size={14} />
-          )}
-          {(subtitle || !hierarchyLabel) && <span>{subtitle || '今天'}</span>}
-        </span>
+        {!isChild && (
+          <span className={`task-card-meta ${overdue && !completed ? 'is-overdue' : ''}`}>
+            {hierarchyLabel ? (
+              <b className="task-card-hierarchy-label">{hierarchyLabel}</b>
+            ) : (
+              <AppIcon name="clock" size={14} />
+            )}
+            {(subtitle || !hierarchyLabel) && <span>{subtitle || '今天'}</span>}
+          </span>
+        )}
         {timelinePreview.length > 0 && (
           <div className="task-card-timeline-preview" aria-label="时间步骤预览">
             {timelinePreview.map((step) => (

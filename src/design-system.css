@@ -14200,3 +14200,133 @@ html .finance-shell .finance-work-entry-row:focus-visible {
   .task-plan-manage-row { grid-template-columns: 1fr; }
   .task-plan-row-actions { justify-content: flex-end; }
 }
+
+/* --------------------------------------------------------------------------
+   Compact child hierarchy + local alignment corrections
+
+   Child rows keep the parent's title column while reducing only their visual
+   weight. Batch settings and the finance shift row use one shared alignment
+   surface instead of independent controls that can drift on narrow screens.
+   -------------------------------------------------------------------------- */
+@media (max-width: 1023px) {
+  html .page-tasks .task-card-list .task-card[data-task-role='child'] {
+    min-height: 52px !important;
+    grid-template-columns: 44px minmax(0, 1fr) !important;
+    column-gap: var(--space-3) !important;
+    padding: 5px var(--space-4) !important;
+    background: transparent !important;
+  }
+
+  html .page-tasks .task-card-list .task-card[data-task-role='child'] .task-card-check {
+    width: 32px !important;
+    min-width: 32px !important;
+    height: 32px !important;
+    min-height: 32px !important;
+    place-self: center;
+  }
+
+  html .page-tasks .task-card-list .task-card[data-task-role='child'] .task-card-check::before {
+    inset: 4px !important;
+  }
+
+  html .page-tasks .task-card-list .task-card[data-task-role='child'] .task-card-check-feedback svg {
+    width: 13px;
+    height: 13px;
+  }
+
+  html .page-tasks .task-card-list .task-card[data-task-role='child'] .task-card-copy {
+    gap: 0 !important;
+    padding-left: 0 !important;
+  }
+
+  html .page-tasks .task-card-list .task-card[data-task-role='child'] .task-card-title-button {
+    min-height: 20px !important;
+    line-height: 20px !important;
+  }
+
+  html .page-tasks .task-card-list .task-card[data-task-role='child'] .task-card-title-button .strike {
+    font-size: 14px !important;
+    line-height: 20px !important;
+    font-weight: 580 !important;
+  }
+
+  html .page-tasks .task-card-list .task-card-swipe-row-child .apple-swipe-divider {
+    right: var(--space-4) !important;
+    left: calc(44px + var(--space-3) + var(--space-4)) !important;
+  }
+}
+
+.task-batch-settings-header {
+  min-height: 64px;
+  padding-block: 0;
+}
+
+.task-batch-settings-header h2,
+.task-batch-settings-header button {
+  align-self: center;
+}
+
+.task-batch-settings-header button {
+  display: inline-flex;
+  height: 44px;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  line-height: 20px;
+}
+
+.task-batch-settings-section {
+  gap: var(--space-3);
+  padding-block: 18px;
+}
+
+.task-batch-type-control > button,
+.task-batch-settings-sheet .task-intent-picker[data-compact] > button {
+  display: grid;
+  place-items: center;
+  line-height: 20px;
+}
+
+.task-batch-setting-input-row {
+  min-height: 46px;
+  gap: 4px;
+  overflow: hidden;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-secondary);
+  padding: 3px 4px 3px 0;
+}
+
+.task-batch-setting-input-row input {
+  min-height: 38px;
+  border: 0;
+  background: transparent;
+}
+
+.task-batch-setting-input-row button {
+  display: inline-flex;
+  height: 38px;
+  min-height: 38px;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding-inline: 12px;
+  line-height: 18px;
+}
+
+.finance-shift-time-grid {
+  grid-template-columns: minmax(0, 1fr) 24px minmax(0, 1fr);
+  align-items: stretch;
+  gap: var(--space-2);
+}
+
+.finance-shift-time-grid > span {
+  width: 24px;
+  height: auto;
+  min-height: 0;
+  align-self: stretch;
+  box-sizing: border-box;
+  padding-top: calc(0.72rem * 1.2 + 5px);
+  line-height: 1;
+  transform: none;
+}
