@@ -9,6 +9,7 @@ import type {
 import { updateEvent } from '../lib/events'
 import VisualPicker from './VisualPicker'
 import GestureSheet, { type GestureSheetHandle } from './GestureSheet'
+import CategoryPickerControl from './CategoryPickerControl'
 
 function localTime(event: CalendarEvent): string {
   if (!event.startAt) return ''
@@ -184,21 +185,14 @@ export default function EventEditor({
             </label>
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <label className="text-[12px] font-medium text-neutral-500">
-              分类
-              <select
+            <div className="text-[12px] font-medium text-neutral-500">
+              <span>分类</span>
+              <CategoryPickerControl
+                categories={categories}
                 value={categoryId}
-                onChange={(e) => setCategoryId(e.target.value)}
-                className="field mt-1"
-              >
-                <option value="">无分类</option>
-                {categories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+                onChange={setCategoryId}
+              />
+            </div>
           </div>
           <VisualPicker
             color={visualToken}

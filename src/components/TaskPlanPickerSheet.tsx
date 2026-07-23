@@ -96,7 +96,6 @@ export default function TaskPlanPickerSheet({
           <section className="task-plan-create" aria-labelledby="task-plan-create-title">
             <div>
               <strong id="task-plan-create-title">新建计划</strong>
-              <small>保存后会立即成为本批任务的归属</small>
             </div>
             <div className="task-plan-create-fields">
               <input

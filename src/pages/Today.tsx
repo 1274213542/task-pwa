@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from 'motion/react'
 import {
@@ -328,6 +328,7 @@ function SortablePendingRow({
 export default function Today() {
   const reduceMotion = useReducedMotion()
   const location = useLocation()
+  const navigate = useNavigate()
   const [title, setTitle] = useState('')
   const [recurrence, setRecurrence] = useState<Recurrence | undefined>()
   const [categoryId, setCategoryId] = useState<string>('')
@@ -402,7 +403,9 @@ export default function Today() {
   }, [])
 
   useEffect(() => {
-    if (!(location.state as { openTaskComposer?: boolean } | null)?.openTaskComposer) return
+    const state = location.state as { openTaskComposer?: boolean; planId?: string } | null
+    if (!state?.openTaskComposer) return
+    if (state.planId) setPlanId(state.planId)
     setComposerOpen(true)
     window.requestAnimationFrame(() => inputRef.current?.focus())
     window.history.replaceState(
@@ -779,12 +782,15 @@ export default function Today() {
     }
     const cat = item.task.categoryId ? catMap.get(item.task.categoryId) : undefined
     const catText = cat ? cat.name : undefined
+    const directChildren = childrenByParent.get(item.task.id) ?? []
     const progress = childProgress(
       item.task.id,
       tasks ?? [],
       currentCompletedTaskIds,
-    )
-    const directChildren = childrenByParent.get(item.task.id) ?? []
+    ) ?? (directChildren.length > 0 ? {
+      completed: directChildren.filter((child) => currentCompletedTaskIds.has(child.id)).length,
+      total: directChildren.length,
+    } : undefined)
     const collapsible = directChildren.length > 0
     const expanded = expandedParentIds.has(item.task.id)
     const timelinePreview = directChildren
@@ -795,6 +801,20 @@ export default function Today() {
         id: child.id,
         time: child.startAt?.slice(11, 16) ?? '',
         title: child.title,
+        completed: currentCompletedTaskIds.has(child.id),
+        onToggle: (() => {
+          const childItem = (items ?? []).find((candidate) =>
+            candidate.task.id === child.id &&
+            candidate.kind !== 'plan' &&
+            candidate.kind !== 'template')
+          if (!childItem) return undefined
+          return () => {
+            void guarded(() => setEditedItemStatus(
+              childItem,
+              childItem.completed ? 'pending' : 'completed',
+            ))
+          }
+        })(),
       }))
     const subtitle =
       [
@@ -823,9 +843,11 @@ export default function Today() {
             ? 'custom'
             : extra.featureTone ?? (item.completed ? 'custom' : 'lime')
         }
-        completed={item.completed}
+        completed={item.kind === 'plan' && progress
+          ? progress.total > 0 && progress.completed === progress.total
+          : item.completed}
         organizational={item.kind === 'plan'}
-        completionDisabled={item.kind === 'plan' || (item.kind === 'template' && Boolean(item.task.recurrence || taskScopeOf(item.task) === 'weekly'))}
+        completionDisabled={item.kind === 'template' && Boolean(item.task.recurrence || taskScopeOf(item.task) === 'weekly')}
         overdue={item.overdue}
         nestingLevel={nestingLevel}
         childProgress={progress}
@@ -840,7 +862,17 @@ export default function Today() {
             return next
           })
         } : undefined}
-        actions={actionsFor(item)}
+        onAddChild={item.kind === 'plan' ? () => {
+          setPlanId(item.task.id)
+          setComposerOpen(true)
+          window.requestAnimationFrame(() => inputRef.current?.focus())
+        } : undefined}
+        actions={item.kind === 'plan' && collapsible
+          ? {
+              ...actionsFor(item),
+              onToggle: () => { void toggleGroupChildren(item.task.id) },
+            }
+          : actionsFor(item)}
         rowId={`${item.task.id}:${item.occurrenceKey}`}
         {...extra}
       />
@@ -864,6 +896,22 @@ export default function Today() {
     else if (item.kind === 'fixed')
       await completeFixedOccurrence(item.task, item.occurrenceDate)
     else await resolveAfterCompletion(item.task, 'completed')
+  }
+
+  async function toggleGroupChildren(parentId: string) {
+    const childIds = new Set((childrenByParent.get(parentId) ?? []).map((child) => child.id))
+    const childItems = (items ?? []).filter(
+      (item) => childIds.has(item.task.id) && item.kind !== 'plan' && item.kind !== 'template',
+    )
+    if (childItems.length === 0) return
+    const shouldComplete = childItems.some((item) => !item.completed)
+    for (const child of childItems) {
+      if (child.completed === shouldComplete) continue
+      await guarded(() => setEditedItemStatus(
+        child,
+        shouldComplete ? 'completed' : 'pending',
+      ))
+    }
   }
 
   async function setEditedItemStatus(item: TodayItem, status: EditableTaskStatus) {
@@ -1076,7 +1124,7 @@ export default function Today() {
               ? '请修正上方内容'
               : batchValidationMessage || (timedEntries.length > 0
               ? `准备添加 ${timedEntries.length} 项`
-              : '输入后即可添加')}
+              : '')}
           </span>
           <button
             type="button"
@@ -1297,6 +1345,10 @@ export default function Today() {
           onScheduleDueChange={setScheduleDue}
           onShowBeforeStartChange={setShowBeforeStart}
           onSurfaceDaysBeforeDueChange={setSurfaceDaysBeforeDue}
+          onManageCategories={() => {
+            setBatchSettingsOpen(false)
+            navigate('/browse')
+          }}
           onClose={() => setBatchSettingsOpen(false)}
         />
       )}

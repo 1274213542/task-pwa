@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointer
 import { useLiveQuery } from 'dexie-react-hooks'
 import { motion, useReducedMotion } from 'motion/react'
 import { Temporal } from 'temporal-polyfill'
+import { useNavigate } from 'react-router-dom'
 import {
   db,
   type CalendarEvent,
@@ -38,6 +39,7 @@ import DateMarkerSheet from '../components/DateMarkerSheet'
 import CalendarMarkerTrack from '../components/CalendarMarkerTrack'
 import { calendarMarkerSummary } from '../lib/calendarMarkers'
 import { effectiveTaskSchedule, taskChildKindOf, taskMapOf, taskNodeRoleOf } from '../lib/taskSchedule'
+import TaskGroupHeader from '../components/TaskGroupHeader'
 
 const WEEK_LABELS_MON = ['一', '二', '三', '四', '五', '六', '日']
 const WEEK_LABELS_SUN = ['日', '一', '二', '三', '四', '五', '六']
@@ -216,6 +218,7 @@ function TimelineScheduleRow({
 }
 
 export default function Plan() {
+  const navigate = useNavigate()
   const todayISO = useCivilDate()
   const reduceMotion = useReducedMotion()
   const [mode, setMode] = useState<PlanMode>(() => {
@@ -456,10 +459,6 @@ export default function Plan() {
 
   function toggleItem(item: CalItem) {
     if (item.kind === 'task') {
-      if (taskChildKindOf(item.task, taskMap) === 'timeline') {
-        openItem(item)
-        return
-      }
       void setTaskStatus(item, item.completed ? 'pending' : 'completed')
     } else {
       void toggleEventCompletion(item.event)
@@ -722,6 +721,14 @@ export default function Plan() {
           ]}
         >
           <time>{itemTime(item) ?? '—'}</time>
+          <button
+            type="button"
+            className="calendar-timeline-step-check"
+            aria-label={resolved ? '取消完成' : '完成'}
+            onClick={() => toggleItem(item)}
+          >
+            <span>{resolved && <AppIcon name="check" size={12} />}</span>
+          </button>
           <button type="button" onClick={() => openItem(item)}>
             <strong>{itemTitle(item)}</strong>
             {timelineParent && <span>{timelineParent.title} · 时间步骤</span>}
@@ -818,33 +825,59 @@ export default function Plan() {
       ).length
       const stateKey = `${rowDate}:${parentId}`
       const expanded = expandedAgendaParents.has(stateKey)
+      const complete = childItems.length > 0 && completed === childItems.length
 
       return (
         <li key={`agenda-parent:${stateKey}`} className="calendar-parent-group">
-          <button
-            type="button"
-            className="calendar-parent-header"
-            aria-expanded={expanded}
-            onClick={() => {
-              setExpandedAgendaParents((current) => {
-                const next = new Set(current)
-                if (next.has(stateKey)) next.delete(stateKey)
-                else next.add(stateKey)
-                return next
-              })
-            }}
+          <TaskGroupHeader
+            title={title}
+            completed={complete}
+            progress={{ completed, total: childItems.length }}
+            expanded={expanded}
+            onToggleComplete={() => { void toggleCalendarGroup(childItems) }}
+            onToggleExpanded={() => toggleAgendaParent(stateKey)}
+            onAddChild={() => openPlanChildComposer(parentId)}
+            meta={parent && taskNodeRoleOf(parent) === 'plan' ? '计划' : '父任务'}
           >
-            <strong>{title}</strong>
-            <span>{completed}/{childItems.length}</span>
-            <AppIcon name={expanded ? 'chevronDown' : 'chevronRight'} size={16} />
-          </button>
-          {expanded && (
-            <ul className="calendar-parent-children">
-              {childItems.map((child, childIndex) => itemRow(child, childIndex, true))}
-            </ul>
-          )}
+            {expanded && (
+              <ul className="calendar-parent-children">
+                {childItems.map((child, childIndex) => itemRow(child, childIndex, true))}
+              </ul>
+            )}
+          </TaskGroupHeader>
         </li>
       )
+    }
+  }
+
+  function toggleAgendaParent(stateKey: string) {
+    setExpandedAgendaParents((current) => {
+      const next = new Set(current)
+      if (next.has(stateKey)) next.delete(stateKey)
+      else next.add(stateKey)
+      return next
+    })
+  }
+
+  function openPlanChildComposer(parentId: string) {
+    navigate('/today', {
+      state: {
+        openTaskComposer: true,
+        planId: parentId,
+      },
+    })
+  }
+
+  async function toggleCalendarGroup(childItems: CalItem[]) {
+    const taskItems = childItems.filter(
+      (item): item is Extract<CalItem, { kind: 'task' }> => item.kind === 'task',
+    )
+    if (taskItems.length === 0) return
+    const shouldComplete = taskItems.some((item) => !(item.completed || item.skipped))
+    for (const item of taskItems) {
+      const resolved = item.completed || item.skipped
+      if (resolved === shouldComplete) continue
+      await setTaskStatus(item, shouldComplete ? 'completed' : 'pending')
     }
   }
 
@@ -941,6 +974,19 @@ export default function Plan() {
               },
             ]}
           >
+            {item.kind === 'task' && (
+              <button
+                type="button"
+                className="mobile-timeline-check"
+                aria-label={resolved ? '取消完成' : '完成'}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  toggleItem(item)
+                }}
+              >
+                <span>{resolved && <AppIcon name="check" size={12} />}</span>
+              </button>
+            )}
             <strong>{itemTitle(item)}</strong>
             {time && !groupedStep && <span>{`${itemTimeLabel(item)}${eventEndTime(item) ? '' : ' 开始'}`}</span>}
             {planTitle && !groupedStep && <small className="timeline-plan-label">{planTitle}</small>}
@@ -949,6 +995,82 @@ export default function Plan() {
         </div>
       </TimelineScheduleRow>
     )
+  }
+
+  function timelineParentGroup(
+    parentId: string,
+    childItems: CalItem[],
+    context: string,
+  ) {
+    if (parentId === '#independent') {
+      return childItems
+        .sort((a, b) => (itemTime(a) ?? '').localeCompare(itemTime(b) ?? ''))
+        .map((item, index) => timelineItemRow(item, index))
+    }
+    const parent = taskMap.get(parentId)
+    const title = parent?.title ?? '父任务'
+    const completed = childItems.filter((child) =>
+      child.kind === 'task' ? child.completed || child.skipped : child.completed,
+    ).length
+    const stateKey = `${selected}:${context}:${parentId}`
+    const expanded = expandedAgendaParents.has(stateKey)
+    return (
+      <section
+        key={`timeline-group:${stateKey}`}
+        className="mobile-timeline-plan-group calendar-parent-group"
+        aria-label={`${title} 子项`}
+      >
+        <TaskGroupHeader
+          title={title}
+          completed={childItems.length > 0 && completed === childItems.length}
+          progress={{ completed, total: childItems.length }}
+          expanded={expanded}
+          onToggleComplete={() => { void toggleCalendarGroup(childItems) }}
+          onToggleExpanded={() => toggleAgendaParent(stateKey)}
+          onAddChild={() => openPlanChildComposer(parentId)}
+          meta={parent && taskNodeRoleOf(parent) === 'plan' ? '计划' : '父任务'}
+        >
+          {expanded && (
+            <div className="mobile-timeline-plan-steps">
+              {childItems
+                .sort((a, b) => (itemTime(a) ?? '').localeCompare(itemTime(b) ?? ''))
+                .map((item, index) => timelineItemRow(item, index, true))}
+            </div>
+          )}
+        </TaskGroupHeader>
+      </section>
+    )
+  }
+
+  function timelineHierarchyRows(items: CalItem[], context: string) {
+    const children = new Map<string, CalItem[]>()
+    for (const item of items) {
+      if (item.kind !== 'task' || !item.task.parentTaskId || !taskMap.has(item.task.parentTaskId)) continue
+      const rows = children.get(item.task.parentTaskId) ?? []
+      rows.push(item)
+      children.set(item.task.parentTaskId, rows)
+    }
+    const emitted = new Set<string>()
+    const rows: ReactNode[] = []
+    items.forEach((item, index) => {
+      if (item.kind === 'task' && item.task.parentTaskId && children.has(item.task.parentTaskId)) {
+        const parentId = item.task.parentTaskId
+        if (!emitted.has(parentId)) {
+          rows.push(timelineParentGroup(parentId, children.get(parentId) ?? [], context))
+          emitted.add(parentId)
+        }
+        return
+      }
+      if (item.kind === 'task' && children.has(item.task.id)) {
+        if (!emitted.has(item.task.id)) {
+          rows.push(timelineParentGroup(item.task.id, children.get(item.task.id) ?? [], context))
+          emitted.add(item.task.id)
+        }
+        return
+      }
+      rows.push(timelineItemRow(item, index))
+    })
+    return rows
   }
   const futureAgendaGroups = agendaDates
     .map((date) => ({ date, items: itemsForDate(date) }))
@@ -1070,23 +1192,8 @@ export default function Plan() {
                 )}
               </ul>
             )}
-            {selectedTimelineGroups.map(([parentId, steps]) => (
-              <section
-                key={`agenda:${parentId}`}
-                className="mobile-timeline-plan-group calendar-day-plan-group"
-                aria-label={`${taskMap.get(parentId)?.title ?? '独立安排'}时间表`}
-              >
-                <header>
-                  <span>{taskMap.get(parentId)?.title ?? '独立安排'}</span>
-                  <small>{steps.length} 个时间节点</small>
-                </header>
-                <div className="mobile-timeline-plan-steps">
-                  {steps
-                    .sort((a, b) => (itemTime(a) ?? '').localeCompare(itemTime(b) ?? ''))
-                    .map((item, index) => timelineItemRow(item, index, true))}
-                </div>
-              </section>
-            ))}
+            {selectedTimelineGroups.map(([parentId, steps]) =>
+              timelineParentGroup(parentId, steps, 'agenda-timeline'))}
           </div>
         ) : selectedDateTypes.length > 0 || composerOpen ? null : (
           <div className="calendar-empty-day">
@@ -1263,27 +1370,16 @@ export default function Plan() {
                       {selectedUnscheduledItems.length > 0 && (
                         <section className="mobile-timeline-unscheduled" aria-label="未排定时间">
                           <header><span>未排定时间</span><small>{selectedUnscheduledItems.length} 项</small></header>
-                          {selectedUnscheduledItems.map((item, index) => timelineItemRow(item, index))}
+                          {timelineHierarchyRows(selectedUnscheduledItems, 'week-unscheduled')}
                         </section>
                       )}
                       {selectedOrdinaryTimedItems.length > 0 && (
                         <section className="mobile-timeline-scheduled" aria-label="已排定时间">
-                          {selectedOrdinaryTimedItems.map((item, index) => timelineItemRow(item, index))}
+                          {timelineHierarchyRows(selectedOrdinaryTimedItems, 'week-scheduled')}
                         </section>
                       )}
-                      {selectedTimelineGroups.map(([parentId, steps]) => (
-                        <section key={parentId} className="mobile-timeline-plan-group" aria-label={`${taskMap.get(parentId)?.title ?? '独立安排'}时间表`}>
-                          <header>
-                            <span>{taskMap.get(parentId)?.title ?? '独立安排'}</span>
-                            <small>{steps.length} 个时间节点</small>
-                          </header>
-                          <div className="mobile-timeline-plan-steps">
-                            {steps
-                              .sort((a, b) => (itemTime(a) ?? '').localeCompare(itemTime(b) ?? ''))
-                              .map((item, index) => timelineItemRow(item, index, true))}
-                          </div>
-                        </section>
-                      ))}
+                      {selectedTimelineGroups.map(([parentId, steps]) =>
+                        timelineParentGroup(parentId, steps, 'week-timeline'))}
                     </>
                   ) : (
                     <div className="mobile-timeline-empty">
@@ -1402,14 +1498,7 @@ export default function Plan() {
                         </div>
                       </li>
                     ))}
-                    {selectedItems.slice(0, 3).map((item, index) => (
-                      <li key={`month-summary:${item.kind}:${index}`}>
-                        <button type="button" onClick={() => openItem(item)}>
-                          <span>{itemTitle(item)}</span>
-                          <small>{itemTime(item) ?? (item.kind === 'event' ? '全天计划' : '任务')}</small>
-                        </button>
-                      </li>
-                    ))}
+                    {agendaRows(selectedItems, selected)}
                   </ul>
                 )}
               </section>

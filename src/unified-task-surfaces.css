@@ -1,0 +1,416 @@
+/* Unified grouped task / plan projection ---------------------------------
+   One stable header is shared by Today and all Plan projections. Children
+   occupy a separate detail row so expansion never moves header controls. */
+.task-group-header {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 42px minmax(0, 1fr) 38px 34px;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 12px 12px 14px;
+}
+
+.task-card > .task-group-header {
+  grid-column: 1 / -1;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.task-card[data-has-children='true']:has(> .task-group-header) {
+  display: block !important;
+  padding: 0 !important;
+}
+
+.task-group-check,
+.task-group-add,
+.task-group-toggle {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+}
+
+.task-group-check {
+  width: 40px;
+  height: 40px;
+  border: 1.5px solid var(--color-text-tertiary);
+  border-radius: var(--radius-circle);
+  background: var(--color-surface-primary);
+  color: var(--color-surface-primary);
+}
+
+.task-group-check > span {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  border-radius: inherit;
+}
+
+.task-group-check[aria-label^='取消'] {
+  border-color: var(--color-text-primary);
+  background: var(--color-text-primary);
+}
+
+.task-group-copy {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+  text-align: left;
+}
+
+.task-group-title-line {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+}
+
+.task-group-title-line > strong {
+  overflow: hidden;
+  min-width: 0;
+  color: var(--color-text-primary);
+  font-size: 17px;
+  line-height: 23px;
+  font-weight: 700;
+  letter-spacing: -0.012em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-group-title-line > small {
+  display: inline-flex;
+  min-width: 34px;
+  min-height: 22px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-secondary);
+  padding-inline: 7px;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.task-group-meta {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+  overflow: hidden;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 540;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-group-meta > b {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.task-group-add {
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-circle);
+  background: var(--color-surface-primary);
+  color: var(--color-text-primary);
+}
+
+.task-group-toggle {
+  width: 34px;
+  height: 40px;
+  color: var(--color-text-secondary);
+}
+
+.task-group-detail {
+  grid-column: 2 / -1;
+  min-width: 0;
+  padding-top: 8px;
+}
+
+.task-group-header .task-card-timeline-preview > span {
+  grid-template-columns: 20px 44px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.task-card-timeline-preview-check {
+  display: inline-grid;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  background: transparent;
+}
+
+.task-card-timeline-preview-check > span {
+  display: inline-grid;
+  width: 16px;
+  height: 16px;
+  place-items: center;
+  border: 1.5px solid var(--color-text-tertiary);
+  border-radius: 50%;
+  color: #fff;
+  background: var(--color-surface-primary);
+}
+
+.task-card-timeline-preview-check[aria-label^='取消'] > span {
+  border-color: var(--color-text-primary);
+  background: var(--color-text-primary);
+}
+
+.calendar-parent-group {
+  display: grid;
+  min-width: 0;
+  overflow: hidden;
+  border-radius: var(--radius-card);
+  background: var(--color-surface-primary);
+}
+
+.calendar-parent-group > .task-group-header {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.calendar-parent-children,
+.mobile-timeline-plan-steps {
+  overflow: hidden;
+  margin: 0;
+  border-top: 1px solid var(--color-separator);
+  padding: 0;
+  list-style: none;
+}
+
+.calendar-parent-group .task-group-detail {
+  grid-column: 1 / -1;
+  padding-top: 10px;
+}
+
+/* Category creation is part of each picker rather than a second data source. */
+.category-picker-control {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+}
+
+.category-picker-select {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  min-height: 46px;
+  grid-template-columns: 22px minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 8px;
+  box-sizing: border-box;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-secondary);
+  padding: 0 12px;
+}
+
+.category-picker-select select {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-primary);
+  font-size: 14px;
+  font-weight: 600;
+  appearance: none;
+}
+
+.category-picker-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.category-picker-actions > button {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-secondary);
+  padding: 0 12px;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 620;
+}
+
+.category-picker-create {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.category-picker-create > input,
+.category-picker-create > button {
+  min-width: 0;
+  min-height: 42px;
+  border-radius: var(--radius-control);
+}
+
+.category-picker-create > input {
+  border: 1px solid var(--color-border-subtle);
+  background: var(--color-surface-primary);
+  padding: 0 12px;
+  color: var(--color-text-primary);
+}
+
+.category-picker-create > button {
+  background: var(--color-text-primary);
+  padding: 0 13px;
+  color: var(--color-surface-primary);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.category-picker-control > small[role='alert'] {
+  color: var(--color-danger);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+/* Large input areas are cards, not oversized pills. */
+.task-composer-card,
+.task-plan-create,
+.finance-work-composer {
+  border-radius: var(--radius-card) !important;
+  background: var(--color-surface-primary) !important;
+}
+
+.task-composer-card,
+.finance-work-composer {
+  overflow: hidden;
+  border: 1px solid var(--color-border-subtle);
+}
+
+.task-composer-input-block {
+  overflow: hidden;
+  border-radius: var(--radius-control);
+  background: var(--color-surface-secondary);
+}
+
+.task-composer-card .task-composer-input {
+  border-radius: var(--radius-control) !important;
+  background: transparent !important;
+}
+
+.task-plan-create {
+  border: 1px solid var(--color-border-subtle);
+}
+
+.task-batch-settings-header {
+  background: var(--color-surface-primary) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.finance-shift-time-grid {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  grid-template-columns: minmax(0, 1fr) 28px minmax(0, 1fr) !important;
+  align-items: end !important;
+  gap: 8px !important;
+}
+
+.finance-shift-time-grid > label,
+.finance-shift-time-grid input[type='time'] {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.finance-shift-time-grid > span {
+  width: 28px !important;
+  min-width: 28px;
+  align-self: end !important;
+  place-items: center !important;
+  transform: none !important;
+}
+
+.calendar-timeline-step-row {
+  grid-template-columns: 56px 30px minmax(0, 1fr);
+}
+
+.calendar-timeline-step-row > .calendar-timeline-step-check,
+.mobile-timeline-check {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  min-height: 28px;
+  align-self: center;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-circle);
+  background: transparent;
+  padding: 0;
+}
+
+.calendar-timeline-step-check > span,
+.mobile-timeline-check > span {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border: 1.5px solid var(--color-text-tertiary);
+  border-radius: var(--radius-circle);
+  color: var(--color-surface-primary);
+}
+
+.calendar-timeline-step-check[aria-label^='取消'] > span,
+.mobile-timeline-check[aria-label^='取消'] > span {
+  border-color: var(--color-text-primary);
+  background: var(--color-text-primary);
+}
+
+.mobile-timeline-event {
+  grid-template-columns: 28px minmax(0, 1fr) auto !important;
+}
+
+.mobile-timeline-event > .mobile-timeline-check {
+  grid-row: 1 / span 2;
+}
+
+@media (max-width: 390px) {
+  .task-group-header {
+    grid-template-columns: 38px minmax(0, 1fr) 36px 30px;
+    gap: 6px;
+    padding-inline: 10px;
+  }
+
+  .task-group-check {
+    width: 36px;
+    height: 36px;
+  }
+
+  .task-group-title-line > strong {
+    font-size: 16px;
+    line-height: 22px;
+  }
+
+  .finance-shift-time-grid {
+    grid-template-columns: minmax(0, 1fr) 24px minmax(0, 1fr) !important;
+    gap: 6px !important;
+  }
+
+  .finance-shift-time-grid > span {
+    width: 24px !important;
+    min-width: 24px;
+  }
+}

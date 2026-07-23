@@ -6,6 +6,7 @@ import type { ColorToken, MarkerSymbol } from '../lib/db'
 import AppIcon from './AppIcon'
 import SwipeActionRow from './SwipeActionRow'
 import { MOTION } from '../lib/motion'
+import TaskGroupHeader from './TaskGroupHeader'
 
 export interface RowActions {
   onToggle: () => void
@@ -44,6 +45,7 @@ export default function TaskRow({
   collapsible = false,
   expanded = true,
   onToggleExpanded,
+  onAddChild,
   divider = false,
 }: {
   title: string
@@ -65,10 +67,17 @@ export default function TaskRow({
   rowId?: string
   nestingLevel?: number
   childProgress?: { completed: number; total: number }
-  timelinePreview?: { id: string; time: string; title: string }[]
+  timelinePreview?: {
+    id: string
+    time: string
+    title: string
+    completed?: boolean
+    onToggle?: () => void
+  }[]
   collapsible?: boolean
   expanded?: boolean
   onToggleExpanded?: () => void
+  onAddChild?: () => void
   divider?: boolean
 }) {
   const reduceMotion = useReducedMotion()
@@ -142,6 +151,46 @@ export default function TaskRow({
           dragProps ? 'task-sortable' : ''
         }`}
       >
+      {collapsible && childProgress ? (
+        <TaskGroupHeader
+          title={title}
+          completed={completed}
+          completionDisabled={completionDisabled}
+          progress={childProgress}
+          expanded={expanded}
+          onToggleComplete={actions.onToggle}
+          onToggleExpanded={() => onToggleExpanded?.()}
+          onAddChild={onAddChild}
+          meta={subtitle ? (
+            <>
+              <b>{hierarchyLabel ?? '父任务'}</b>
+              <span>{subtitle}</span>
+            </>
+          ) : hierarchyLabel}
+        >
+          {timelinePreview.length > 0 && (
+            <div className="task-card-timeline-preview" aria-label="时间步骤预览">
+              {timelinePreview.map((step) => (
+                <span key={step.id}>
+                  {step.onToggle && (
+                    <button
+                      type="button"
+                      className="task-card-timeline-preview-check"
+                      aria-label={step.completed ? `取消完成 ${step.title}` : `完成 ${step.title}`}
+                      onClick={step.onToggle}
+                    >
+                      <span>{step.completed && <AppIcon name="check" size={10} />}</span>
+                    </button>
+                  )}
+                  <time>{step.time}</time>
+                  <b>{step.title}</b>
+                </span>
+              ))}
+            </div>
+          )}
+        </TaskGroupHeader>
+      ) : (
+        <>
       {organizational ? (
         <span className="task-card-check task-card-plan-indicator" aria-label="计划">
           <AppIcon name="list" size={18} />
@@ -233,10 +282,11 @@ export default function TaskRow({
                 <b>{step.title}</b>
               </span>
             ))}
-            {(childProgress || timelinePreview.length === 4) && <small>在计划页查看完整安排</small>}
           </div>
         )}
       </div>
+        </>
+      )}
 
       </div>
       </SwipeActionRow>

@@ -12,6 +12,7 @@ import {
 import './index.css'
 import './app-design.css'
 import './design-system.css'
+import './unified-task-surfaces.css'
 
 applyVisualPreferences(readStoredVisualPreferences())
 

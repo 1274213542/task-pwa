@@ -1,11 +1,11 @@
 import { useEffect, useRef } from 'react'
 import type { Category, TaskScheduleType } from '../lib/db'
 import type { Recurrence } from '../lib/recurrence'
-import AppIcon from './AppIcon'
 import GestureSheet, { type GestureSheetHandle } from './GestureSheet'
 import RecurrencePicker from './RecurrencePicker'
 import SegmentedIndicator from './SegmentedIndicator'
 import TaskIntentSelector from './TaskIntentSelector'
+import CategoryPickerControl from './CategoryPickerControl'
 
 export default function BatchTaskSettingsSheet({
   fixed,
@@ -24,6 +24,7 @@ export default function BatchTaskSettingsSheet({
   onScheduleDueChange,
   onShowBeforeStartChange,
   onSurfaceDaysBeforeDueChange,
+  onManageCategories,
   onClose,
 }: {
   fixed: boolean
@@ -42,6 +43,7 @@ export default function BatchTaskSettingsSheet({
   onScheduleDueChange: (scheduleDue: string) => void
   onShowBeforeStartChange: (show: boolean) => void
   onSurfaceDaysBeforeDueChange: (days: number) => void
+  onManageCategories?: () => void
   onClose: () => void
 }) {
   const dialogRef = useRef<HTMLElement>(null)
@@ -116,25 +118,15 @@ export default function BatchTaskSettingsSheet({
             </section>
           )}
 
-          {categories.length > 0 && (
-            <section className="task-batch-settings-section" aria-labelledby="batch-category-title">
-              <h3 id="batch-category-title">分类</h3>
-              <label className="task-batch-setting-picker">
-                <AppIcon name="category" size={18} />
-                <select
-                  aria-label="分类"
-                  value={categoryId}
-                  onChange={(event) => onCategoryChange(event.target.value)}
-                >
-                  <option value="">无分类</option>
-                  {categories.map((category) => (
-                    <option key={category.id} value={category.id}>{category.name}</option>
-                  ))}
-                </select>
-                <AppIcon name="chevronDown" size={15} />
-              </label>
-            </section>
-          )}
+          <section className="task-batch-settings-section" aria-labelledby="batch-category-title">
+            <h3 id="batch-category-title">分类</h3>
+            <CategoryPickerControl
+              categories={categories}
+              value={categoryId}
+              onChange={onCategoryChange}
+              onManage={onManageCategories}
+            />
+          </section>
 
           {!fixed && scheduleType === 'longTerm' && (
             <section className="task-batch-settings-section" aria-labelledby="batch-display-title">

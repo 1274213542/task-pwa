@@ -19,6 +19,7 @@ import { useCivilDate } from '../lib/useCivilDate'
 import TaskIntentSelector from './TaskIntentSelector'
 import RecurrencePicker from './RecurrencePicker'
 import { effectiveRecurrence } from '../lib/taskViews'
+import CategoryPickerControl from './CategoryPickerControl'
 
 export type EditableTaskStatus = 'pending' | 'completed' | 'skipped'
 
@@ -417,12 +418,14 @@ export default function TaskEditor({
                   <label>提前 <input type="number" min={0} max={90} value={surfaceDaysBeforeDue} onChange={(event) => setSurfaceDaysBeforeDue(Number(event.target.value) || 0)} /> 天进入近期</label>
                 </div>
               )}
-              <label className="task-editor-field">分类
-                <select value={categoryId} onChange={(event) => setCategoryId(event.target.value)} className="field">
-                  <option value="">无分类</option>
-                  {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
-                </select>
-              </label>
+              <div className="task-editor-field">
+                <span>分类</span>
+                <CategoryPickerControl
+                  categories={categories}
+                  value={categoryId}
+                  onChange={setCategoryId}
+                />
+              </div>
               {!isPlan && <label className="task-editor-field">状态
                 <select
                   value={status}

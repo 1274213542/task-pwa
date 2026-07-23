@@ -17,12 +17,21 @@ export async function addCategory(
   name: string,
   colorToken: ColorToken = 'gray',
   markerSymbol: MarkerSymbol = 'dot',
-): Promise<void> {
+): Promise<string> {
   const trimmed = name.trim()
-  if (!trimmed) return
+  if (!trimmed) throw new Error('分类名称不能为空')
+  const active = await db.categories
+    .where('lifecycleStatus')
+    .equals('active')
+    .toArray()
+  const existing = active.find(
+    (category) => category.name.trim().toLocaleLowerCase() === trimmed.toLocaleLowerCase(),
+  )
+  if (existing) return existing.id
   const t = now()
+  const id = crypto.randomUUID()
   await db.categories.add({
-    id: crypto.randomUUID(),
+    id,
     name: trimmed,
     colorToken,
     markerSymbol,
@@ -31,6 +40,7 @@ export async function addCategory(
     createdAt: t,
     updatedAt: t,
   })
+  return id
 }
 
 export async function renameCategory(id: string, name: string): Promise<void> {
