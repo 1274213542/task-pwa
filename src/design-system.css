@@ -14330,3 +14330,178 @@ html .finance-shell .finance-work-entry-row:focus-visible {
   line-height: 1;
   transform: none;
 }
+
+/* --------------------------------------------------------------------------
+   Location management, collapsible task hierarchy and compact plan children
+
+   These rules only change the local projection. Shopping data, task
+   relationships and schedule calculations remain owned by their existing
+   stores.
+   -------------------------------------------------------------------------- */
+.page-shopping .location-delete-confirm {
+  display: inline-flex;
+  min-width: 72px;
+  min-height: 36px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--color-action-danger) 20%, transparent);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--color-action-danger) 7%, var(--color-surface-primary));
+  padding-inline: 11px;
+  color: color-mix(in srgb, var(--color-action-danger) 62%, var(--color-text-primary));
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 650;
+}
+
+html .page-shopping .location-manager-new-name,
+html .page-shopping .location-manager-type {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  border: 1px solid var(--color-border-subtle) !important;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-primary) !important;
+  color: var(--color-text-primary);
+  outline: none;
+}
+
+html .page-shopping .location-manager-new-name {
+  padding-inline: 13px;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+html .page-shopping .location-manager-new-name::placeholder {
+  color: var(--color-text-tertiary);
+  font-weight: 500;
+}
+
+html .page-shopping .location-manager-type {
+  padding-inline: 11px 28px;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+}
+
+.page-shopping .location-manager-add {
+  display: inline-flex;
+  min-width: 58px;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--color-text-primary);
+  padding-inline: 13px;
+  color: var(--color-surface-primary);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 650;
+}
+
+.page-shopping .location-manager-add:disabled {
+  background: var(--color-surface-secondary);
+  color: var(--color-text-tertiary);
+  opacity: 1;
+}
+
+.task-card-parent-toggle {
+  display: grid;
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  min-height: 32px;
+  flex: 0 0 32px;
+  place-items: center;
+  border-radius: var(--radius-circle);
+  color: var(--color-text-secondary);
+}
+
+.task-card[data-has-children] {
+  cursor: pointer;
+}
+
+@media (max-width: 1023px) {
+  html .page-shopping .location-manager-composer {
+    grid-template-columns: minmax(0, 1fr) 82px 58px !important;
+    gap: 8px !important;
+    padding: 12px 14px !important;
+  }
+
+  html .page-tasks .task-card-list .task-card[data-task-role='child'] {
+    min-height: 46px !important;
+    grid-template-columns: 32px minmax(0, 1fr) !important;
+    column-gap: 8px !important;
+    padding: 3px 16px 3px 40px !important;
+  }
+
+  html .page-tasks .task-card-list .task-card[data-task-role='child'][data-task-depth='2'] {
+    padding-left: 52px !important;
+  }
+
+  html .page-tasks .task-card-list .task-card[data-task-role='child'][data-task-depth='3'],
+  html .page-tasks .task-card-list .task-card[data-task-role='child'][data-task-depth='4'] {
+    padding-left: 64px !important;
+  }
+
+  html .page-tasks .task-card-list .task-card[data-task-role='child'] .task-card-check {
+    width: 28px !important;
+    min-width: 28px !important;
+    height: 28px !important;
+    min-height: 28px !important;
+  }
+
+  html .page-tasks .task-card-list .task-card[data-task-role='child'] .task-card-check::before {
+    inset: 3px !important;
+  }
+
+  html .page-tasks .task-card-list .task-card[data-task-role='child'] .task-card-title-button {
+    min-height: 18px !important;
+    line-height: 18px !important;
+  }
+
+  html .page-tasks .task-card-list .task-card[data-task-role='child'] .task-card-title-button .strike {
+    font-size: 13.5px !important;
+    line-height: 18px !important;
+    font-weight: 560 !important;
+  }
+
+  html .page-tasks .task-card-list .task-card-swipe-row-child .apple-swipe-divider {
+    left: 80px !important;
+  }
+
+  .page-plan[data-mode='week'] .mobile-timeline-row[data-checklist-child] {
+    min-height: 50px !important;
+    grid-template-columns: 48px minmax(0, 1fr) !important;
+    gap: 6px !important;
+    padding-left: 14px !important;
+  }
+
+  .page-plan[data-mode='week'] .mobile-timeline-row[data-checklist-child] > time {
+    align-self: center !important;
+    padding-top: 0 !important;
+    font-size: 11px !important;
+    line-height: 16px !important;
+    font-weight: 560 !important;
+  }
+
+  .page-plan[data-mode='week'] .mobile-timeline-row[data-checklist-child] .mobile-timeline-event {
+    min-height: 50px !important;
+    align-content: center !important;
+    padding-block: 7px !important;
+    padding-left: 12px !important;
+  }
+
+  .page-plan[data-mode='week'] .mobile-timeline-row[data-checklist-child] .mobile-timeline-event strong {
+    font-size: 13.5px !important;
+    line-height: 18px !important;
+    font-weight: 560 !important;
+  }
+
+  .page-plan[data-mode='week'] .mobile-timeline-row[data-checklist-child] .mobile-timeline-event > span,
+  .page-plan[data-mode='week'] .mobile-timeline-row[data-checklist-child] .mobile-timeline-event > .marker-icon {
+    display: none !important;
+  }
+}

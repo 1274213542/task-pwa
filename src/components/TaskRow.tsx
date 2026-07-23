@@ -41,6 +41,9 @@ export default function TaskRow({
   nestingLevel = 0,
   childProgress,
   timelinePreview = [],
+  collapsible = false,
+  expanded = true,
+  onToggleExpanded,
   divider = false,
 }: {
   title: string
@@ -63,6 +66,9 @@ export default function TaskRow({
   nestingLevel?: number
   childProgress?: { completed: number; total: number }
   timelinePreview?: { id: string; time: string; title: string }[]
+  collapsible?: boolean
+  expanded?: boolean
+  onToggleExpanded?: () => void
   divider?: boolean
 }) {
   const reduceMotion = useReducedMotion()
@@ -115,10 +121,21 @@ export default function TaskRow({
         data-task-depth={nestingLevel || undefined}
         data-has-children={childProgress ? true : undefined}
         data-task-role={organizational ? 'plan' : isChild ? 'child' : childProgress ? 'parent' : 'task'}
+        aria-expanded={collapsible ? expanded : undefined}
         onClick={(event) => {
           if ((event.metaKey || event.ctrlKey) && onMetaClick) {
             event.preventDefault()
             onMetaClick()
+            return
+          }
+          if (
+            collapsible &&
+            onToggleExpanded &&
+            !(event.target as Element).closest(
+              '.task-card-check, .task-card-parent-toggle, .apple-swipe-actions',
+            )
+          ) {
+            onToggleExpanded()
           }
         }}
         className={`task-card ${selected ? 'is-selected' : ''} ${
@@ -160,8 +177,14 @@ export default function TaskRow({
           <button
             type="button"
             data-row-swipe-handle
-            aria-label={`编辑任务 ${title}`}
-            onClick={() => actions.onEdit?.()}
+            aria-label={collapsible
+              ? `${expanded ? '折叠' : '展开'}父任务 ${title}`
+              : `编辑任务 ${title}`}
+            onClick={(event) => {
+              event.stopPropagation()
+              if (collapsible) onToggleExpanded?.()
+              else actions.onEdit?.()
+            }}
             className="task-card-title-button"
           >
             <i className="task-title-color-dot" aria-hidden />
@@ -176,6 +199,20 @@ export default function TaskRow({
             >
               {childProgress.completed}/{childProgress.total}
             </span>
+          )}
+          {collapsible && (
+            <button
+              type="button"
+              className="task-card-parent-toggle"
+              aria-label={`${expanded ? '折叠' : '展开'}子任务`}
+              aria-expanded={expanded}
+              onClick={(event) => {
+                event.stopPropagation()
+                onToggleExpanded?.()
+              }}
+            >
+              <AppIcon name={expanded ? 'chevronDown' : 'chevronRight'} size={16} />
+            </button>
           )}
         </div>
         {!isChild && (

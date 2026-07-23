@@ -801,6 +801,8 @@ export default function Plan() {
       : (['lime', 'purple', 'charcoal'] as const)[index % 3]
     const resolved = item.kind === 'task' ? (item.completed || item.skipped) : item.completed
     const time = itemTime(item)
+    const checklistChild = item.kind === 'task' &&
+      taskChildKindOf(item.task, taskMap) === 'checklist'
     const parent = item.kind === 'task' && item.task.parentTaskId
       ? taskMap.get(item.task.parentTaskId)
       : undefined
@@ -817,7 +819,11 @@ export default function Plan() {
         disabled={dragDisabled}
         onCommit={(targetDate, targetTime) => rescheduleItem(item, targetDate, targetTime)}
       >
-        <div className="mobile-timeline-row" data-unscheduled={!time || undefined}>
+        <div
+          className="mobile-timeline-row"
+          data-unscheduled={!time || undefined}
+          data-checklist-child={checklistChild || undefined}
+        >
           <time aria-label={item.kind === 'event' && item.event.allDay ? '全天' : time ? `开始时间 ${time}` : '未排定时间'}>
             {item.kind === 'event' && item.event.allDay ? '全天' : time ?? ''}
           </time>

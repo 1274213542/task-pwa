@@ -360,6 +360,9 @@ export default function Today() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null)
   const [editingItem, setEditingItem] = useState<TodayItem | null>(null)
+  const [collapsedParentIds, setCollapsedParentIds] = useState<Set<string>>(
+    () => new Set(),
+  )
   // 完成感窗口（v4.2 §12）：勾选后原地保留 ~800ms 展示动画，再按策略归置
   const [recentlyDone, setRecentlyDone] = useState<Set<string>>(new Set())
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -506,10 +509,28 @@ export default function Today() {
     () => items ? applyTaskViewSettings(items, viewSettings) : undefined,
     [items, viewSettings],
   )
+  const hiddenTaskIds = useMemo(() => {
+    const hidden = new Set<string>()
+    const stack = [...collapsedParentIds]
+    while (stack.length > 0) {
+      const parentId = stack.pop()!
+      for (const child of childrenByParent.get(parentId) ?? []) {
+        if (hidden.has(child.id)) continue
+        hidden.add(child.id)
+        stack.push(child.id)
+      }
+    }
+    return hidden
+  }, [childrenByParent, collapsedParentIds])
   const pending =
-    projectedItems?.filter((i) => !i.completed || recentlyDone.has(keyOf(i))) ?? []
+    projectedItems?.filter((i) =>
+      !hiddenTaskIds.has(i.task.id) &&
+      (!i.completed || recentlyDone.has(keyOf(i)))) ?? []
   const done =
-    projectedItems?.filter((i) => i.completed && !recentlyDone.has(keyOf(i))) ?? []
+    projectedItems?.filter((i) =>
+      !hiddenTaskIds.has(i.task.id) &&
+      i.completed &&
+      !recentlyDone.has(keyOf(i))) ?? []
   const visiblePlanCount = projectedItems?.filter((item) => taskNodeRoleOf(item.task) === 'plan').length ?? 0
   const visibleTaskCount = (projectedItems?.length ?? 0) - visiblePlanCount
   const allDoneCount = items?.filter((item) => item.completed).length ?? 0
@@ -761,7 +782,10 @@ export default function Today() {
       tasks ?? [],
       currentCompletedTaskIds,
     )
-    const timelinePreview = (childrenByParent.get(item.task.id) ?? [])
+    const directChildren = childrenByParent.get(item.task.id) ?? []
+    const collapsible = directChildren.length > 0
+    const expanded = !collapsedParentIds.has(item.task.id)
+    const timelinePreview = directChildren
       .filter((child) => taskChildKindOf(child, taskMap) === 'timeline')
       .sort((a, b) => (a.startAt ?? '').localeCompare(b.startAt ?? ''))
       .slice(0, 4)
@@ -803,7 +827,17 @@ export default function Today() {
         overdue={item.overdue}
         nestingLevel={nestingLevel}
         childProgress={progress}
-        timelinePreview={timelinePreview}
+        timelinePreview={expanded ? timelinePreview : []}
+        collapsible={collapsible}
+        expanded={expanded}
+        onToggleExpanded={collapsible ? () => {
+          setCollapsedParentIds((current) => {
+            const next = new Set(current)
+            if (next.has(item.task.id)) next.delete(item.task.id)
+            else next.add(item.task.id)
+            return next
+          })
+        } : undefined}
         actions={actionsFor(item)}
         rowId={`${item.task.id}:${item.occurrenceKey}`}
         {...extra}

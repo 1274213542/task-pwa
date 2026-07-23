@@ -421,8 +421,7 @@ function LocationManager({ locations }: { locations: ShoppingLocation[] }) {
                   setConfirmId(null)
                   void softDeleteLocation(loc.id)
                 }}
-                className="min-h-11 shrink-0 rounded-xl bg-red-500 px-2 text-[12px]
-                  font-medium text-white"
+                className="location-delete-confirm"
               >
                 确认删除
               </button>
@@ -445,15 +444,14 @@ function LocationManager({ locations }: { locations: ShoppingLocation[] }) {
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="新建地点（超市 / 便利店 / 网站…）"
-          className="min-h-11 min-w-0 flex-1 bg-transparent text-[15px] outline-none
-            placeholder:text-neutral-400"
+          placeholder="新建地点"
+          className="location-manager-new-name"
         />
         <select
           aria-label="地点类型"
           value={type}
           onChange={(e) => setType(e.target.value as 'physical' | 'online')}
-          className="min-h-11 rounded-xl bg-neutral-100 px-2 text-[13px] dark:bg-neutral-700"
+          className="location-manager-type"
         >
           <option value="physical">实体</option>
           <option value="online">网站</option>
@@ -464,7 +462,7 @@ function LocationManager({ locations }: { locations: ShoppingLocation[] }) {
             setName('')
           }}
           disabled={!name.trim()}
-          className="shopping-secondary-action min-h-11 px-1 text-[15px] font-medium disabled:opacity-40"
+          className="location-manager-add"
         >
           添加
         </button>
@@ -656,6 +654,11 @@ export default function Shopping() {
         items: unassigned,
         purchasedCount: purchased.filter((item) => !item.locationId || !known.has(item.locationId)).length,
       })
+    groups.sort((a, b) => {
+      const aHasContent = a.items.length + a.purchasedCount > 0
+      const bHasContent = b.items.length + b.purchasedCount > 0
+      return Number(bHasContent) - Number(aHasContent)
+    })
   }
 
   function offerMoveUndo(
