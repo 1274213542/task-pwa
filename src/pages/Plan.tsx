@@ -245,6 +245,9 @@ export default function Plan() {
   const [feedback, setFeedback] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [composerOpen, setComposerOpen] = useState(false)
+  const [expandedAgendaParents, setExpandedAgendaParents] = useState<Set<string>>(
+    () => new Set(),
+  )
   const submittingRef = useRef(false)
   const dayPanelRef = useRef<HTMLDivElement>(null)
   const weekBoardRef = useRef<HTMLDivElement>(null)
@@ -680,7 +683,7 @@ export default function Plan() {
     )
   }
 
-  function itemRow(item: CalItem, index = 0) {
+  function itemRow(item: CalItem, index = 0, nestedChild = false) {
     const visual = itemVisual(item)
     const source = item.kind === 'event' ? item.event : item.task
     const sourceCategory = source.categoryId ? catMap.get(source.categoryId) : undefined
@@ -694,7 +697,9 @@ export default function Plan() {
     const timelineStep = item.kind === 'task' && taskChildKindOf(item.task, taskMap) === 'timeline'
     const timelineParent = timelineStep && item.task.parentTaskId ? taskMap.get(item.task.parentTaskId) : undefined
     const subtitle =
-      item.kind === 'event'
+      nestedChild
+        ? ''
+        : item.kind === 'event'
         ? [timeLabel, item.event.startDate !== item.event.endDate ? `${item.event.startDate.slice(5)} → ${item.event.endDate.slice(5)}` : null]
             .filter(Boolean)
             .join(' · ')
@@ -707,7 +712,7 @@ export default function Plan() {
           key={`timeline-detail:${item.task.id}:${item.date}`}
           id={`timeline-detail:${item.task.id}:${item.date}`}
           label={itemTitle(item)}
-          className="calendar-item-swipe calendar-timeline-step-swipe"
+          className={`calendar-item-swipe calendar-timeline-step-swipe ${nestedChild ? 'calendar-item-swipe-child' : ''}`}
           contentClassName="calendar-timeline-step-row"
           divider={index > 0}
           resetKey={`${mode}:${selected}`}
@@ -729,8 +734,8 @@ export default function Plan() {
         key={`${item.kind}:${item.kind === 'event' ? item.event.id : item.task.id}:${item.date}:${item.kind === 'task' ? item.occurrenceKey : ''}`}
         id={`calendar:${item.kind}:${item.kind === 'event' ? item.event.id : item.task.id}:${item.date}`}
         label={itemTitle(item)}
-        className="calendar-item-swipe"
-        contentClassName="calendar-item-card row-in"
+        className={`calendar-item-swipe ${nestedChild ? 'calendar-item-swipe-child' : ''}`}
+        contentClassName={`calendar-item-card row-in ${nestedChild ? 'calendar-item-card-child' : ''}`}
         contentProps={{
           'data-color-token': visual.color,
           'data-feature-tone': featureTone,
@@ -763,6 +768,84 @@ export default function Plan() {
         </button>
       </SwipeActionRow>
     )
+  }
+
+  function agendaRows(items: CalItem[], date: string) {
+    const children = new Map<string, CalItem[]>()
+    const parentItems = new Map<string, CalItem>()
+
+    for (const item of items) {
+      if (item.kind !== 'task') continue
+      parentItems.set(item.task.id, item)
+      const parentId = item.task.parentTaskId
+      if (!parentId || !taskMap.has(parentId)) continue
+      const siblings = children.get(parentId) ?? []
+      siblings.push(item)
+      children.set(parentId, siblings)
+    }
+
+    const emittedParents = new Set<string>()
+    const rows: ReactNode[] = []
+    items.forEach((item, index) => {
+      if (item.kind === 'task' && item.task.parentTaskId && children.has(item.task.parentTaskId)) {
+        const parentId = item.task.parentTaskId
+        if (!emittedParents.has(parentId)) {
+          rows.push(agendaParentRow(parentId, children.get(parentId) ?? [], date))
+          emittedParents.add(parentId)
+        }
+        return
+      }
+      if (item.kind === 'task' && children.has(item.task.id)) {
+        if (!emittedParents.has(item.task.id)) {
+          rows.push(agendaParentRow(item.task.id, children.get(item.task.id) ?? [], date))
+          emittedParents.add(item.task.id)
+        }
+        return
+      }
+      rows.push(itemRow(item, index))
+    })
+
+    return rows
+
+    function agendaParentRow(parentId: string, childItems: CalItem[], rowDate: string) {
+      const parent = taskMap.get(parentId)
+      const parentItem = parentItems.get(parentId)
+      const title = parentItem ? itemTitle(parentItem) : parent?.title ?? '父任务'
+      const completed = childItems.filter((child) =>
+        child.kind === 'task'
+          ? child.completed || child.skipped
+          : child.completed,
+      ).length
+      const stateKey = `${rowDate}:${parentId}`
+      const expanded = expandedAgendaParents.has(stateKey)
+
+      return (
+        <li key={`agenda-parent:${stateKey}`} className="calendar-parent-group">
+          <button
+            type="button"
+            className="calendar-parent-header"
+            aria-expanded={expanded}
+            onClick={() => {
+              setExpandedAgendaParents((current) => {
+                const next = new Set(current)
+                if (next.has(stateKey)) next.delete(stateKey)
+                else next.add(stateKey)
+                return next
+              })
+            }}
+          >
+            <strong>{title}</strong>
+            <span>{completed}/{childItems.length}</span>
+            <AppIcon name={expanded ? 'chevronDown' : 'chevronRight'} size={16} />
+          </button>
+          {expanded && (
+            <ul className="calendar-parent-children">
+              {childItems.map((child, childIndex) => itemRow(child, childIndex, true))}
+            </ul>
+          )}
+        </li>
+      )
+    }
   }
 
   const selectedItems = itemsForDate(selected)
@@ -979,11 +1062,12 @@ export default function Plan() {
               item.kind === 'task' && taskChildKindOf(item.task, taskMap) === 'timeline'
             )) && (
               <ul className="calendar-item-list">
-                {selectedItems
-                  .filter((item) => !(
+                {agendaRows(
+                  selectedItems.filter((item) => !(
                     item.kind === 'task' && taskChildKindOf(item.task, taskMap) === 'timeline'
-                  ))
-                  .map(itemRow)}
+                  )),
+                  selected,
+                )}
               </ul>
             )}
             {selectedTimelineGroups.map(([parentId, steps]) => (
@@ -1363,7 +1447,7 @@ export default function Plan() {
                   <time dateTime={date}>{dateLabel(date, { month: 'long', day: 'numeric' })}</time>
                   <span>{dateLabel(date, { weekday: 'long' })}{date === todayISO ? ' · 今天' : ''}</span>
                 </header>
-                <ul className="calendar-item-list">{items.map(itemRow)}</ul>
+                <ul className="calendar-item-list">{agendaRows(items, date)}</ul>
               </section>
             ))}
             {byDay && futureAgendaGroups.length === 0 && (

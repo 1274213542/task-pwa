@@ -360,7 +360,7 @@ export default function Today() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null)
   const [editingItem, setEditingItem] = useState<TodayItem | null>(null)
-  const [collapsedParentIds, setCollapsedParentIds] = useState<Set<string>>(
+  const [expandedParentIds, setExpandedParentIds] = useState<Set<string>>(
     () => new Set(),
   )
   // 完成感窗口（v4.2 §12）：勾选后原地保留 ~800ms 展示动画，再按策略归置
@@ -511,7 +511,9 @@ export default function Today() {
   )
   const hiddenTaskIds = useMemo(() => {
     const hidden = new Set<string>()
-    const stack = [...collapsedParentIds]
+    const visibleTaskIds = new Set(projectedItems?.map((item) => item.task.id) ?? [])
+    const stack = [...childrenByParent.keys()].filter((parentId) =>
+      visibleTaskIds.has(parentId) && !expandedParentIds.has(parentId))
     while (stack.length > 0) {
       const parentId = stack.pop()!
       for (const child of childrenByParent.get(parentId) ?? []) {
@@ -521,7 +523,7 @@ export default function Today() {
       }
     }
     return hidden
-  }, [childrenByParent, collapsedParentIds])
+  }, [childrenByParent, expandedParentIds, projectedItems])
   const pending =
     projectedItems?.filter((i) =>
       !hiddenTaskIds.has(i.task.id) &&
@@ -784,7 +786,7 @@ export default function Today() {
     )
     const directChildren = childrenByParent.get(item.task.id) ?? []
     const collapsible = directChildren.length > 0
-    const expanded = !collapsedParentIds.has(item.task.id)
+    const expanded = expandedParentIds.has(item.task.id)
     const timelinePreview = directChildren
       .filter((child) => taskChildKindOf(child, taskMap) === 'timeline')
       .sort((a, b) => (a.startAt ?? '').localeCompare(b.startAt ?? ''))
@@ -831,7 +833,7 @@ export default function Today() {
         collapsible={collapsible}
         expanded={expanded}
         onToggleExpanded={collapsible ? () => {
-          setCollapsedParentIds((current) => {
+          setExpandedParentIds((current) => {
             const next = new Set(current)
             if (next.has(item.task.id)) next.delete(item.task.id)
             else next.add(item.task.id)
