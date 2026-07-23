@@ -14,7 +14,7 @@ import { cachedRate, convertWithCachedRate, refreshExchangeRate, saveManualExcha
 import { calculateDurationMinutes } from '../lib/finance'
 import { MOTION } from '../lib/motion'
 import {
-  calculateAccountBalances,
+  calculateAccountBalancesByCurrency,
   accountCurrencies,
   accountOwnership,
   accountSupportsCurrency,
@@ -44,7 +44,9 @@ import SegmentedIndicator from '../components/SegmentedIndicator'
 import SwipeActionRow from '../components/SwipeActionRow'
 import type {
   Account,
+  CreditCardSettlement,
   CurrencyCode,
+  FinanceTransfer,
   FinanceTransaction,
   FinanceTransactionType,
   ExchangeRate,
@@ -114,6 +116,33 @@ function formatMoney(amountMinor: number, currency: CurrencyCode) {
   }).format(fromMinor(amountMinor, currency))
 }
 
+function accountBalanceEntries(
+  account: Account,
+  balances: Map<string, Map<CurrencyCode, number>>,
+) {
+  const byCurrency = balances.get(account.id) ?? new Map<CurrencyCode, number>()
+  const currencies = [...new Set([...accountCurrencies(account), ...byCurrency.keys()])]
+  return currencies
+    .map((currency) => ({ currency, amountMinor: byCurrency.get(currency) ?? 0 }))
+    .sort((left, right) =>
+      left.currency === account.currency ? -1 : right.currency === account.currency ? 1 : 0,
+    )
+}
+
+function formatMoneyEntries(entries: { currency: CurrencyCode; amountMinor: number }[]) {
+  return entries.map(({ currency, amountMinor }) => formatMoney(amountMinor, currency)).join(' · ')
+}
+
+function entryKindForTransaction(transaction: FinanceTransaction): EntryKind | undefined {
+  if (['expense', 'credit_purchase', 'external_payment'].includes(transaction.type)) {
+    return 'expense'
+  }
+  if (ENTRY_KINDS.includes(transaction.type as EntryKind)) {
+    return transaction.type as EntryKind
+  }
+  return undefined
+}
+
 function formatMinutes(minutes: number) {
   const hours = Math.floor(minutes / 60)
   const rest = minutes % 60
@@ -178,6 +207,7 @@ export default function FinanceLedger() {
     query.get('panel') === 'categories',
   )
   const [editingTransaction, setEditingTransaction] = useState<FinanceTransaction | undefined>()
+  const [selectedTransactionId, setSelectedTransactionId] = useState<string>()
   const [feedback, setFeedback] = useState('')
   const previousViewRef = useRef(view)
   const reduceMotion = useReducedMotion()
@@ -195,6 +225,14 @@ export default function FinanceLedger() {
     [],
   )
   const transactions = useMemo(() => transactionsLive ?? [], [transactionsLive])
+  const financeTransfers = useLiveQuery(
+    () => db.financeTransfers.where('lifecycleStatus').equals('active').toArray(),
+    [],
+  ) ?? []
+  const creditCardSettlements = useLiveQuery(
+    () => db.creditCardSettlements.toArray(),
+    [],
+  ) ?? []
   const ratesLive = useLiveQuery(() => db.exchangeRates.toArray(), [], [])
   const rates = useMemo(() => ratesLive ?? [], [ratesLive])
   const categories = useLiveQuery(
@@ -221,9 +259,12 @@ export default function FinanceLedger() {
     }),
     [accounts, transactions, rates, reportingCurrency],
   )
-  const balances = useMemo(
-    () => calculateAccountBalances(accounts, transactions),
+  const balancesByCurrency = useMemo(
+    () => calculateAccountBalancesByCurrency(accounts, transactions),
     [accounts, transactions],
+  )
+  const selectedTransaction = transactions.find(
+    (transaction) => transaction.id === selectedTransactionId,
   )
   const sortedTransactions = useMemo(
     () => [...transactions].sort((a, b) => b.occurredAt.localeCompare(a.occurredAt)),
@@ -247,6 +288,13 @@ export default function FinanceLedger() {
     setEntryKind(kind)
     setEditingTransaction(transaction)
     setEntryOpen(true)
+  }
+
+  function editTransaction(transaction: FinanceTransaction) {
+    const kind = entryKindForTransaction(transaction)
+    if (!kind) return
+    setSelectedTransactionId(undefined)
+    openEntry(kind, transaction)
   }
 
   function selectView(nextView: FinanceView) {
@@ -337,7 +385,7 @@ export default function FinanceLedger() {
           {view === 'overview' && (
             <FinanceOverview
               accounts={accounts}
-              balances={balances}
+              balances={balancesByCurrency}
               transactions={recentTransactions}
               currency={reportingCurrency}
               summary={currentSummary}
@@ -345,12 +393,13 @@ export default function FinanceLedger() {
               onOpenAccounts={() => selectView('accounts')}
               onOpenTransactions={() => selectView('transactions')}
               onNew={openEntry}
+              onOpenTransaction={(transaction) => setSelectedTransactionId(transaction.id)}
             />
           )}
           {view === 'accounts' && (
             <AccountsView
               accounts={accounts}
-              balances={balances}
+              balances={balancesByCurrency}
               transactions={transactions}
               onFeedback={setFeedback}
               onTransfer={() => openEntry('transfer')}
@@ -361,7 +410,7 @@ export default function FinanceLedger() {
               transactions={sortedTransactions}
               accounts={accounts}
               onNew={openEntry}
-              onEdit={(transaction) => openEntry('expense', transaction)}
+              onOpen={(transaction) => setSelectedTransactionId(transaction.id)}
               onFeedback={setFeedback}
             />
           )}
@@ -392,6 +441,7 @@ export default function FinanceLedger() {
           editing={editingTransaction}
           accounts={accounts}
           transactions={transactions}
+          settlements={creditCardSettlements}
           categories={categories}
           reportingCurrency={reportingCurrency}
           onSaved={(message) => {
@@ -403,6 +453,26 @@ export default function FinanceLedger() {
             setEntryOpen(false)
             setEditingTransaction(undefined)
           }}
+        />
+      )}
+      {selectedTransaction && (
+        <FinanceTransactionDetailSheet
+          transaction={selectedTransaction}
+          accounts={accounts}
+          transfers={financeTransfers}
+          settlements={creditCardSettlements}
+          onEdit={() => editTransaction(selectedTransaction)}
+          onDelete={async () => {
+            if (!window.confirm(`删除“${TRANSACTION_LABEL[selectedTransaction.type]}”记录？`)) return
+            try {
+              await softDeleteFinanceTransaction(selectedTransaction.id)
+              setSelectedTransactionId(undefined)
+              setFeedback('流水已删除，相关账户余额已立即重算')
+            } catch (error) {
+              setFeedback(error instanceof Error ? error.message : '删除失败')
+            }
+          }}
+          onClose={() => setSelectedTransactionId(undefined)}
         />
       )}
       {categoryManagerOpen && (
@@ -427,9 +497,10 @@ function FinanceOverview({
   onOpenAccounts,
   onOpenTransactions,
   onNew,
+  onOpenTransaction,
 }: {
   accounts: Account[]
-  balances: Map<string, number>
+  balances: Map<string, Map<CurrencyCode, number>>
   transactions: FinanceTransaction[]
   currency: CurrencyCode
   summary: ReturnType<typeof ledgerSummary>
@@ -437,6 +508,7 @@ function FinanceOverview({
   onOpenAccounts: () => void
   onOpenTransactions: () => void
   onNew: (kind: EntryKind) => void
+  onOpenTransaction: (transaction: FinanceTransaction) => void
 }) {
   const monthWork = workEntries.filter((entry) =>
     entry.lifecycleStatus === 'active' && entry.worked &&
@@ -490,6 +562,7 @@ function FinanceOverview({
         transactions={transactions.slice(0, 6)}
         accounts={accounts}
         onSeeAll={onOpenTransactions}
+        onOpen={onOpenTransaction}
       />
 
       <section className="finance-section-card finance-account-snapshot">
@@ -502,7 +575,7 @@ function FinanceOverview({
                 <div><strong>{account.name}</strong><span>{accountOwnership(account) === 'external' ? `外部代付 · ${accountCurrencies(account).join(' / ')}` : ACCOUNT_SUBTYPE_LABEL[account.subtype]}</span></div>
                 <b>{accountOwnership(account) === 'external'
                   ? '不计入资产'
-                  : <PrivateAmount>{formatMoney(balances.get(account.id) ?? 0, account.currency)}</PrivateAmount>}</b>
+                  : <PrivateAmount>{formatMoneyEntries(accountBalanceEntries(account, balances))}</PrivateAmount>}</b>
               </li>
             ))}
           </ul>
@@ -523,7 +596,7 @@ function AccountsView({
   onTransfer,
 }: {
   accounts: Account[]
-  balances: Map<string, number>
+  balances: Map<string, Map<CurrencyCode, number>>
   transactions: FinanceTransaction[]
   onFeedback: (value: string) => void
   onTransfer: () => void
@@ -537,6 +610,7 @@ function AccountsView({
   const [subtype, setSubtype] = useState<Account['subtype']>('bank')
   const [currency, setCurrency] = useState<CurrencyCode>('JPY')
   const [supportedCurrencies, setSupportedCurrencies] = useState<CurrencyCode[]>(['JPY'])
+  const [openingCurrency, setOpeningCurrency] = useState<CurrencyCode>('JPY')
   const [opening, setOpening] = useState('0')
   const [includeNetWorth, setIncludeNetWorth] = useState(true)
   const [includeSpending, setIncludeSpending] = useState(true)
@@ -553,7 +627,9 @@ function AccountsView({
     setSubtype(editing.subtype)
     setCurrency(editing.currency)
     setSupportedCurrencies(accountCurrencies(editing))
-    setOpening(String(fromMinor(editing.openingBalanceMinor, editing.currency)))
+    const existingOpeningCurrency = editing.openingBalanceCurrency ?? editing.currency
+    setOpeningCurrency(existingOpeningCurrency)
+    setOpening(String(fromMinor(editing.openingBalanceMinor, existingOpeningCurrency)))
     setIncludeNetWorth(editing.includeInNetWorth)
     setIncludeSpending(editing.includeInSpending)
     setBillingCycleDay(editing.billingCycleDay ? String(editing.billingCycleDay) : '')
@@ -570,6 +646,7 @@ function AccountsView({
     setSubtype('bank')
     setCurrency('JPY')
     setSupportedCurrencies(['JPY'])
+    setOpeningCurrency('JPY')
     setOpening('0')
     setIncludeNetWorth(true)
     setIncludeSpending(true)
@@ -590,8 +667,9 @@ function AccountsView({
         ownership,
         subtype,
         currency,
-        supportedCurrencies: ownership === 'external' ? supportedCurrencies : [currency],
-        openingBalanceMinor: toMinor(Number(opening) || 0, currency),
+        supportedCurrencies,
+        openingBalanceCurrency: openingCurrency,
+        openingBalanceMinor: toMinor(Number(opening) || 0, openingCurrency),
         includeInNetWorth: ownership === 'external' ? false : includeNetWorth,
         includeInSpending: includeSpending,
         billingCycleDay: Number(billingCycleDay) || undefined,
@@ -620,24 +698,33 @@ function AccountsView({
           <label>账户归属<select value={ownership} onChange={(event) => { const next = event.target.value as NonNullable<Account['ownership']>; setOwnership(next); if (next === 'external') setIncludeNetWorth(false) }}><option value="self">本人账户</option><option value="external">外部账户</option></select></label>
           <label>账户大类<select value={kind === 'external' ? 'asset' : kind} onChange={(event) => { const next = event.target.value as Account['kind']; setKind(next); setSubtype(accountDefaultSubtype(next)) }}><option value="asset">资产 / 储值账户</option><option value="credit">信用卡账户</option></select></label>
           <label>账户类型<select value={subtype === 'external_payer' || subtype === 'unspecified' ? (kind === 'credit' ? 'credit_card' : 'wallet') : subtype} onChange={(event) => setSubtype(event.target.value as Account['subtype'])}>{kind === 'asset' && <><option value="bank">银行账户</option><option value="cash">现金</option><option value="wallet">电子钱包 / 代付账户</option><option value="stored_value">储值卡 / 交通卡</option></>}{kind === 'credit' && <option value="credit_card">信用卡</option>}</select></label>
-          <label>默认币种<select value={currency} onChange={(event) => { const next = event.target.value as CurrencyCode; setCurrency(next); setSupportedCurrencies((current) => [...new Set([next, ...current])]) }}><option value="JPY">JPY 日元</option><option value="CNY">CNY 人民币</option></select></label>
-          {ownership === 'external' && <fieldset className="finance-account-currency-options">
-            <legend>可用于记账的币种</legend>
+          <label>默认币种<select value={currency} onChange={(event) => { const next = event.target.value as CurrencyCode; setCurrency(next); if (!editingId) setOpeningCurrency(next); setSupportedCurrencies((current) => [...new Set([next, ...current])]) }}><option value="JPY">JPY 日元</option><option value="CNY">CNY 人民币</option></select></label>
+          <fieldset className="finance-account-currency-options">
+            <legend>支持的币种</legend>
             {(['JPY', 'CNY'] as CurrencyCode[]).map((code) => <label key={code}>
               <input
                 type="checkbox"
                 checked={supportedCurrencies.includes(code)}
-                disabled={code === currency}
+                disabled={code === currency || code === openingCurrency}
                 onChange={(event) => setSupportedCurrencies((current) => event.target.checked
                   ? [...new Set([...current, code])]
                   : current.filter((item) => item !== code))}
               />
               {code === 'JPY' ? 'JPY 日元' : 'CNY 人民币'}
             </label>)}
-            <small>外部代付不维护个人余额；每笔流水仍保留自己的原始币种。</small>
-          </fieldset>}
+            <small>只有启用的币种才会在记账时出现；每笔流水保留自己的原始币种。</small>
+          </fieldset>
+          <label>初始{kind === 'credit' ? '待还金额' : '余额'}币种
+            <select
+              value={openingCurrency}
+              disabled={Boolean(editingId)}
+              onChange={(event) => setOpeningCurrency(event.target.value as CurrencyCode)}
+            >
+              {supportedCurrencies.map((code) => <option key={code} value={code}>{code}</option>)}
+            </select>
+          </label>
           <label>初始{kind === 'credit' ? '待还金额' : '余额'}<input inputMode="decimal" value={opening} onChange={(event) => setOpening(event.target.value)} /></label>
-          {kind === 'credit' && <><label>账单日<input inputMode="numeric" value={billingCycleDay} onChange={(event) => setBillingCycleDay(event.target.value)} placeholder="例如 15" /></label><label>预计扣款日<input inputMode="numeric" value={paymentDueDay} onChange={(event) => setPaymentDueDay(event.target.value)} placeholder="例如 27" /></label>{ownership === 'self' && <label>默认还款账户<select value={defaultPaymentAccountId} onChange={(event) => setDefaultPaymentAccountId(event.target.value)}><option value="">稍后选择</option>{accounts.filter((account) => account.kind === 'asset' && accountOwnership(account) === 'self' && !account.isArchived && account.currency === currency).map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>}</>}
+          {kind === 'credit' && <><label>账单日<input inputMode="numeric" value={billingCycleDay} onChange={(event) => setBillingCycleDay(event.target.value)} placeholder="例如 15" /></label><label>预计扣款日<input inputMode="numeric" value={paymentDueDay} onChange={(event) => setPaymentDueDay(event.target.value)} placeholder="例如 27" /></label>{ownership === 'self' && <label>默认还款账户<select value={defaultPaymentAccountId} onChange={(event) => setDefaultPaymentAccountId(event.target.value)}><option value="">稍后选择</option>{accounts.filter((account) => account.kind === 'asset' && accountOwnership(account) === 'self' && !account.isArchived && accountSupportsCurrency(account, currency)).map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>}</>}
           <div className="finance-account-checks">
             <label><input type="checkbox" checked={includeNetWorth} disabled={ownership === 'external'} onChange={(event) => setIncludeNetWorth(event.target.checked)} />计入个人净资产</label>
             <label><input type="checkbox" checked={includeSpending} onChange={(event) => setIncludeSpending(event.target.checked)} />计入消费统计</label>
@@ -648,8 +735,20 @@ function AccountsView({
       <div className="finance-account-grid">
         {accounts.map((account) => {
           const month = todayISO().slice(0, 7)
-          const monthPurchases = transactions.filter((transaction) => transaction.lifecycleStatus === 'active' && transaction.localDate.startsWith(month) && transaction.accountId === account.id && transaction.type === 'credit_purchase').reduce((sum, transaction) => sum + transaction.amountMinor, 0)
-          const monthPayments = transactions.filter((transaction) => transaction.lifecycleStatus === 'active' && transaction.localDate.startsWith(month) && transaction.counterpartyAccountId === account.id && transaction.type === 'credit_payment').reduce((sum, transaction) => sum + (transaction.counterpartyAmountMinor ?? transaction.amountMinor), 0)
+          const monthPurchases = transactions
+            .filter((transaction) => transaction.lifecycleStatus === 'active' && transaction.localDate.startsWith(month) && transaction.accountId === account.id && transaction.type === 'credit_purchase')
+            .reduce((totals, transaction) => {
+              totals.set(transaction.currency, (totals.get(transaction.currency) ?? 0) + transaction.amountMinor)
+              return totals
+            }, new Map<CurrencyCode, number>())
+          const monthPayments = transactions
+            .filter((transaction) => transaction.lifecycleStatus === 'active' && transaction.localDate.startsWith(month) && transaction.counterpartyAccountId === account.id && transaction.type === 'credit_payment')
+            .reduce((totals, transaction) => {
+              const paymentCurrency = transaction.counterpartyCurrency ?? transaction.currency
+              totals.set(paymentCurrency, (totals.get(paymentCurrency) ?? 0) + (transaction.counterpartyAmountMinor ?? transaction.amountMinor))
+              return totals
+            }, new Map<CurrencyCode, number>())
+          const balanceEntries = accountBalanceEntries(account, balances)
           return <article key={account.id} className="finance-account-card" data-archived={account.isArchived || undefined}>
             <header>
               <div className="finance-account-identity">
@@ -661,10 +760,10 @@ function AccountsView({
               </div>
               {accountOwnership(account) === 'external'
                 ? <strong className="finance-account-external-label">外部代付</strong>
-                : <strong><PrivateAmount>{formatMoney(balances.get(account.id) ?? 0, account.currency)}</PrivateAmount></strong>}
+                : <strong className="finance-account-balance-stack">{balanceEntries.map(({ currency: balanceCurrency, amountMinor }) => <PrivateAmount key={balanceCurrency}>{formatMoney(amountMinor, balanceCurrency)}</PrivateAmount>)}</strong>}
             </header>
             <div className="finance-account-supporting">
-              <small>{account.isArchived ? '已停用 · 历史仍保留' : accountOwnership(account) === 'external' ? '不影响个人资产或负债' : account.kind === 'credit' ? <>本期 <PrivateAmount>{formatMoney(monthPurchases, account.currency)}</PrivateAmount> · 已还 <PrivateAmount>{formatMoney(monthPayments, account.currency)}</PrivateAmount>{account.paymentDueDay ? ` · ${account.paymentDueDay} 日扣款` : ''}</> : '当前余额'}</small>
+              <small>{account.isArchived ? '已停用 · 历史仍保留' : accountOwnership(account) === 'external' ? '不影响个人资产或负债' : account.kind === 'credit' ? <>本期 <PrivateAmount>{formatMoneyEntries([...monthPurchases].map(([monthCurrency, amountMinor]) => ({ currency: monthCurrency, amountMinor }))) || '—'}</PrivateAmount> · 已还 <PrivateAmount>{formatMoneyEntries([...monthPayments].map(([monthCurrency, amountMinor]) => ({ currency: monthCurrency, amountMinor }))) || '—'}</PrivateAmount>{account.paymentDueDay ? ` · ${account.paymentDueDay} 日扣款` : ''}</> : '按原币种分别显示余额'}</small>
               <span className="finance-account-currencies">{accountCurrencies(account).join(' / ')}</span>
             </div>
             <details className="finance-account-actions-menu">
@@ -687,13 +786,13 @@ function TransactionsView({
   transactions,
   accounts,
   onNew,
-  onEdit,
+  onOpen,
   onFeedback,
 }: {
   transactions: FinanceTransaction[]
   accounts: Account[]
   onNew: (kind: EntryKind) => void
-  onEdit: (transaction: FinanceTransaction) => void
+  onOpen: (transaction: FinanceTransaction) => void
   onFeedback: (value: string) => void
 }) {
   const [filter, setFilter] = useState<'all' | 'spending' | 'income' | 'transfer'>('all')
@@ -717,7 +816,7 @@ function TransactionsView({
         title="全部流水"
         transactions={visible}
         accounts={accounts}
-        onEdit={onEdit}
+        onOpen={onOpen}
         onDelete={async (transaction) => {
           if (!window.confirm(`删除“${TRANSACTION_LABEL[transaction.type]}”记录？`)) return
           try {
@@ -737,14 +836,14 @@ function TransactionList({
   transactions,
   accounts,
   onSeeAll,
-  onEdit,
+  onOpen,
   onDelete,
 }: {
   title: string
   transactions: FinanceTransaction[]
   accounts: Account[]
   onSeeAll?: () => void
-  onEdit?: (transaction: FinanceTransaction) => void
+  onOpen?: (transaction: FinanceTransaction) => void
   onDelete?: (transaction: FinanceTransaction) => void
 }) {
   const accountMap = new Map(accounts.map((account) => [account.id, account]))
@@ -769,9 +868,20 @@ function TransactionList({
           className="finance-transaction-swipe-row"
           contentClassName="finance-transaction-row"
           divider={index > 0}
+          contentProps={onOpen ? {
+            role: 'button',
+            tabIndex: 0,
+            onClick: () => onOpen(transaction),
+            onKeyDown: (event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault()
+                onOpen(transaction)
+              }
+            },
+          } : undefined}
           actions={[
-            ...(onEdit && ['expense', 'credit_purchase', 'external_payment'].includes(transaction.type)
-              ? [{ label: '更多', icon: 'more' as const, tone: 'neutral' as const, onSelect: () => onEdit(transaction) }]
+            ...(onOpen
+              ? [{ label: '更多', icon: 'more' as const, tone: 'neutral' as const, onSelect: () => onOpen(transaction) }]
               : []),
             ...(onDelete
               ? [{ label: '删除', icon: 'trash' as const, tone: 'danger' as const, onSelect: () => onDelete(transaction) }]
@@ -793,9 +903,136 @@ function TransactionList({
             <small className="finance-transaction-currency">{transaction.currency}</small>
             <PrivateAmount>{`${positive ? '+' : transaction.type === 'external_payment' ? '' : '−'}${formatMoney(transaction.amountMinor, transaction.currency)}`}</PrivateAmount>
           </b>
+          {onOpen && <AppIcon name="chevronRight" size={16} />}
         </SwipeActionRow>
       })}</ul> : <div className="finance-empty-state"><AppIcon name="receipt" size={24} /><span>还没有流水</span></div>}
     </section>
+  )
+}
+
+function FinanceTransactionDetailSheet({
+  transaction,
+  accounts,
+  transfers,
+  settlements,
+  onEdit,
+  onDelete,
+  onClose,
+}: {
+  transaction: FinanceTransaction
+  accounts: Account[]
+  transfers: FinanceTransfer[]
+  settlements: CreditCardSettlement[]
+  onEdit: () => void
+  onDelete: () => void
+  onClose: () => void
+}) {
+  const sheetRef = useRef<GestureSheetHandle>(null)
+  const dialogRef = useRef<HTMLElement>(null)
+  const accountMap = new Map(accounts.map((account) => [account.id, account]))
+  const account = accountMap.get(transaction.accountId)
+  const destination = transaction.counterpartyAccountId
+    ? accountMap.get(transaction.counterpartyAccountId)
+    : undefined
+  const transfer = transfers.find(
+    (item) => item.id === transaction.transferId || item.transactionId === transaction.id,
+  )
+  const settlement = settlements.find((item) => item.transactionId === transaction.id)
+  const external =
+    transaction.fundingParty === 'external' ||
+    transaction.type === 'external_payment' ||
+    accountOwnership(account) === 'external'
+  const editable = Boolean(entryKindForTransaction(transaction))
+  const positive = transaction.type === 'income' || transaction.type === 'refund'
+  const amountPrefix = positive ? '+' : transaction.type === 'external_payment' ? '' : '−'
+  const secondaryRows = [
+    ['分类', transaction.categoryNameSnapshot ?? '未分类'],
+    ['商家 / 地点', transaction.merchantNameSnapshot ?? '未填写'],
+    ['资金承担', external ? '外部代付' : '本人支付'],
+    ['消费统计', transaction.includeInSpending ? '计入' : '不计入'],
+    ['影响净资产', transaction.affectsNetWorth ? '是' : '否'],
+    ['备注', transaction.note || '无'],
+  ]
+  const technicalRows = [
+    ...(destination ? [['对方账户', destination.name]] : []),
+    ...(transaction.counterpartyAmountMinor !== undefined
+      ? [[
+          '对方金额',
+          formatMoney(
+            transaction.counterpartyAmountMinor,
+            transaction.counterpartyCurrency ?? destination?.currency ?? transaction.currency,
+          ),
+        ]]
+      : []),
+    ...(transaction.feeMinor ? [['手续费', formatMoney(transaction.feeMinor, transaction.currency)]] : []),
+    ...(settlement?.dueDate ? [['还款到期日', settlement.dueDate]] : []),
+    ...(transaction.reportingAmountMinor !== undefined && transaction.reportingCurrency
+      ? [['汇总参考', formatMoney(transaction.reportingAmountMinor, transaction.reportingCurrency)]]
+      : []),
+    ...(transaction.exchangeRate
+      ? [['保存汇率', `${transaction.exchangeRate} · ${transaction.exchangeRateDate ?? transaction.localDate}`]]
+      : []),
+    ...(transaction.direction
+      ? [['资金方向', transaction.direction === 'inflow' ? '流入' : '流出']]
+      : []),
+    ...(transaction.linkedTransactionId ? [['关联原记录', transaction.linkedTransactionId]] : []),
+    ...(transaction.transferId ? [['转账关联', transaction.transferId]] : []),
+    ...(transaction.paycheckId ? [['工资结算关联', transaction.paycheckId]] : []),
+    ...(transaction.recurringInstanceId ? [['周期实例关联', transaction.recurringInstanceId]] : []),
+    ...(transfer?.exchangeRate ? [['转账汇率', String(transfer.exchangeRate)]] : []),
+  ]
+  return (
+    <GestureSheet
+      ref={sheetRef}
+      dialogRef={dialogRef}
+      labelledBy="finance-transaction-detail-title"
+      className="editor-sheet finance-record-detail-sheet"
+      onClose={onClose}
+    >
+      <div className="finance-record-detail">
+        <header className="finance-sheet-header" data-sheet-drag-handle>
+          <h2 id="finance-transaction-detail-title">流水详情</h2>
+          <button type="button" aria-label="关闭" onClick={() => sheetRef.current?.close()}>
+            <AppIcon name="close" size={20} />
+          </button>
+        </header>
+        <div className="finance-record-detail-body">
+          <section className="finance-record-hero">
+            <span>{TRANSACTION_LABEL[transaction.type]}</span>
+            <strong><PrivateAmount>{`${amountPrefix}${formatMoney(transaction.amountMinor, transaction.currency)}`}</PrivateAmount></strong>
+            <small>{transaction.localDate} · {account?.name ?? '未知账户'}</small>
+          </section>
+          <section className="finance-record-detail-group">
+            <h3>记录内容</h3>
+            <dl>
+              {secondaryRows.map(([label, value]) => (
+                <div key={label}><dt>{label}</dt><dd>{value}</dd></div>
+              ))}
+            </dl>
+          </section>
+          {technicalRows.length > 0 && (
+            <section className="finance-record-detail-group">
+              <h3>资金变化</h3>
+              <dl>
+                {technicalRows.map(([label, value]) => (
+                  <div key={label}><dt>{label}</dt><dd>{value}</dd></div>
+                ))}
+              </dl>
+            </section>
+          )}
+          <p className="finance-record-audit">
+            创建于 {new Date(transaction.createdAt).toLocaleString('zh-CN')}
+            {transaction.updatedAt !== transaction.createdAt
+              ? ` · 更新于 ${new Date(transaction.updatedAt).toLocaleString('zh-CN')}`
+              : ''}
+          </p>
+        </div>
+        <div className="finance-sheet-actions">
+          <button type="button" className="danger" onClick={onDelete}>删除</button>
+          {editable && <button type="button" className="primary" onClick={onEdit}>编辑</button>}
+        </div>
+      </div>
+    </GestureSheet>
   )
 }
 
@@ -838,6 +1075,7 @@ function WorkView({
   const [actualPaidAmount, setActualPaidAmount] = useState('')
   const [settling, setSettling] = useState(false)
   const [legacyDurationMinutes, setLegacyDurationMinutes] = useState<number | null>(null)
+  const [selectedWorkEntryId, setSelectedWorkEntryId] = useState('')
 
   const activeEntries = [...entries].sort((a, b) => b.date.localeCompare(a.date))
   const pending = activeEntries.filter((entry) => entry.settlementStatus === 'unsettled' && entry.worked)
@@ -1067,7 +1305,7 @@ function WorkView({
           </div>
           <label>时薪<input inputMode="decimal" value={hourlyRate} onChange={(event) => setHourlyRate(event.target.value)} /></label>
           <label>币种<select value={currency} onChange={(event) => setCurrency(event.target.value as CurrencyCode)}><option value="JPY">JPY</option><option value="CNY">CNY</option></select></label>
-          <label>工资入账账户<select value={payoutAccountId} onChange={(event) => setPayoutAccountId(event.target.value)}><option value="">稍后选择</option>{payoutAccounts.filter((account) => account.currency === currency).map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>
+          <label>工资入账账户<select value={payoutAccountId} onChange={(event) => setPayoutAccountId(event.target.value)}><option value="">稍后选择</option>{payoutAccounts.filter((account) => accountSupportsCurrency(account, currency)).map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>
           <label>工作内容<input value={content} onChange={(event) => setContent(event.target.value)} placeholder="会记住到模板" /></label>
           <label>工作地点<input value={location} onChange={(event) => setLocation(event.target.value)} /></label>
           <label className="wide">雇主 / 项目<input value={employer} onChange={(event) => setEmployer(event.target.value)} /></label>
@@ -1083,8 +1321,22 @@ function WorkView({
           className="finance-work-entry-swipe"
           contentClassName="finance-work-entry-row"
           divider={index > 0}
+          contentProps={{
+            role: 'button',
+            tabIndex: 0,
+            onClick: (event) => {
+              if ((event.target as HTMLElement).closest('[data-no-row-swipe], button, input')) return
+              setSelectedWorkEntryId(entry.id)
+            },
+            onKeyDown: (event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault()
+                setSelectedWorkEntryId(entry.id)
+              }
+            },
+          }}
           actions={[
-            { label: '更多', icon: 'more', tone: 'neutral', onSelect: () => beginWorkEdit(entry) },
+            { label: '更多', icon: 'more', tone: 'neutral', onSelect: () => setSelectedWorkEntryId(entry.id) },
             { label: '删除', icon: 'trash', tone: 'danger', disabled: entry.settlementStatus === 'settled', onSelect: () => void removeWorkEntry(entry) },
           ]}
         >
@@ -1109,7 +1361,88 @@ function WorkView({
           </div>
         </SwipeActionRow>)}</ul> : <div className="finance-empty-state">还没有工作记录</div>}
       </section>
+      {selectedWorkEntryId && (() => {
+        const selected = entries.find((entry) => entry.id === selectedWorkEntryId)
+        if (!selected) return null
+        return <WorkEntryDetailSheet
+          entry={selected}
+          account={accounts.find((account) => account.id === selected.payoutAccountId)}
+          onEdit={() => {
+            setSelectedWorkEntryId('')
+            beginWorkEdit(selected)
+          }}
+          onDelete={async () => {
+            await removeWorkEntry(selected)
+            setSelectedWorkEntryId('')
+          }}
+          onClose={() => setSelectedWorkEntryId('')}
+        />
+      })()}
     </div>
+  )
+}
+
+function WorkEntryDetailSheet({
+  entry,
+  account,
+  onEdit,
+  onDelete,
+  onClose,
+}: {
+  entry: WorkEntry
+  account?: Account
+  onEdit: () => void
+  onDelete: () => void
+  onClose: () => void
+}) {
+  const sheetRef = useRef<GestureSheetHandle>(null)
+  const dialogRef = useRef<HTMLElement>(null)
+  const rows = [
+    ['日期', entry.date],
+    ['出退勤', entry.startTime && entry.endTime ? `${entry.startTime}–${entry.endTime}` : '旧记录未保存出退勤'],
+    ['有效工时', formatMinutes(entry.durationMinutes)],
+    ['休息', entry.breakMinutes > 0 ? `${entry.breakMinutes} 分钟` : '无'],
+    ['工作内容', entry.workContent || '未填写'],
+    ['工作地点', entry.workLocation || '未填写'],
+    ['雇主 / 项目', entry.employer || '未填写'],
+    ['时薪', formatMoney(entry.hourlyRateMinor, entry.currency)],
+    ['预计工资', formatMoney(entry.estimatedGrossMinor, entry.currency)],
+    ['入账账户', account?.name ?? '未选择'],
+    ['入账状态', entry.settlementStatus === 'settled' ? '已实际入账' : '待入账'],
+    ['备注', entry.note || '无'],
+  ]
+  return (
+    <GestureSheet
+      ref={sheetRef}
+      dialogRef={dialogRef}
+      labelledBy="work-entry-detail-title"
+      className="editor-sheet finance-record-detail-sheet"
+      onClose={onClose}
+    >
+      <div className="finance-record-detail">
+        <header className="finance-sheet-header" data-sheet-drag-handle>
+          <h2 id="work-entry-detail-title">工作记录详情</h2>
+          <button type="button" aria-label="关闭" onClick={() => sheetRef.current?.close()}>
+            <AppIcon name="close" size={20} />
+          </button>
+        </header>
+        <div className="finance-record-detail-body">
+          <section className="finance-record-hero">
+            <span>{entry.workContent || entry.employer || '工作'}</span>
+            <strong><PrivateAmount>{formatMoney(entry.estimatedGrossMinor, entry.currency)}</PrivateAmount></strong>
+            <small>{formatWorkEntryTiming(entry)}</small>
+          </section>
+          <section className="finance-record-detail-group">
+            <h3>完整记录</h3>
+            <dl>{rows.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
+          </section>
+        </div>
+        <div className="finance-sheet-actions">
+          <button type="button" className="danger" disabled={entry.settlementStatus === 'settled'} onClick={onDelete}>删除</button>
+          <button type="button" className="primary" disabled={entry.settlementStatus === 'settled'} onClick={onEdit}>编辑</button>
+        </div>
+      </div>
+    </GestureSheet>
   )
 }
 
@@ -1434,6 +1767,7 @@ function FinanceEntrySheet({
   editing,
   accounts,
   transactions,
+  settlements,
   categories,
   reportingCurrency,
   onSaved,
@@ -1443,6 +1777,7 @@ function FinanceEntrySheet({
   editing?: FinanceTransaction
   accounts: Account[]
   transactions: FinanceTransaction[]
+  settlements: CreditCardSettlement[]
   categories: ExpenseCategory[]
   reportingCurrency: CurrencyCode
   onSaved: (message: string) => void
@@ -1464,6 +1799,9 @@ function FinanceEntrySheet({
   }>>>({})
   const entryDefaults = useMemo(loadFinanceEntryDefaults, [])
   const activeAccounts = accounts.filter((account) => !account.isArchived)
+  const editingSettlement = editing
+    ? settlements.find((item) => item.transactionId === editing.id)
+    : undefined
   const initialEntryRef = useRef({
     accountId: editing?.accountId ??
       (entryDefaults.accountId && activeAccounts.some((account) => account.id === entryDefaults.accountId)
@@ -1483,14 +1821,33 @@ function FinanceEntrySheet({
   const [entryCurrency, setEntryCurrency] = useState<CurrencyCode>(
     editing?.currency ?? accounts.find((account) => account.id === initialEntry.accountId)?.currency ?? 'JPY',
   )
-  const [destinationId, setDestinationId] = useState('')
-  const [destinationAmount, setDestinationAmount] = useState('')
-  const [fee, setFee] = useState('')
+  const [destinationId, setDestinationId] = useState(
+    initialKind === 'refund' ? editing?.accountId ?? '' : editing?.counterpartyAccountId ?? '',
+  )
+  const [destinationCurrency, setDestinationCurrency] = useState<CurrencyCode>(
+    editing?.counterpartyCurrency ??
+    accounts.find((account) => account.id === editing?.counterpartyAccountId)?.currency ??
+    'JPY',
+  )
+  const [destinationAmount, setDestinationAmount] = useState(
+    editing?.counterpartyAmountMinor !== undefined
+      ? String(fromMinor(
+          editing.counterpartyAmountMinor,
+          editing.counterpartyCurrency ??
+          accounts.find((account) => account.id === editing.counterpartyAccountId)?.currency ??
+          editing.currency,
+        ))
+      : '',
+  )
+  const [fee, setFee] = useState(
+    editing?.feeMinor ? String(fromMinor(editing.feeMinor, editing.currency)) : '',
+  )
   const [categoryId, setCategoryId] = useState(initialEntry.categoryId)
   const [merchant, setMerchant] = useState(editing?.merchantNameSnapshot ?? '')
   const [note, setNote] = useState(editing?.note ?? '')
   const [includeInSpending, setIncludeInSpending] = useState(editing?.includeInSpending ?? true)
-  const [linkedTransactionId, setLinkedTransactionId] = useState('')
+  const [linkedTransactionId, setLinkedTransactionId] = useState(editing?.linkedTransactionId ?? '')
+  const [dueDate, setDueDate] = useState(editingSettlement?.dueDate ?? '')
   const [pickerTarget, setPickerTarget] = useState<FinancePickerTarget | null>(null)
   const [categoryManagerOpen, setCategoryManagerOpen] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -1511,7 +1868,8 @@ function FinanceEntrySheet({
     if (
       transaction.lifecycleStatus === 'active' &&
       transaction.type === 'refund' &&
-      transaction.linkedTransactionId
+      transaction.linkedTransactionId &&
+      transaction.id !== editing?.id
     ) {
       refundedByOriginal.set(
         transaction.linkedTransactionId,
@@ -1524,10 +1882,13 @@ function FinanceEntrySheet({
       (transaction) =>
         transaction.lifecycleStatus === 'active' &&
         ['expense', 'credit_purchase', 'external_payment'].includes(transaction.type) &&
-        (refundedByOriginal.get(transaction.id) ?? 0) < transaction.amountMinor,
+        (
+          transaction.id === editing?.linkedTransactionId ||
+          (refundedByOriginal.get(transaction.id) ?? 0) < transaction.amountMinor
+        ),
     )
     .sort((a, b) => b.localDate.localeCompare(a.localDate))
-  const selectedRefundOrigin = refundableTransactions.find(
+  const selectedRefundOrigin = transactions.find(
     (transaction) => transaction.id === linkedTransactionId,
   )
   const effectiveAccountId = kind === 'refund'
@@ -1536,7 +1897,7 @@ function FinanceEntrySheet({
   const source = accounts.find((account) => account.id === effectiveAccountId)
   const currency = kind === 'refund'
     ? selectedRefundOrigin?.currency ?? 'JPY'
-    : kind === 'expense' && source && accountSupportsCurrency(source, entryCurrency)
+    : source && accountSupportsCurrency(source, entryCurrency)
       ? entryCurrency
       : source?.currency ?? 'JPY'
   const destinationOptions = accounts.filter((account) => {
@@ -1558,13 +1919,7 @@ function FinanceEntrySheet({
       ? accountOwnership(account) === 'external'
       : accountOwnership(account) === 'self'),
   )
-  const dirty = Boolean(
-    amount || destinationAmount || fee || merchant.trim() || note.trim() || linkedTransactionId ||
-    date !== (editing?.localDate ?? todayISO()) ||
-    accountId !== initialEntry.accountId ||
-    entryCurrency !== (editing?.currency ?? accounts.find((account) => account.id === initialEntry.accountId)?.currency ?? 'JPY') ||
-    categoryId !== initialEntry.categoryId
-  )
+  const initialFormSnapshotRef = useRef<string | undefined>(undefined)
   const selectedCategory = categories.find((category) => category.id === categoryId)
   const amountNumber = Number(amount)
   const amountValid = Number.isFinite(amountNumber) && amountNumber > 0
@@ -1580,6 +1935,25 @@ function FinanceEntrySheet({
     (!transferKinds || destinationId) &&
     destinationAmountValid && feeValid,
   )
+  const formSnapshot = JSON.stringify({
+    kind,
+    amount,
+    date,
+    accountId,
+    entryCurrency,
+    destinationId,
+    destinationCurrency,
+    destinationAmount,
+    fee,
+    categoryId,
+    merchant,
+    note,
+    includeInSpending,
+    linkedTransactionId,
+    dueDate,
+  })
+  if (!initialFormSnapshotRef.current) initialFormSnapshotRef.current = formSnapshot
+  const dirty = initialFormSnapshotRef.current !== formSnapshot
 
   useEffect(() => {
     dialogRef.current?.focus({ preventScroll: true })
@@ -1599,9 +1973,15 @@ function FinanceEntrySheet({
   }, [accountId, kind, sourceOptions])
 
   useEffect(() => {
-    if (!source || kind !== 'expense') return
+    if (!source || kind === 'refund') return
     if (!accountSupportsCurrency(source, entryCurrency)) setEntryCurrency(source.currency)
   }, [entryCurrency, kind, source])
+
+  useEffect(() => {
+    const destination = accounts.find((account) => account.id === destinationId)
+    if (!destination || accountSupportsCurrency(destination, destinationCurrency)) return
+    setDestinationCurrency(destination.currency)
+  }, [accounts, destinationCurrency, destinationId])
 
   function selectCategory(nextId: string) {
     setCategoryId(nextId)
@@ -1694,6 +2074,7 @@ function FinanceEntrySheet({
           date,
         })
         await saveIncome({
+          id: editing?.id,
           amountMinor,
           currency,
           localDate: date,
@@ -1712,6 +2093,7 @@ function FinanceEntrySheet({
       } else if (kind === 'refund') {
         if (!linkedTransactionId) throw new Error('请选择原消费记录')
         await saveRefund({
+          id: editing?.id,
           amountMinor,
           localDate: date,
           linkedTransactionId,
@@ -1723,14 +2105,18 @@ function FinanceEntrySheet({
         const destination = accounts.find((account) => account.id === destinationId)
         if (!destination) throw new Error('转入账户不存在')
         await saveTransfer({
+          id: editing?.id,
           sourceAccountId: accountId,
           destinationAccountId: destinationId,
+          sourceCurrency: currency,
+          destinationCurrency,
           sourceAmountMinor: amountMinor,
-          destinationAmountMinor: toMinor(Number(destinationAmount || amount), destination.currency),
+          destinationAmountMinor: toMinor(Number(destinationAmount || amount), destinationCurrency),
           feeMinor: fee ? toMinor(Number(fee), currency) : undefined,
           localDate: date,
           kind,
           note,
+          dueDate: dueDate || undefined,
         })
       }
       savedMessageRef.current = editing ? '流水已更新，所有汇总已重算' : `${kind === 'expense' ? '支出' : kind === 'income' ? '收入' : kind === 'refund' ? '退款' : '转账'}已保存`
@@ -1805,7 +2191,13 @@ function FinanceEntrySheet({
       const account = accounts.find((item) => item.id === id)
       if (account && !accountSupportsCurrency(account, entryCurrency)) setEntryCurrency(account.currency)
     }
-    else if (pickerTarget.kind === 'destination' || pickerTarget.kind === 'refund-account') setDestinationId(id)
+    else if (pickerTarget.kind === 'destination' || pickerTarget.kind === 'refund-account') {
+      setDestinationId(id)
+      const account = accounts.find((item) => item.id === id)
+      if (account && !accountSupportsCurrency(account, destinationCurrency)) {
+        setDestinationCurrency(account.currency)
+      }
+    }
     else {
       const origin = refundableTransactions.find((transaction) => transaction.id === id)
       setLinkedTransactionId(id)
@@ -1879,20 +2271,21 @@ function FinanceEntrySheet({
                   />
                 )}
 
+                {kind !== 'refund' && source && accountCurrencies(source).length > 1 && (
+                  <label className="finance-entry-currency-field">
+                    本次交易币种
+                    <select
+                      value={currency}
+                      onChange={(event) => setEntryCurrency(event.target.value as CurrencyCode)}
+                    >
+                      {accountCurrencies(source).map((code) => <option key={code} value={code}>{code === 'JPY' ? 'JPY 日元' : code === 'CNY' ? 'CNY 人民币' : code}</option>)}
+                    </select>
+                    <small>只影响本次记录，不会改变账户默认币种。</small>
+                  </label>
+                )}
+
                 {kind === 'expense' && (
                   <>
-                    {source && accountCurrencies(source).length > 1 && (
-                      <label className="finance-entry-currency-field">
-                        本次记账币种
-                        <select
-                          value={currency}
-                          onChange={(event) => setEntryCurrency(event.target.value as CurrencyCode)}
-                        >
-                          {accountCurrencies(source).map((code) => <option key={code} value={code}>{code === 'JPY' ? 'JPY 日元' : code === 'CNY' ? 'CNY 人民币' : code}</option>)}
-                        </select>
-                        <small>支付来源可承接多币种；流水仍保存本次原始币种。</small>
-                      </label>
-                    )}
                     <div className="finance-sheet-static-row"><span>资金承担者</span><strong>{accountOwnership(source) === 'external' ? '外部代付' : '本人资金'}</strong></div>
                     <FinancePickerRow label="分类" value={selectedCategory?.name ?? '未分类'} placeholder="未分类" onClick={() => setPickerTarget({ kind: 'category' })} />
                     {source && <section className="finance-money-path finance-impact-preview" aria-label="保存后的金额变化预览">
@@ -1928,8 +2321,20 @@ function FinanceEntrySheet({
                       placeholder="请选择"
                       onClick={() => setPickerTarget({ kind: 'destination' })}
                     />
+                    {selectedDestination && accountCurrencies(selectedDestination).length > 1 && (
+                      <label className="finance-entry-currency-field">
+                        到账币种
+                        <select
+                          value={destinationCurrency}
+                          onChange={(event) => setDestinationCurrency(event.target.value as CurrencyCode)}
+                        >
+                          {accountCurrencies(selectedDestination).map((code) => <option key={code} value={code}>{code}</option>)}
+                        </select>
+                      </label>
+                    )}
                     <label>到账金额<input inputMode="decimal" value={destinationAmount} onChange={(event) => setDestinationAmount(event.target.value)} placeholder={amount || '0'} /></label>
                     <label>手续费（可选）<input inputMode="decimal" value={fee} onChange={(event) => setFee(event.target.value)} placeholder="0" /></label>
+                    {kind === 'credit_payment' && <label>还款到期日<input type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} /></label>}
                   </>
                 )}
 

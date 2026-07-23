@@ -3,6 +3,7 @@ import {
   accountCurrencies,
   accountSupportsCurrency,
   calculateAccountBalances,
+  calculateAccountBalancesByCurrency,
   convertMinor,
   ledgerSummary,
   toMinor,
@@ -266,6 +267,32 @@ describe('多币种', () => {
     expect(summary.externalPaidMinor).toBe(200)
     expect(summary.actualPaidMinor).toBe(0)
     expect(summary.netWorthMinor).toBe(0)
+  })
+
+  it('同一本人账户按币种分别结算，修改默认币种不会重解释历史余额', () => {
+    const multi = {
+      ...account('multi-bank', 'asset', 'bank', 100_000, 'CNY'),
+      supportedCurrencies: ['JPY', 'CNY'],
+      openingBalanceCurrency: 'JPY',
+    }
+    const transactions = [
+      transaction('jpy-spend', 'expense', 1_000, multi.id, { currency: 'JPY' }),
+      transaction('cny-income', 'income', 5_000, multi.id, {
+        currency: 'CNY',
+        includeInSpending: false,
+      }),
+    ]
+    const balances = calculateAccountBalancesByCurrency([multi], transactions).get(multi.id)
+    expect(balances?.get('JPY')).toBe(99_000)
+    expect(balances?.get('CNY')).toBe(5_000)
+
+    const summary = ledgerSummary({
+      accounts: [multi],
+      transactions,
+      rates: [rate],
+      reportingCurrency: 'JPY',
+    })
+    expect(summary.assetsMinor).toBe(100_000)
   })
 
   it('余额使用最新率，历史消费优先使用交易快照', () => {

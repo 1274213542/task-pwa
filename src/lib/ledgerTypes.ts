@@ -32,6 +32,12 @@ export interface Account {
    * currency. Every transaction still stores its own original currency.
    */
   supportedCurrencies?: CurrencyCode[]
+  /**
+   * Currency of the legacy single opening balance. It is intentionally
+   * independent from the default transaction currency so changing the
+   * default never reinterprets an existing opening balance.
+   */
+  openingBalanceCurrency?: CurrencyCode
   /** 资产账户为正余额；信用账户为正的待还金额。 */
   openingBalanceMinor: number
   includeInNetWorth: boolean

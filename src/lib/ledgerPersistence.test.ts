@@ -383,6 +383,166 @@ describe('财务账本持久化约束', () => {
     expect(balances.get('bank')).toBe(100_000)
   })
 
+  it('账户可启用多个交易币种，修改默认币种不改写初始余额币种', async () => {
+    const db = testState.db as Dexie
+    const id = await ledger.saveAccount({
+      name: '爸爸信用卡',
+      kind: 'credit',
+      ownership: 'external',
+      subtype: 'credit_card',
+      currency: 'JPY',
+      supportedCurrencies: ['JPY', 'CNY'],
+      openingBalanceCurrency: 'JPY',
+      openingBalanceMinor: 8_492,
+    })
+    await ledger.saveAccount({
+      id,
+      name: '爸爸信用卡',
+      kind: 'credit',
+      ownership: 'external',
+      subtype: 'credit_card',
+      currency: 'CNY',
+      supportedCurrencies: ['JPY', 'CNY'],
+      openingBalanceMinor: 8_492,
+    })
+
+    expect(await db.table('accounts').get(id)).toMatchObject({
+      currency: 'CNY',
+      supportedCurrencies: ['CNY', 'JPY'],
+      openingBalanceCurrency: 'JPY',
+      openingBalanceMinor: 8_492,
+    })
+  })
+
+  it('编辑收入保留记录 ID 与创建时间，并按新值重算余额', async () => {
+    const db = testState.db as Dexie
+    await db.table('accounts').add(account({
+      id: 'multi-bank',
+      name: '多币种银行',
+      supportedCurrencies: ['JPY', 'CNY'],
+    }))
+    const id = await ledger.saveIncome({
+      amountMinor: 5_000,
+      currency: 'CNY',
+      localDate: '2026-07-20',
+      accountId: 'multi-bank',
+      sourceName: '稿费',
+    })
+    const created = await db.table('financeTransactions').get(id)
+    await ledger.saveIncome({
+      id,
+      amountMinor: 8_000,
+      currency: 'CNY',
+      localDate: '2026-07-21',
+      accountId: 'multi-bank',
+      sourceName: '稿费修正',
+    })
+
+    expect(await db.table('financeTransactions').get(id)).toMatchObject({
+      id,
+      amountMinor: 8_000,
+      currency: 'CNY',
+      localDate: '2026-07-21',
+      merchantNameSnapshot: '稿费修正',
+      createdAt: created?.createdAt,
+    })
+    const balances = ledger.calculateAccountBalancesByCurrency(
+      await db.table('accounts').toArray(),
+      await db.table('financeTransactions').toArray(),
+    )
+    expect(balances.get('multi-bank')?.get('CNY')).toBe(8_000)
+  })
+
+  it('编辑跨币种转账保留交易和转账关系 ID', async () => {
+    const db = testState.db as Dexie
+    await db.table('accounts').bulkAdd([
+      account({
+        id: 'source',
+        name: '来源账户',
+        supportedCurrencies: ['JPY', 'CNY'],
+      }),
+      account({
+        id: 'destination',
+        name: '目标账户',
+        supportedCurrencies: ['JPY', 'CNY'],
+        openingBalanceMinor: 0,
+      }),
+    ])
+    await ledger.saveIncome({
+      amountMinor: 10_000,
+      currency: 'CNY',
+      localDate: '2026-07-20',
+      accountId: 'source',
+    })
+    const first = await ledger.saveTransfer({
+      sourceAccountId: 'source',
+      destinationAccountId: 'destination',
+      sourceCurrency: 'CNY',
+      destinationCurrency: 'JPY',
+      sourceAmountMinor: 4_000,
+      destinationAmountMinor: 800,
+      localDate: '2026-07-21',
+    })
+    const created = await db.table('financeTransactions').get(first.transactionId)
+    const updated = await ledger.saveTransfer({
+      id: first.transactionId,
+      sourceAccountId: 'source',
+      destinationAccountId: 'destination',
+      sourceCurrency: 'CNY',
+      destinationCurrency: 'JPY',
+      sourceAmountMinor: 5_000,
+      destinationAmountMinor: 1_000,
+      localDate: '2026-07-22',
+    })
+
+    expect(updated).toMatchObject(first)
+    expect(await db.table('financeTransactions').get(first.transactionId)).toMatchObject({
+      amountMinor: 5_000,
+      currency: 'CNY',
+      counterpartyAmountMinor: 1_000,
+      counterpartyCurrency: 'JPY',
+      createdAt: created?.createdAt,
+    })
+    expect(await db.table('financeTransfers').get(first.transferId)).toMatchObject({
+      sourceAmountMinor: 5_000,
+      sourceCurrency: 'CNY',
+      destinationAmountMinor: 1_000,
+      destinationCurrency: 'JPY',
+      exchangeRate: 20,
+    })
+  })
+
+  it('编辑退款保留原记录身份，且超额校验排除当前退款自身', async () => {
+    const db = testState.db as Dexie
+    await db.table('accounts').add(account({ id: 'cash', name: '现金' }))
+    await db.table('financeTransactions').add(transaction({
+      id: 'purchase',
+      type: 'expense',
+      accountId: 'cash',
+      amountMinor: 10_000,
+      fundingParty: 'self',
+    }))
+    const id = await ledger.saveRefund({
+      amountMinor: 4_000,
+      localDate: '2026-07-20',
+      linkedTransactionId: 'purchase',
+    })
+    const created = await db.table('financeTransactions').get(id)
+    await ledger.saveRefund({
+      id,
+      amountMinor: 7_000,
+      localDate: '2026-07-21',
+      linkedTransactionId: 'purchase',
+      note: '退款金额修正',
+    })
+    expect(await db.table('financeTransactions').get(id)).toMatchObject({
+      id,
+      amountMinor: 7_000,
+      note: '退款金额修正',
+      createdAt: created?.createdAt,
+    })
+  })
+
   it('固定扣款使用规则与账期唯一键，短月和连续刷新不会重复入账', async () => {
     const db = testState.db as Dexie
     await db.table('accounts').add(account({ id: 'bank', name: '本人银行', openingBalanceMinor: 200_000 }))
