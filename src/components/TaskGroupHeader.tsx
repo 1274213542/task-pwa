@@ -66,32 +66,34 @@ export default function TaskGroupHeader({
         {meta && <span className="task-group-meta">{meta}</span>}
       </button>
 
-      {onAddChild && (
+      <div className="task-group-actions">
+        {onAddChild && (
+          <button
+            type="button"
+            className="task-group-add"
+            aria-label={`向 ${title} 添加子项`}
+            onClick={(event) => {
+              event.stopPropagation()
+              onAddChild()
+            }}
+          >
+            <AppIcon name="plus" size={17} />
+          </button>
+        )}
+
         <button
           type="button"
-          className="task-group-add"
-          aria-label={`向 ${title} 添加子项`}
+          className="task-group-toggle"
+          aria-label={expanded ? `收起 ${title}` : `展开 ${title}`}
+          aria-expanded={expanded}
           onClick={(event) => {
             event.stopPropagation()
-            onAddChild()
+            onToggleExpanded()
           }}
         >
-          <AppIcon name="plus" size={17} />
+          <AppIcon name={expanded ? 'chevronDown' : 'chevronRight'} size={15} />
         </button>
-      )}
-
-      <button
-        type="button"
-        className="task-group-toggle"
-        aria-label={expanded ? `收起 ${title}` : `展开 ${title}`}
-        aria-expanded={expanded}
-        onClick={(event) => {
-          event.stopPropagation()
-          onToggleExpanded()
-        }}
-      >
-        <AppIcon name={expanded ? 'chevronDown' : 'chevronRight'} size={16} />
-      </button>
+      </div>
 
       {children && <div className="task-group-detail">{children}</div>}
     </div>

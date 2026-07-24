@@ -79,7 +79,7 @@ export default function InlinePlanChildComposer({
       aria-label={`向 ${parent.title} 添加子项`}
       onClick={(event) => event.stopPropagation()}
     >
-      <div>
+      <div className="task-inline-child-header">
         <strong>添加子项</strong>
         <button type="button" aria-label="取消添加子项" onClick={onCancel}>
           <AppIcon name="close" size={15} />
@@ -87,9 +87,9 @@ export default function InlinePlanChildComposer({
       </div>
       <textarea
         ref={inputRef}
-        rows={2}
+        rows={3}
         value={value}
-        placeholder="输入子项；多项可换行，行首可写 08:30"
+        placeholder="输入子项"
         aria-invalid={invalid || undefined}
         onChange={(event) => setValue(event.target.value)}
         onKeyDown={(event) => {
@@ -100,6 +100,9 @@ export default function InlinePlanChildComposer({
           }
         }}
       />
+      <p className="task-inline-child-helper">
+        可多行输入，每行一项；行首可写时间，如 08:30
+      </p>
       {entries.some((entry) => entry.time || entry.error) && (
         <div className="task-inline-child-preview" aria-live="polite">
           {entries.map((entry) => (

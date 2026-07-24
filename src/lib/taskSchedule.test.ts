@@ -245,7 +245,7 @@ describe('task schedules and DDL', () => {
     expect((await db.tasks.get(child.id))?.dueAt).toBe('2026-08-02T18:00')
   })
 
-  it('migrates daily history to date-scoped deterministic ids and prunes beyond seven days', async () => {
+  it('migrates daily history to deterministic ids without deleting completed source records', async () => {
     const daily = task('daily-history', { taskScope: 'daily', completedAt: timestamp })
     await db.tasks.add(daily)
     await db.completionRecords.put({
@@ -277,7 +277,7 @@ describe('task schedules and DDL', () => {
     expect(await db.completionRecords.get(`${daily.id}:daily:2026-07-21`)).toMatchObject({ resolution: 'completed' })
 
     await pruneDailyCompletionHistory([daily], '2026-07-15')
-    expect(await db.completionRecords.get(`${daily.id}:daily:2026-07-14`)).toBeUndefined()
+    expect(await db.completionRecords.get(`${daily.id}:daily:2026-07-14`)).toBeDefined()
     expect(await db.completionRecords.get(`${daily.id}:daily:2026-07-21`)).toBeDefined()
   })
 })

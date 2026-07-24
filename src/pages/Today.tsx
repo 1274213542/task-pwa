@@ -37,14 +37,16 @@ import {
 } from '../lib/recurrence'
 import { checkAfterCompletionIntegrity } from '../lib/integrity'
 import { addDaysISO, todayLocalISO } from '../lib/dates'
+import {
+  completionCivilDate,
+  latestOneTimeCompletion,
+} from '../lib/dailyCompletion'
 import { useCivilDate } from '../lib/useCivilDate'
 import {
   RecurrenceConflictError,
   addTaskBatch,
   completeFixedOccurrence,
   completeTask,
-  migrateDailyCompletionHistory,
-  pruneDailyCompletionHistory,
   reorderTask,
   repairAfterCompletionCache,
   resolveAfterCompletion,
@@ -182,13 +184,17 @@ function buildItems(
 
     if (!isTodayTaskDefinition(task, todayISO, tasks, taskMap)) continue
     if (!r) {
-      const legacyDailyKey = `daily:${todayISO}`
-      const occurrenceKey = recMap.has(`${task.id}:${legacyDailyKey}`) ? legacyDailyKey : 'single'
-      const rec = recMap.get(`${task.id}:${occurrenceKey}`)
-      const completedDate = rec?.completedDate ?? civilDateOf(task.completedAt)
-      if (rec?.resolution === 'completed' && completedDate && completedDate < todayISO) continue
-      const completedOn = rec?.resolution === 'completed'
-        ? `${rec.completedDate ?? rec.occurrenceDate}T12:00:00`
+      const completedRecord = latestOneTimeCompletion(records, task.id)
+      const completedDate = completedRecord
+        ? completionCivilDate(completedRecord)
+        : civilDateOf(task.completedAt)
+      if (completedDate && completedDate < todayISO) continue
+      const completedToday = completedDate === todayISO
+      const occurrenceKey = completedToday
+        ? completedRecord?.occurrenceKey ?? 'single'
+        : 'single'
+      const completedOn = completedToday
+        ? `${completedDate}T12:00:00`
         : undefined
       const schedule = effectiveTaskSchedule(task, taskMap)
       const due = taskDueStatus(task, todayISO, taskMap, completedOn)
@@ -197,7 +203,7 @@ function buildItems(
         kind: 'single',
         occurrenceDate: task.startDate ?? todayISO,
         occurrenceKey,
-        completed: rec?.resolution === 'completed',
+        completed: completedToday,
         overdue: due.tone === 'overdue',
         subtitle: taskScheduleLabel(
           task,
@@ -571,23 +577,17 @@ export default function Today() {
     return records
       .filter((record) =>
         dailyTaskIds.has(record.taskId) &&
-        (record.occurrenceKey.startsWith('daily:') || record.occurrenceKey.startsWith('fixed:')) &&
-        record.occurrenceDate >= oldestDate &&
-        record.occurrenceDate <= todayISO &&
+        (
+          record.occurrenceKey === 'single' ||
+          record.occurrenceKey.startsWith('daily:') ||
+          record.occurrenceKey.startsWith('fixed:')
+        ) &&
+        (completionCivilDate(record) ?? record.occurrenceDate) >= oldestDate &&
+        (completionCivilDate(record) ?? record.occurrenceDate) <= todayISO &&
         (record.resolution === 'completed' || record.resolution === 'voided'),
       )
       .sort((a, b) => b.resolvedAt.localeCompare(a.resolvedAt))
   }, [tasks, records, scope, todayISO])
-
-  useEffect(() => {
-    if (!tasks || scope !== 'today') return
-    let cancelled = false
-    void (async () => {
-      await migrateDailyCompletionHistory(tasks)
-      if (!cancelled) await pruneDailyCompletionHistory(tasks, addDaysISO(todayISO, -6))
-    })()
-    return () => { cancelled = true }
-  }, [tasks, scope, todayISO])
 
   const dateLabel = new Date().toLocaleDateString('zh-CN', {
     month: 'long',

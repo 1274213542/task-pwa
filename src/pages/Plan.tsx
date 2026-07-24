@@ -1060,7 +1060,6 @@ export default function Plan() {
               </button>
             )}
             <strong>{itemTitle(item)}</strong>
-            {time && !groupedStep && <span>{`${itemTimeLabel(item)}${eventEndTime(item) ? '' : ' 开始'}`}</span>}
             {planTitle && !groupedStep && <small className="timeline-plan-label">{planTitle}</small>}
             <MarkerIcon symbol={visual.marker} color={visual.color} size={17} />
           </SwipeActionRow>

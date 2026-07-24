@@ -634,14 +634,19 @@ export async function migrateDailyCompletionHistory(tasks: Task[]): Promise<void
   })
 }
 
-/** Keep only the rolling seven-day daily history, including while offline. */
+/**
+ * Remove only old restored/voided compatibility rows. Completed history is
+ * durable source data: deleting it makes a one-time task appear pending again
+ * after seven days and is therefore never a valid list-cleanup strategy.
+ */
 export async function pruneDailyCompletionHistory(tasks: Task[], oldestDateToKeep: string): Promise<void> {
   const dailyTaskIds = new Set(tasks.filter((task) => (task.taskScope ?? 'daily') === 'daily').map((task) => task.id))
   if (dailyTaskIds.size === 0) return
   const expiredIds = (await db.completionRecords.toArray())
     .filter((record) =>
       dailyTaskIds.has(record.taskId) &&
-      !record.occurrenceKey.startsWith('ac:') &&
+      record.resolution === 'voided' &&
+      record.occurrenceKey.startsWith('daily:') &&
       record.occurrenceDate < oldestDateToKeep,
     )
     .map((record) => record.id)

@@ -1284,7 +1284,20 @@ function WorkView({
       <form className="finance-section-card finance-work-composer" onSubmit={submit}>
         <header><div><span>预计工资不计入余额</span><h2>{editingWorkEntryId ? '编辑工作记录' : '记录工作'}</h2></div>{templates.length > 0 && <select value={templateId} onChange={(event) => applyTemplate(event.target.value)}><option value="">选择模板</option>{templates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select>}</header>
         <div className="finance-form-grid-v2">
-          <label>日期<input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label>
+          <label className="finance-work-date-field">
+            日期
+            <span className="finance-work-date-control">
+              <input
+                className="finance-work-date-input"
+                type="date"
+                value={date}
+                onChange={(event) => setDate(event.target.value)}
+              />
+              <span className="finance-work-date-action" aria-hidden>
+                <AppIcon name="calendar" size={16} />
+              </span>
+            </span>
+          </label>
           <div className="finance-shift-time-grid wide" role="group" aria-label="出勤与退勤时间">
             <label>
               <span className="finance-shift-time-label">出勤时间</span>
