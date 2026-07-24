@@ -131,14 +131,43 @@
 
 .task-group-detail {
   grid-column: 2 / -1;
+  display: grid;
   min-width: 0;
+  gap: 8px;
   padding-top: 8px;
 }
 
 .task-group-header .task-card-timeline-preview > span {
-  grid-template-columns: 20px 44px minmax(0, 1fr);
+  grid-template-columns: 52px minmax(0, 1fr);
   align-items: center;
   gap: 8px;
+  min-width: 0;
+  min-height: 34px;
+  padding: 6px 0;
+}
+
+.task-group-header .task-card-timeline-preview > span[data-has-check] {
+  grid-template-columns: 20px 52px minmax(0, 1fr);
+}
+
+.task-group-header .task-card-timeline-preview > span + span {
+  border-top: 1px solid var(--color-separator);
+}
+
+.task-group-header .task-card-timeline-preview time,
+.task-group-header .task-card-timeline-preview b {
+  min-width: 0;
+}
+
+.task-group-header .task-card-timeline-preview time {
+  white-space: nowrap;
+}
+
+.task-group-header .task-card-timeline-preview b {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .task-card-timeline-preview-check {
@@ -191,7 +220,126 @@
 
 .calendar-parent-group .task-group-detail {
   grid-column: 1 / -1;
-  padding-top: 10px;
+  padding-top: 0;
+}
+
+.calendar-parent-group .task-inline-child-composer {
+  margin: 8px 10px 0;
+}
+
+.task-inline-child-composer {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-secondary);
+  padding: 10px;
+}
+
+.task-inline-child-composer > div:first-child,
+.task-inline-child-actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.task-inline-child-composer > div:first-child > strong {
+  color: var(--color-text-primary);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 650;
+}
+
+.task-inline-child-composer > div:first-child > button {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: var(--radius-circle);
+  color: var(--color-text-secondary);
+}
+
+.task-inline-child-composer > textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 68px;
+  max-height: 132px;
+  resize: vertical;
+  box-sizing: border-box;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-primary);
+  padding: 10px 12px;
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.task-inline-child-preview {
+  display: grid;
+  overflow: hidden;
+  border: 1px solid var(--color-separator);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-primary);
+}
+
+.task-inline-child-preview > span {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 8px;
+  padding: 6px 10px;
+}
+
+.task-inline-child-preview > span + span {
+  border-top: 1px solid var(--color-separator);
+}
+
+.task-inline-child-preview time,
+.task-inline-child-preview b {
+  min-width: 0;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.task-inline-child-preview time {
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.task-inline-child-preview b {
+  overflow-wrap: anywhere;
+}
+
+.task-inline-child-preview > span[data-error] {
+  color: var(--color-danger);
+}
+
+.task-inline-child-actions > span {
+  min-width: 0;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.task-inline-child-actions > button {
+  min-height: 36px;
+  flex: 0 0 auto;
+  border-radius: var(--radius-pill);
+  background: var(--color-text-primary);
+  padding: 0 13px;
+  color: var(--color-surface-primary);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.task-inline-child-actions > button:disabled {
+  opacity: 0.38;
 }
 
 /* Category creation is part of each picker rather than a second data source. */
@@ -343,6 +491,71 @@
   transform: none !important;
 }
 
+.finance-work-entry-row {
+  gap: 8px !important;
+  padding-block: 14px !important;
+}
+
+.finance-work-entry-heading strong,
+.finance-work-entry-heading b {
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 680;
+}
+
+.finance-work-entry-timing {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px 12px;
+  border-radius: var(--radius-control);
+  background: var(--color-surface-secondary);
+  padding: 8px 10px;
+}
+
+.finance-work-entry-timing > span {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+.finance-work-entry-timing > span > svg {
+  flex: 0 0 auto;
+}
+
+.finance-work-entry-timing > strong {
+  color: var(--color-text-primary);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 650;
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.finance-work-entry-footer {
+  min-height: 32px;
+}
+
+.finance-work-entry-footer > span {
+  overflow-wrap: anywhere;
+}
+
+.overview-days {
+  gap: 6px !important;
+  padding-inline: 4px;
+}
+
+.overview-days > a {
+  min-width: 0;
+}
+
 .calendar-timeline-step-row {
   grid-template-columns: 56px 30px minmax(0, 1fr);
 }
@@ -387,6 +600,50 @@
   grid-row: 1 / span 2;
 }
 
+.mobile-timeline-plan-steps {
+  min-width: 0;
+  padding: 0 12px 2px;
+}
+
+.mobile-timeline-plan-steps .timeline-schedule-row,
+.mobile-timeline-plan-steps .mobile-timeline-row,
+.mobile-timeline-plan-steps .mobile-timeline-swipe,
+.mobile-timeline-plan-steps .mobile-timeline-event {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.mobile-timeline-plan-steps .mobile-timeline-event {
+  display: grid !important;
+}
+
+.mobile-timeline-plan-steps .mobile-timeline-event > strong {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.calendar-parent-children {
+  padding: 0 10px 2px 42px;
+}
+
+.calendar-parent-children .calendar-timeline-step-row {
+  grid-template-columns: 54px 28px minmax(0, 1fr);
+  min-width: 0;
+}
+
+.calendar-parent-children .calendar-timeline-step-row > button:last-child,
+.calendar-parent-children .calendar-timeline-step-row strong {
+  min-width: 0;
+}
+
+.calendar-parent-children .calendar-timeline-step-row strong {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 390px) {
   .task-group-header {
     grid-template-columns: 38px minmax(0, 1fr) 36px 30px;
@@ -412,5 +669,20 @@
   .finance-shift-time-grid > span {
     width: 24px !important;
     min-width: 24px;
+  }
+
+  .overview-days {
+    gap: 5px !important;
+    padding-inline: 2px;
+  }
+
+  .finance-work-entry-timing {
+    gap: 6px 8px;
+    padding-inline: 8px;
+  }
+
+  .finance-work-entry-timing > span,
+  .finance-work-entry-timing > strong {
+    font-size: 11.5px;
   }
 }

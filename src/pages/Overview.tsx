@@ -5,6 +5,7 @@ import { Temporal } from 'temporal-polyfill'
 import { db, type ColorToken } from '../lib/db'
 import { buildCalendarItems, type CalItem } from '../lib/calendar'
 import { useCivilDate } from '../lib/useCivilDate'
+import { localDateISOOf } from '../lib/dates'
 import MobilePageHeader from '../components/MobilePageHeader'
 import PageHeader from '../components/PageHeader'
 import AppIcon from '../components/AppIcon'
@@ -21,7 +22,10 @@ import {
 import { toggleEventCompletion } from '../lib/events'
 import { spatialOriginFromRect, type SpatialRouteSource } from '../lib/motion'
 import { fromMinor, ledgerSummary } from '../lib/ledger'
-import { dailyCompletionRate } from '../lib/dailyCompletion'
+import {
+  dailyCompletionRate,
+  isPreviousDayCompletion,
+} from '../lib/dailyCompletion'
 import {
   leafTaskIds,
   explicitTaskDueAt,
@@ -135,6 +139,17 @@ export default function Overview() {
       ...projectedTodayItems.filter((item) => item.kind === 'event' || !dailyTaskIds.has(item.task.id)),
       ...dailyTasks,
     ]
+    const recordById = new Map(snapshot.records.map((record) => [record.id, record]))
+    const todayScopedItems = todayItems.filter((item) => {
+      if (item.date !== today || !itemCompleted(item)) return item.date === today
+      const completionDate = item.kind === 'event'
+        ? localDateISOOf(item.event.completedAt)
+        : (() => {
+            const record = recordById.get(`${item.task.id}:${item.occurrenceKey}`)
+            return record?.completedDate ?? record?.occurrenceDate
+          })()
+      return !isPreviousDayCompletion(true, completionDate, today)
+    })
     const completedForCurrentState = new Set([
       ...snapshot.tasks.filter((task) => Boolean(task.completedAt)).map((task) => task.id),
       ...currentDailyRecords.keys(),
@@ -157,7 +172,7 @@ export default function Overview() {
     return {
       byDay,
       nextSeven,
-      todayItems: todayItems.filter((item) =>
+      todayItems: todayScopedItems.filter((item) =>
         item.kind === 'event' || (
           leaves.has(item.task.id) &&
           (Boolean(item.task.recurrence) || taskScheduleTypeOf(item.task) === 'today')

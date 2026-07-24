@@ -2,6 +2,7 @@ import {
   motion,
   useReducedMotion,
 } from 'motion/react'
+import type { ReactNode } from 'react'
 import type { ColorToken, MarkerSymbol } from '../lib/db'
 import AppIcon from './AppIcon'
 import SwipeActionRow from './SwipeActionRow'
@@ -46,6 +47,7 @@ export default function TaskRow({
   expanded = true,
   onToggleExpanded,
   onAddChild,
+  groupContent,
   divider = false,
 }: {
   title: string
@@ -78,6 +80,7 @@ export default function TaskRow({
   expanded?: boolean
   onToggleExpanded?: () => void
   onAddChild?: () => void
+  groupContent?: ReactNode
   divider?: boolean
 }) {
   const reduceMotion = useReducedMotion()
@@ -141,7 +144,7 @@ export default function TaskRow({
             collapsible &&
             onToggleExpanded &&
             !(event.target as Element).closest(
-              '.task-card-check, .task-card-parent-toggle, .apple-swipe-actions',
+              '.task-card-check, .task-card-parent-toggle, .apple-swipe-actions, .task-inline-child-composer',
             )
           ) {
             onToggleExpanded()
@@ -168,25 +171,30 @@ export default function TaskRow({
             </>
           ) : hierarchyLabel}
         >
-          {timelinePreview.length > 0 && (
-            <div className="task-card-timeline-preview" aria-label="时间步骤预览">
-              {timelinePreview.map((step) => (
-                <span key={step.id}>
-                  {step.onToggle && (
-                    <button
-                      type="button"
-                      className="task-card-timeline-preview-check"
-                      aria-label={step.completed ? `取消完成 ${step.title}` : `完成 ${step.title}`}
-                      onClick={step.onToggle}
-                    >
-                      <span>{step.completed && <AppIcon name="check" size={10} />}</span>
-                    </button>
-                  )}
-                  <time>{step.time}</time>
-                  <b>{step.title}</b>
-                </span>
-              ))}
-            </div>
+          {(groupContent || timelinePreview.length > 0) && (
+            <>
+              {groupContent}
+              {timelinePreview.length > 0 && (
+                <div className="task-card-timeline-preview" aria-label="时间步骤预览">
+                  {timelinePreview.map((step) => (
+                    <span key={step.id} data-has-check={step.onToggle ? true : undefined}>
+                      {step.onToggle && (
+                        <button
+                          type="button"
+                          className="task-card-timeline-preview-check"
+                          aria-label={step.completed ? `取消完成 ${step.title}` : `完成 ${step.title}`}
+                          onClick={step.onToggle}
+                        >
+                          <span>{step.completed && <AppIcon name="check" size={10} />}</span>
+                        </button>
+                      )}
+                      <time>{step.time}</time>
+                      <b>{step.title}</b>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </TaskGroupHeader>
       ) : (

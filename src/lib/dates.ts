@@ -9,3 +9,19 @@ export const todayLocalISO = (): string => Temporal.Now.plainDateISO().toString(
 
 export const addDaysISO = (iso: string, days: number): string =>
   Temporal.PlainDate.from(iso).add({ days }).toString()
+
+export function localDateISOOf(value?: string): string | undefined {
+  if (!value) return undefined
+  try {
+    return Temporal.Instant.from(value)
+      .toZonedDateTimeISO(Temporal.Now.timeZoneId())
+      .toPlainDate()
+      .toString()
+  } catch {
+    try {
+      return Temporal.PlainDate.from(value.slice(0, 10)).toString()
+    } catch {
+      return undefined
+    }
+  }
+}

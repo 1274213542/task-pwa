@@ -150,10 +150,14 @@ function formatMinutes(minutes: number) {
 }
 
 function formatWorkEntryTiming(entry: WorkEntry) {
-  const timeRange = entry.startTime && entry.endTime
+  const timeRange = formatWorkEntryTimeRange(entry)
+  return `${entry.date} · ${timeRange} · ${formatMinutes(entry.durationMinutes)}`
+}
+
+function formatWorkEntryTimeRange(entry: WorkEntry) {
+  return entry.startTime && entry.endTime
     ? `${entry.startTime}–${entry.endTime}${entry.endTime < entry.startTime ? '（次日）' : ''}`
     : '未记录出退勤'
-  return `${entry.date} · ${timeRange} · ${formatMinutes(entry.durationMinutes)}`
 }
 
 function formatWorkEntryContext(entry: WorkEntry) {
@@ -1344,7 +1348,11 @@ function WorkView({
             <strong>{entry.workContent || entry.employer || '工作'}</strong>
             <b><PrivateAmount>{formatMoney(entry.estimatedGrossMinor, entry.currency)}</PrivateAmount></b>
           </div>
-          <span className="finance-work-entry-timing">{formatWorkEntryTiming(entry)}</span>
+          <div className="finance-work-entry-timing">
+            <span><AppIcon name="calendar" size={14} />{entry.date}</span>
+            <span><AppIcon name="clock" size={14} />{formatWorkEntryTimeRange(entry)}</span>
+            <strong>{formatMinutes(entry.durationMinutes)}</strong>
+          </div>
           <div className="finance-work-entry-footer">
             <span>{formatWorkEntryContext(entry)}</span>
             {entry.settlementStatus === 'settled' ? (

@@ -13,3 +13,11 @@ export function dailyCompletionRate(items: DailyCompletionCandidate[]) {
     percentage: total === 0 ? undefined : Math.round((completed / total) * 100),
   }
 }
+
+export function isPreviousDayCompletion(
+  completed: boolean,
+  completionDate: string | undefined,
+  today: string,
+) {
+  return completed && Boolean(completionDate && completionDate < today)
+}

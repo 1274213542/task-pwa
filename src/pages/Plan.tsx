@@ -2,12 +2,12 @@ import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointer
 import { useLiveQuery } from 'dexie-react-hooks'
 import { motion, useReducedMotion } from 'motion/react'
 import { Temporal } from 'temporal-polyfill'
-import { useNavigate } from 'react-router-dom'
 import {
   db,
   type CalendarEvent,
   type ColorToken,
   type MarkerSymbol,
+  type Task,
   type TaskScope,
 } from '../lib/db'
 import { type CalItem, buildCalendarItems, monthGrid } from '../lib/calendar'
@@ -40,6 +40,7 @@ import CalendarMarkerTrack from '../components/CalendarMarkerTrack'
 import { calendarMarkerSummary } from '../lib/calendarMarkers'
 import { effectiveTaskSchedule, taskChildKindOf, taskMapOf, taskNodeRoleOf } from '../lib/taskSchedule'
 import TaskGroupHeader from '../components/TaskGroupHeader'
+import InlinePlanChildComposer from '../components/InlinePlanChildComposer'
 
 const WEEK_LABELS_MON = ['一', '二', '三', '四', '五', '六', '日']
 const WEEK_LABELS_SUN = ['日', '一', '二', '三', '四', '五', '六']
@@ -218,7 +219,6 @@ function TimelineScheduleRow({
 }
 
 export default function Plan() {
-  const navigate = useNavigate()
   const todayISO = useCivilDate()
   const reduceMotion = useReducedMotion()
   const [mode, setMode] = useState<PlanMode>(() => {
@@ -251,6 +251,11 @@ export default function Plan() {
   const [expandedAgendaParents, setExpandedAgendaParents] = useState<Set<string>>(
     () => new Set(),
   )
+  const [childComposer, setChildComposer] = useState<{
+    parent: Task
+    stateKey: string
+    date: string
+  } | null>(null)
   const submittingRef = useRef(false)
   const dayPanelRef = useRef<HTMLDivElement>(null)
   const weekBoardRef = useRef<HTMLDivElement>(null)
@@ -731,7 +736,7 @@ export default function Plan() {
           </button>
           <button type="button" onClick={() => openItem(item)}>
             <strong>{itemTitle(item)}</strong>
-            {timelineParent && <span>{timelineParent.title} · 时间步骤</span>}
+            {timelineParent && !nestedChild && <span>{timelineParent.title} · 时间步骤</span>}
           </button>
         </SwipeActionRow>
       )
@@ -826,6 +831,7 @@ export default function Plan() {
       const stateKey = `${rowDate}:${parentId}`
       const expanded = expandedAgendaParents.has(stateKey)
       const complete = childItems.length > 0 && completed === childItems.length
+      const addingHere = childComposer?.stateKey === stateKey
 
       return (
         <li key={`agenda-parent:${stateKey}`} className="calendar-parent-group">
@@ -836,13 +842,30 @@ export default function Plan() {
             expanded={expanded}
             onToggleComplete={() => { void toggleCalendarGroup(childItems) }}
             onToggleExpanded={() => toggleAgendaParent(stateKey)}
-            onAddChild={() => openPlanChildComposer(parentId)}
+            onAddChild={parent ? () => openPlanChildComposer(parent, stateKey, rowDate) : undefined}
             meta={parent && taskNodeRoleOf(parent) === 'plan' ? '计划' : '父任务'}
           >
-            {expanded && (
-              <ul className="calendar-parent-children">
-                {childItems.map((child, childIndex) => itemRow(child, childIndex, true))}
-              </ul>
+            {(addingHere || expanded) && (
+              <>
+                {addingHere && parent && (
+                  <InlinePlanChildComposer
+                    parent={parent}
+                    tasks={tasks ?? []}
+                    date={rowDate}
+                    scheduleType="today"
+                    onCancel={() => setChildComposer(null)}
+                    onSaved={(created) => {
+                      setChildComposer(null)
+                      setFeedback(`已向“${parent.title}”添加 ${created} 项`)
+                    }}
+                  />
+                )}
+                {expanded && (
+                  <ul className="calendar-parent-children">
+                    {childItems.map((child, childIndex) => itemRow(child, childIndex, true))}
+                  </ul>
+                )}
+              </>
             )}
           </TaskGroupHeader>
         </li>
@@ -859,12 +882,12 @@ export default function Plan() {
     })
   }
 
-  function openPlanChildComposer(parentId: string) {
-    navigate('/today', {
-      state: {
-        openTaskComposer: true,
-        planId: parentId,
-      },
+  function openPlanChildComposer(parent: Task, stateKey: string, date: string) {
+    setExpandedAgendaParents((current) => new Set(current).add(stateKey))
+    setChildComposer({
+      parent,
+      stateKey,
+      date,
     })
   }
 
@@ -1012,8 +1035,10 @@ export default function Plan() {
     const completed = childItems.filter((child) =>
       child.kind === 'task' ? child.completed || child.skipped : child.completed,
     ).length
-    const stateKey = `${selected}:${context}:${parentId}`
+    const groupDate = childItems[0]?.date ?? selected
+    const stateKey = `${groupDate}:${context}:${parentId}`
     const expanded = expandedAgendaParents.has(stateKey)
+    const addingHere = childComposer?.stateKey === stateKey
     return (
       <section
         key={`timeline-group:${stateKey}`}
@@ -1027,15 +1052,32 @@ export default function Plan() {
           expanded={expanded}
           onToggleComplete={() => { void toggleCalendarGroup(childItems) }}
           onToggleExpanded={() => toggleAgendaParent(stateKey)}
-          onAddChild={() => openPlanChildComposer(parentId)}
+          onAddChild={parent ? () => openPlanChildComposer(parent, stateKey, groupDate) : undefined}
           meta={parent && taskNodeRoleOf(parent) === 'plan' ? '计划' : '父任务'}
         >
-          {expanded && (
-            <div className="mobile-timeline-plan-steps">
-              {childItems
-                .sort((a, b) => (itemTime(a) ?? '').localeCompare(itemTime(b) ?? ''))
-                .map((item, index) => timelineItemRow(item, index, true))}
-            </div>
+          {(addingHere || expanded) && (
+            <>
+              {addingHere && parent && (
+                <InlinePlanChildComposer
+                  parent={parent}
+                  tasks={tasks ?? []}
+                  date={groupDate}
+                  scheduleType="today"
+                  onCancel={() => setChildComposer(null)}
+                  onSaved={(created) => {
+                    setChildComposer(null)
+                    setFeedback(`已向“${parent.title}”添加 ${created} 项`)
+                  }}
+                />
+              )}
+              {expanded && (
+                <div className="mobile-timeline-plan-steps">
+                  {childItems
+                    .sort((a, b) => (itemTime(a) ?? '').localeCompare(itemTime(b) ?? ''))
+                    .map((item, index) => timelineItemRow(item, index, true))}
+                </div>
+              )}
+            </>
           )}
         </TaskGroupHeader>
       </section>

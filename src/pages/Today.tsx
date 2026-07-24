@@ -64,6 +64,7 @@ import TaskViewSettingsSheet from '../components/TaskViewSettingsSheet'
 import TaskEditor, { type EditableTaskStatus } from '../components/TaskEditor'
 import BatchTaskSettingsSheet from '../components/BatchTaskSettingsSheet'
 import TaskPlanPickerSheet from '../components/TaskPlanPickerSheet'
+import InlinePlanChildComposer from '../components/InlinePlanChildComposer'
 import { MOTION } from '../lib/motion'
 import {
   defaultFixedRecurrence,
@@ -364,6 +365,7 @@ export default function Today() {
   const [expandedParentIds, setExpandedParentIds] = useState<Set<string>>(
     () => new Set(),
   )
+  const [addingChildParentId, setAddingChildParentId] = useState('')
   // 完成感窗口（v4.2 §12）：勾选后原地保留 ~800ms 展示动画，再按策略归置
   const [recentlyDone, setRecentlyDone] = useState<Set<string>>(new Set())
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -796,7 +798,6 @@ export default function Today() {
     const timelinePreview = directChildren
       .filter((child) => taskChildKindOf(child, taskMap) === 'timeline')
       .sort((a, b) => (a.startAt ?? '').localeCompare(b.startAt ?? ''))
-      .slice(0, 4)
       .map((child) => ({
         id: child.id,
         time: child.startAt?.slice(11, 16) ?? '',
@@ -863,10 +864,21 @@ export default function Today() {
           })
         } : undefined}
         onAddChild={item.kind === 'plan' ? () => {
-          setPlanId(item.task.id)
-          setComposerOpen(true)
-          window.requestAnimationFrame(() => inputRef.current?.focus())
+          setExpandedParentIds((current) => new Set(current).add(item.task.id))
+          setAddingChildParentId(item.task.id)
         } : undefined}
+        groupContent={addingChildParentId === item.task.id ? (
+          <InlinePlanChildComposer
+            parent={item.task}
+            tasks={tasks ?? []}
+            scheduleType={effectiveTaskSchedule(item.task, taskMap).type}
+            onCancel={() => setAddingChildParentId('')}
+            onSaved={(created) => {
+              setAddingChildParentId('')
+              setFeedback(`已向“${item.task.title}”添加 ${created} 项`)
+            }}
+          />
+        ) : undefined}
         actions={item.kind === 'plan' && collapsible
           ? {
               ...actionsFor(item),
