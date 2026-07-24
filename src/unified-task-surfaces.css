@@ -196,6 +196,13 @@
   background: var(--color-text-primary);
 }
 
+/* A checklist child already communicates hierarchy through indentation and a
+   smaller completion control. Repeating the parent color marker adds a third
+   left-side anchor and makes the child read like another top-level task. */
+.page-tasks .task-card[data-task-role='child'] .task-title-color-dot {
+  display: none;
+}
+
 .calendar-parent-group {
   display: grid;
   min-width: 0;
@@ -483,12 +490,36 @@
   box-sizing: border-box;
 }
 
-.finance-shift-time-grid > span {
+.finance-shift-time-grid > label {
+  overflow: hidden;
+}
+
+.finance-shift-time-grid input[type='time'] {
+  inline-size: 100%;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  margin: 0;
+  overflow: hidden;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.finance-shift-time-grid > .finance-shift-time-separator {
   width: 28px !important;
   min-width: 28px;
   align-self: end !important;
   place-items: center !important;
   transform: none !important;
+}
+
+.finance-shift-time-label {
+  display: block;
+  overflow: hidden;
+  width: 100%;
+  min-width: 0;
+  color: var(--color-text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .finance-work-entry-row {
@@ -625,6 +656,87 @@
   word-break: break-word;
 }
 
+.plan-group-checklist-swipe {
+  min-width: 0;
+}
+
+.plan-group-checklist-row {
+  display: grid;
+  min-width: 0;
+  min-height: 46px;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  box-sizing: border-box;
+  background: var(--color-surface-primary);
+  padding: 5px 12px 5px 14px;
+}
+
+.plan-group-checklist-check {
+  display: grid;
+  width: 28px;
+  height: 36px;
+  place-items: center;
+  padding: 0;
+}
+
+.plan-group-checklist-check > span {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border: 1.5px solid var(--color-text-tertiary);
+  border-radius: var(--radius-circle);
+  background: var(--color-surface-primary);
+  color: var(--color-surface-primary);
+}
+
+.plan-group-checklist-check[aria-label^='取消'] > span {
+  border-color: var(--color-text-primary);
+  background: var(--color-text-primary);
+}
+
+.plan-group-checklist-main {
+  display: grid;
+  min-width: 0;
+  min-height: 36px;
+  align-content: center;
+  padding: 0;
+  text-align: left;
+}
+
+.plan-group-checklist-main > strong {
+  overflow: hidden;
+  min-width: 0;
+  color: var(--color-text-primary);
+  font-size: 13.5px;
+  line-height: 19px;
+  font-weight: 560;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plan-group-checklist-row[data-resolved='true'] .plan-group-checklist-main > strong {
+  color: var(--color-text-tertiary);
+  text-decoration: line-through;
+}
+
+.plan-group-checklist-row > time {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.calendar-parent-children .plan-group-checklist-row,
+.mobile-timeline-plan-steps .plan-group-checklist-row {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
 .calendar-parent-children {
   padding: 0 10px 2px 42px;
 }
@@ -666,7 +778,7 @@
     gap: 6px !important;
   }
 
-  .finance-shift-time-grid > span {
+  .finance-shift-time-grid > .finance-shift-time-separator {
     width: 24px !important;
     min-width: 24px;
   }

@@ -699,6 +699,7 @@ export default function Plan() {
     const category = categoryId ? catMap.get(categoryId) : undefined
     const timeLabel = itemTimeLabel(item)
     const timelineStep = item.kind === 'task' && taskChildKindOf(item.task, taskMap) === 'timeline'
+    const checklistChild = item.kind === 'task' && taskChildKindOf(item.task, taskMap) === 'checklist'
     const timelineParent = timelineStep && item.task.parentTaskId ? taskMap.get(item.task.parentTaskId) : undefined
     const subtitle =
       nestedChild
@@ -710,6 +711,9 @@ export default function Plan() {
         : [category?.name, item.subtitle, item.skipped ? '已跳过' : null]
             .filter(Boolean)
             .join(' · ')
+    if (nestedChild && checklistChild) {
+      return groupedChecklistChildRow(item, index, 'calendar')
+    }
     if (timelineStep) {
       return (
         <SwipeActionRow
@@ -778,6 +782,50 @@ export default function Plan() {
           <strong>{itemTitle(item)}</strong>
           {subtitle && <span>{subtitle}</span>}
         </button>
+      </SwipeActionRow>
+    )
+  }
+
+  function groupedChecklistChildRow(
+    item: Extract<CalItem, { kind: 'task' }>,
+    index: number,
+    context: string,
+  ) {
+    const resolved = item.completed || item.skipped
+    const time = itemTime(item)
+    const rowKey = `${context}:${item.task.id}:${item.date}:${item.occurrenceKey}`
+    return (
+      <SwipeActionRow
+        key={`group-checklist:${rowKey}`}
+        id={`group-checklist:${rowKey}`}
+        label={itemTitle(item)}
+        className="plan-group-checklist-swipe"
+        contentClassName="plan-group-checklist-row"
+        divider={index > 0}
+        resetKey={`${selected}:${mode}`}
+        contentProps={{
+          'data-resolved': resolved || undefined,
+        } as React.HTMLAttributes<HTMLDivElement>}
+        actions={[
+          { label: '更多', icon: 'more', tone: 'neutral', onSelect: () => openItem(item) },
+          { label: '删除', icon: 'trash', tone: 'danger', onSelect: () => void softDeleteTask(item.task.id) },
+        ]}
+      >
+        <button
+          type="button"
+          className="plan-group-checklist-check"
+          aria-label={resolved ? '取消完成' : '完成'}
+          onClick={(event) => {
+            event.stopPropagation()
+            toggleItem(item)
+          }}
+        >
+          <span>{resolved && <AppIcon name="check" size={11} />}</span>
+        </button>
+        <button type="button" className="plan-group-checklist-main" onClick={() => openItem(item)}>
+          <strong>{itemTitle(item)}</strong>
+        </button>
+        {time && <time>{time}</time>}
       </SwipeActionRow>
     )
   }
@@ -1074,7 +1122,11 @@ export default function Plan() {
                 <div className="mobile-timeline-plan-steps">
                   {childItems
                     .sort((a, b) => (itemTime(a) ?? '').localeCompare(itemTime(b) ?? ''))
-                    .map((item, index) => timelineItemRow(item, index, true))}
+                    .map((item, index) => (
+                      item.kind === 'task' && taskChildKindOf(item.task, taskMap) === 'checklist'
+                        ? groupedChecklistChildRow(item, index, `${context}:checklist`)
+                        : timelineItemRow(item, index, true)
+                    ))}
                 </div>
               )}
             </>

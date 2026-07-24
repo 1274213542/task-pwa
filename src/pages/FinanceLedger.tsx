@@ -1295,9 +1295,15 @@ function WorkView({
         <div className="finance-form-grid-v2">
           <label>日期<input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label>
           <div className="finance-shift-time-grid wide" role="group" aria-label="出勤与退勤时间">
-            <label>出勤时间<input required={!editingWorkEntryId || legacyDurationMinutes === null} type="time" value={startTime} onChange={(event) => setStartTime(event.target.value)} /></label>
-            <span aria-hidden="true">至</span>
-            <label>退勤时间<input required={!editingWorkEntryId || legacyDurationMinutes === null} type="time" value={endTime} onChange={(event) => setEndTime(event.target.value)} /></label>
+            <label>
+              <span className="finance-shift-time-label">出勤时间</span>
+              <input required={!editingWorkEntryId || legacyDurationMinutes === null} type="time" value={startTime} onChange={(event) => setStartTime(event.target.value)} />
+            </label>
+            <span className="finance-shift-time-separator" aria-hidden="true">至</span>
+            <label>
+              <span className="finance-shift-time-label">退勤时间</span>
+              <input required={!editingWorkEntryId || legacyDurationMinutes === null} type="time" value={endTime} onChange={(event) => setEndTime(event.target.value)} />
+            </label>
           </div>
           <label>休息时间（分钟）<input min="0" inputMode="numeric" type="number" value={breakMinutes} onChange={(event) => setBreakMinutes(event.target.value)} /></label>
           <div className={`finance-shift-summary ${effectiveDurationMinutes <= 0 ? 'is-invalid' : ''}`} aria-live="polite">
