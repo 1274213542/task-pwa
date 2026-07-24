@@ -440,6 +440,14 @@ html .page-tasks .task-card-list .task-leading-control.task-card-check[data-task
   margin: 8px 10px 0;
 }
 
+/* The inline editor is a form, not a nested child row. Let it use the full
+   parent surface while the saved child rows keep their hierarchy indent. */
+html .page-tasks .task-group-detail:has(> .task-inline-child-composer) {
+  grid-column: 1 / -1;
+  box-sizing: border-box;
+  padding: 8px 10px 0;
+}
+
 .task-inline-child-composer {
   display: grid;
   min-width: 0;
@@ -488,7 +496,9 @@ html .page-tasks .task-card-list .task-leading-control.task-card-check[data-task
   resize: vertical;
   box-sizing: border-box;
   border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-control);
+  /* The global field rule uses a pill radius for single-line controls.
+     This is a multiline surface, so it must keep a card-like silhouette. */
+  border-radius: var(--radius-card-small) !important;
   background: var(--color-surface-secondary);
   padding: 12px 14px;
   color: var(--color-text-primary);
