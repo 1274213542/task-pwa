@@ -953,3 +953,283 @@
     font-size: 14px;
   }
 }
+
+/* Plan time rows ---------------------------------------------------------
+   The row has two semantic variants: events have copy + marker, tasks add a
+   completion control. Explicit placement prevents legacy grid rules from
+   collapsing the title into the control column on narrow screens. */
+.page-plan[data-mode='week'] .mobile-timeline-event {
+  display: grid !important;
+  min-width: 0 !important;
+  width: 100% !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  grid-template-rows: auto auto auto;
+  align-content: center;
+  column-gap: 10px;
+}
+
+.page-plan[data-mode='week'] .mobile-timeline-event[data-has-check='true'] {
+  grid-template-columns: 32px minmax(0, 1fr) auto !important;
+}
+
+.page-plan[data-mode='week'] .mobile-timeline-event > .mobile-timeline-check {
+  grid-column: 1;
+  grid-row: 1 / span 3;
+}
+
+.page-plan[data-mode='week'] .mobile-timeline-event > strong,
+.page-plan[data-mode='week'] .mobile-timeline-event > span,
+.page-plan[data-mode='week'] .mobile-timeline-event > small {
+  grid-column: 1 !important;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+
+.page-plan[data-mode='week'] .mobile-timeline-event[data-has-check='true'] > strong,
+.page-plan[data-mode='week'] .mobile-timeline-event[data-has-check='true'] > span,
+.page-plan[data-mode='week'] .mobile-timeline-event[data-has-check='true'] > small {
+  grid-column: 2 !important;
+}
+
+.page-plan[data-mode='week'] .mobile-timeline-event > strong {
+  grid-row: 1;
+  font-size: 15px !important;
+  line-height: 21px !important;
+}
+
+.page-plan[data-mode='week'] .mobile-timeline-event > span {
+  grid-row: 2;
+}
+
+.page-plan[data-mode='week'] .mobile-timeline-event > small {
+  grid-row: 3;
+}
+
+.page-plan[data-mode='week'] .mobile-timeline-event > .marker-icon {
+  grid-column: 2 !important;
+  grid-row: 1 / span 3 !important;
+  align-self: center;
+}
+
+.page-plan[data-mode='week'] .mobile-timeline-event[data-has-check='true'] > .marker-icon {
+  grid-column: 3 !important;
+}
+
+/* Selected day is one paired state, never dark-on-dark. */
+.page-plan[data-mode='week'] .mobile-week-strip button[data-selected='true'] > strong {
+  background: var(--color-text-primary) !important;
+  color: var(--color-surface-primary) !important;
+}
+
+.page-plan[data-mode='week'] .mobile-week-strip button[data-selected='true'] > span {
+  color: var(--color-text-primary) !important;
+}
+
+/* Work records -----------------------------------------------------------
+   On phones, date owns a full line and the time range shares the next line
+   with duration. Core financial/work data is never ellipsized. */
+.finance-work-entry-timing strong {
+  overflow: visible;
+  text-overflow: clip;
+}
+
+@media (max-width: 600px) {
+  .finance-work-entry-timing {
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding-block: 9px 0;
+  }
+
+  .finance-work-entry-timing > div {
+    padding: 0 8px 9px;
+  }
+
+  .finance-work-entry-timing > .finance-work-entry-date {
+    grid-column: 1 / -1;
+    border-bottom: 1px solid var(--color-separator);
+    padding: 0 0 9px;
+  }
+
+  .finance-work-entry-timing > .finance-work-entry-time-range {
+    border-left: 0;
+    padding: 9px 10px 9px 0;
+  }
+
+  .finance-work-entry-duration {
+    display: grid;
+    min-width: max-content;
+    min-height: 0;
+    grid-column: 2;
+    align-content: center;
+    border-top: 0;
+    border-left: 1px solid var(--color-separator) !important;
+    padding: 9px 0 9px 12px !important;
+    text-align: right;
+  }
+
+  .finance-work-entry-timing strong {
+    font-size: 13px;
+    white-space: nowrap;
+  }
+
+  .finance-work-entry-duration strong {
+    font-size: 14px;
+  }
+}
+
+/* Agenda semantics -------------------------------------------------------
+   Date markers are read-only status rows. The actionable content below is a
+   single divided list; groups and children do not introduce nested cards. */
+.calendar-date-status-list {
+  box-shadow: none;
+}
+
+.calendar-date-status-list > li {
+  cursor: default;
+}
+
+.calendar-selected-items .calendar-item-list,
+.agenda-day .calendar-item-list {
+  display: grid;
+  gap: 0 !important;
+}
+
+.calendar-selected-items .calendar-item-list > .calendar-parent-group,
+.agenda-day .calendar-item-list > .calendar-parent-group {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.calendar-selected-items .calendar-item-list > * + *,
+.agenda-day .calendar-item-list > * + * {
+  border-top: 1px solid var(--color-separator) !important;
+}
+
+.calendar-selected-items .calendar-parent-children,
+.agenda-day .calendar-parent-children {
+  margin-left: 54px;
+  border-top: 1px solid var(--color-separator);
+  padding: 0 10px 2px 0;
+}
+
+.calendar-selected-items .calendar-parent-children > *,
+.agenda-day .calendar-parent-children > * {
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+/* Date marker editor -----------------------------------------------------
+   Creation, management and destructive actions are separate vertical
+   sections so keyboard and narrow layouts cannot overlap them. */
+.date-marker-create-section,
+.date-marker-manage-section,
+.date-marker-clear-section {
+  margin-top: 18px;
+}
+
+.date-marker-section-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  padding-inline: 2px;
+}
+
+.date-marker-section-heading h3 {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 650;
+}
+
+.date-marker-section-heading span {
+  overflow: hidden;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.date-marker-create-section .date-marker-custom-type {
+  margin-top: 0;
+}
+
+.date-marker-create-section .date-marker-custom-type input {
+  min-width: 0;
+  border: 1px solid var(--color-border-subtle);
+  background: var(--color-surface-secondary);
+}
+
+.date-marker-create-section .date-marker-custom-type button {
+  display: inline-flex;
+  min-width: 88px;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border: 1px solid var(--color-border-subtle);
+  background: var(--color-surface-primary);
+  color: var(--color-text-primary);
+  white-space: nowrap;
+}
+
+.date-marker-manage-section .date-marker-type-management {
+  border-color: var(--color-border-strong);
+  background: var(--color-surface-secondary);
+}
+
+.date-marker-manage-section .date-marker-manage-trigger {
+  background: var(--color-surface-primary);
+}
+
+.date-marker-clear-section {
+  display: grid;
+  min-height: 68px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  border-top: 1px solid var(--color-separator);
+  padding: 12px 2px 0;
+}
+
+.date-marker-clear-section > div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.date-marker-clear-section strong {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 620;
+}
+
+.date-marker-clear-section span {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.date-marker-clear-section .date-marker-clear {
+  width: auto;
+  min-width: 76px;
+  margin: 0;
+}
+
+@media (max-width: 370px) {
+  .date-marker-create-section .date-marker-custom-type {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .date-marker-create-section .date-marker-custom-type button {
+    width: 100%;
+  }
+}

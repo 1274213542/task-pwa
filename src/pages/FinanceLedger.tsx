@@ -1354,11 +1354,11 @@ function WorkView({
             <b><PrivateAmount>{formatMoney(entry.estimatedGrossMinor, entry.currency)}</PrivateAmount></b>
           </div>
           <div className="finance-work-entry-timing">
-            <div>
+            <div className="finance-work-entry-date">
               <span>日期</span>
               <strong>{entry.date}</strong>
             </div>
-            <div>
+            <div className="finance-work-entry-time-range">
               <span>出勤–退勤</span>
               <strong>{formatWorkEntryTimeRange(entry)}</strong>
             </div>

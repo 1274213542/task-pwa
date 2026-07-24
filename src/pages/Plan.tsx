@@ -1025,6 +1025,7 @@ export default function Plan() {
             contentProps={{
               role: 'button',
               tabIndex: 0,
+              'data-has-check': item.kind === 'task' ? 'true' : undefined,
               onClick: () => openItem(item),
               onKeyDown: (event) => {
                 if (event.key === 'Enter' || event.key === ' ') openItem(item)
@@ -1204,7 +1205,11 @@ export default function Plan() {
         </div>
 
         {selectedDateTypes.length > 0 && (
-          <ul className="calendar-date-type-list" aria-label="日期类型标记">
+          <ul
+            className="calendar-date-type-list calendar-date-status-list"
+            aria-label="全天状态标记"
+            data-item-kind="date-status"
+          >
             {selectedDateTypes.map((definition) => (
               <li key={definition.id} data-color-token={definition.colorToken}>
                 <i aria-hidden />

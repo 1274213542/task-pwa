@@ -203,40 +203,58 @@ export default function DateMarkerSheet({
               )
             })}
           </div>
-          <div className="date-marker-custom-type">
-            <input value={customName} onChange={(event) => setCustomName(event.target.value)} placeholder="新增其他类型" />
-            <button type="button" disabled={!customName.trim()} onClick={() => void addCustomType()}><AppIcon name="plus" size={17} /> 添加</button>
-          </div>
+          <section className="date-marker-create-section" aria-labelledby="date-marker-create-title">
+            <div className="date-marker-section-heading">
+              <h3 id="date-marker-create-title">新增类型</h3>
+              <span>创建后会立即选中</span>
+            </div>
+            <div className="date-marker-custom-type">
+              <input value={customName} onChange={(event) => setCustomName(event.target.value)} placeholder="输入类型名称" />
+              <button type="button" disabled={!customName.trim()} onClick={() => void addCustomType()}><AppIcon name="plus" size={17} /> 添加</button>
+            </div>
+          </section>
           {typeId && (
-            <section className="date-marker-type-management" aria-label="管理日期类型">
-              <button type="button" className="date-marker-manage-trigger" aria-expanded={manageOpen} onClick={beginManage}>
-                <span>管理当前类型</span>
-                <AppIcon name="chevronDown" size={16} />
-              </button>
-              {manageOpen && (
-                <div className="date-marker-manage-fields">
-                  <input value={managedName} onChange={(event) => setManagedName(event.target.value)} aria-label="类型名称" />
-                  <div className="date-marker-color-options" role="radiogroup" aria-label="类型颜色">
-                    {TYPE_COLORS.map((color) => (
-                      <button
-                        type="button"
-                        key={color}
-                        data-color-token={color}
-                        role="radio"
-                        aria-checked={managedColor === color}
-                        onClick={() => setManagedColor(color)}
-                      ><span aria-hidden /></button>
-                    ))}
+            <section className="date-marker-manage-section" aria-labelledby="date-marker-manage-title">
+              <div className="date-marker-section-heading">
+                <h3 id="date-marker-manage-title">当前类型</h3>
+                <span>{definitions.find((definition) => definition.id === typeId)?.name}</span>
+              </div>
+              <div className="date-marker-type-management">
+                <button type="button" className="date-marker-manage-trigger" aria-expanded={manageOpen} onClick={beginManage}>
+                  <span>管理当前类型</span>
+                  <AppIcon name={manageOpen ? 'chevronUp' : 'chevronDown'} size={16} />
+                </button>
+                {manageOpen && (
+                  <div className="date-marker-manage-fields">
+                    <input value={managedName} onChange={(event) => setManagedName(event.target.value)} aria-label="类型名称" />
+                    <div className="date-marker-color-options" role="radiogroup" aria-label="类型颜色">
+                      {TYPE_COLORS.map((color) => (
+                        <button
+                          type="button"
+                          key={color}
+                          data-color-token={color}
+                          role="radio"
+                          aria-checked={managedColor === color}
+                          onClick={() => setManagedColor(color)}
+                        ><span aria-hidden /></button>
+                      ))}
+                    </div>
+                    <div className="date-marker-manage-actions">
+                      <button type="button" disabled={!managedName.trim() || saving} onClick={() => void saveManagedType()}>保存修改</button>
+                      <button type="button" className="danger" disabled={saving} onClick={() => void removeManagedType()}>删除类型</button>
+                    </div>
                   </div>
-                  <div className="date-marker-manage-actions">
-                    <button type="button" disabled={!managedName.trim() || saving} onClick={() => void saveManagedType()}>保存修改</button>
-                    <button type="button" className="danger" disabled={saving} onClick={() => void removeManagedType()}>删除类型</button>
-                  </div>
-                </div>
-              )}
+                )}
+              </div>
             </section>
           )}
-          <button type="button" className="date-marker-clear" disabled={!selected.size || saving} onClick={() => void clear()}>清除所选日期的当前类型</button>
+          <section className="date-marker-clear-section" aria-label="清除日期标记">
+            <div>
+              <strong>清除日期标记</strong>
+              <span>仅清除已选日期的当前类型</span>
+            </div>
+            <button type="button" className="date-marker-clear" disabled={!selected.size || saving} onClick={() => void clear()}>清除</button>
+          </section>
           {error && <p role="alert">{error}</p>}
         </div>
       </div>
