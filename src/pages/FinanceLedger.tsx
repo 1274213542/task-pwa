@@ -160,15 +160,6 @@ function formatWorkEntryTimeRange(entry: WorkEntry) {
     : '未记录出退勤'
 }
 
-function formatWorkEntryContext(entry: WorkEntry) {
-  const details = [
-    entry.breakMinutes > 0 ? `休息 ${entry.breakMinutes} 分` : '未扣除休息',
-    entry.workLocation,
-    entry.employer && entry.employer !== entry.workContent ? entry.employer : undefined,
-  ].filter(Boolean)
-  return details.join(' · ')
-}
-
 const FINANCE_ENTRY_DEFAULTS_KEY = 'financeEntryDefaultsV1'
 
 type FinanceEntryDefaults = {
@@ -1324,7 +1315,12 @@ function WorkView({
       </form>
       <section className="finance-section-card finance-work-records-v2">
         <header><div><span>按日期查看</span><h2>工作记录</h2></div><strong>{activeEntries.length} 条</strong></header>
-        {activeEntries.length ? <ul>{activeEntries.map((entry, index) => <SwipeActionRow
+        {activeEntries.length ? <ul>{activeEntries.map((entry, index) => {
+          const contextParts = [
+            entry.breakMinutes > 0 ? `休息 ${entry.breakMinutes} 分` : '未扣除休息',
+            entry.workLocation,
+          ].filter((value): value is string => Boolean(value))
+          return <SwipeActionRow
           key={entry.id}
           id={`work-entry:${entry.id}`}
           label={entry.workContent || entry.employer || '工作'}
@@ -1351,16 +1347,30 @@ function WorkView({
           ]}
         >
           <div className="finance-work-entry-heading">
-            <strong>{entry.workContent || entry.employer || '工作'}</strong>
+            <div>
+              <strong>{entry.workContent || entry.employer || '工作'}</strong>
+              {entry.employer && entry.employer !== entry.workContent && <small>{entry.employer}</small>}
+            </div>
             <b><PrivateAmount>{formatMoney(entry.estimatedGrossMinor, entry.currency)}</PrivateAmount></b>
           </div>
           <div className="finance-work-entry-timing">
-            <span><AppIcon name="calendar" size={14} />{entry.date}</span>
-            <span><AppIcon name="clock" size={14} />{formatWorkEntryTimeRange(entry)}</span>
-            <strong>{formatMinutes(entry.durationMinutes)}</strong>
+            <div>
+              <span>日期</span>
+              <strong>{entry.date}</strong>
+            </div>
+            <div>
+              <span>出勤–退勤</span>
+              <strong>{formatWorkEntryTimeRange(entry)}</strong>
+            </div>
+            <div className="finance-work-entry-duration">
+              <span>有效工时</span>
+              <strong>{formatMinutes(entry.durationMinutes)}</strong>
+            </div>
           </div>
           <div className="finance-work-entry-footer">
-            <span>{formatWorkEntryContext(entry)}</span>
+            <span className="finance-work-entry-context">
+              {contextParts.map((part) => <i key={part}>{part}</i>)}
+            </span>
             {entry.settlementStatus === 'settled' ? (
               <em>已入账</em>
             ) : settlementEntryId === entry.id ? (
@@ -1373,7 +1383,8 @@ function WorkView({
               <button type="button" data-no-row-swipe onClick={() => beginSettlement(entry)}>实际入账</button>
             )}
           </div>
-        </SwipeActionRow>)}</ul> : <div className="finance-empty-state">还没有工作记录</div>}
+        </SwipeActionRow>
+        })}</ul> : <div className="finance-empty-state">还没有工作记录</div>}
       </section>
       {selectedWorkEntryId && (() => {
         const selected = entries.find((entry) => entry.id === selectedWorkEntryId)
@@ -2352,7 +2363,7 @@ function FinanceEntrySheet({
                   </>
                 )}
 
-                <label>备注<textarea rows={3} value={note} onChange={(event) => setNote(event.target.value)} placeholder="可选备注" /></label>
+                <label>备注<textarea className="multiline-input-surface" rows={3} value={note} onChange={(event) => setNote(event.target.value)} placeholder="可选备注" /></label>
                 {kind === 'expense' && <button type="button" role="switch" aria-checked={includeInSpending} className="finance-sheet-setting finance-stat-switch" onClick={() => setIncludeInSpending((value) => !value)}><span>计入消费统计<small>转账、还款和充值不会计入消费</small></span><i aria-hidden /></button>}
               </div>
               {kind === 'refund' && selectedRefundOrigin && <p className="finance-entry-notice">退款沿用原消费分类并冲减相同统计口径；支持部分退款。</p>}

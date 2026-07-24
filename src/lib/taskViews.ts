@@ -1,15 +1,33 @@
 import type { Task } from './db'
 import { latestFixedOnOrBefore, type Recurrence, type Weekday } from './recurrence'
 import {
+  calendarDateForTask,
   civilDateOf,
   effectiveTaskSchedule,
   explicitTaskDueAt,
   taskMapOf,
   taskNodeRoleOf,
+  taskScheduleTypeOf,
 } from './taskSchedule'
 import { taskScopeOf } from './taskPeriods'
 
 export type TaskView = 'today' | 'longTerm'
+
+/**
+ * A non-recurring “今日任务” is a dated task instance, not a daily template.
+ * Keep this projection pure: the task's stored schedule decides which civil
+ * date owns it, and completion history never rewrites that ownership.
+ */
+export function isOneTimeTaskAssignedToDate(
+  task: Task,
+  dateISO: string,
+  tasks: Task[],
+): boolean {
+  if (taskNodeRoleOf(task) === 'plan' || effectiveRecurrence(task)) return false
+  const scheduledDate = calendarDateForTask(task, tasks)
+  if (scheduledDate) return scheduledDate === dateISO
+  return taskScheduleTypeOf(task) === 'today' && civilDateOf(task.createdAt) === dateISO
+}
 
 /**
  * Safe read adapter for records written before 今日任务 / 长期任务 replaced

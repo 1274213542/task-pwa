@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import type { Task } from './db'
-import { effectiveRecurrence, isLongTermTaskDefinition, isTodayTaskDefinition, taskViewFromStorage } from './taskViews'
+import {
+  effectiveRecurrence,
+  isLongTermTaskDefinition,
+  isOneTimeTaskAssignedToDate,
+  isTodayTaskDefinition,
+  taskViewFromStorage,
+} from './taskViews'
 
 function task(id: string, fields: Partial<Task> = {}): Task {
   return {
@@ -57,5 +63,24 @@ describe('今日任务 / 长期任务 projection', () => {
     expect(isTodayTaskDefinition(plan, today, [plan, step])).toBe(false)
     expect(isLongTermTaskDefinition(step, today, [plan, step])).toBe(true)
     expect(isTodayTaskDefinition(step, today, [plan, step])).toBe(true)
+  })
+
+  it('does not revive a completed one-time task on a later civil date', () => {
+    const yesterdayTask = task('yesterday-task', {
+      taskScope: 'daily',
+      scheduleType: 'today',
+      startAt: '2026-07-20',
+      startDate: '2026-07-20',
+      completedAt: '2026-07-20T12:30:00+09:00',
+    })
+    const todayTask = task('today-task', {
+      taskScope: 'daily',
+      scheduleType: 'today',
+      startAt: today,
+      startDate: today,
+    })
+
+    expect(isOneTimeTaskAssignedToDate(yesterdayTask, today, [yesterdayTask, todayTask])).toBe(false)
+    expect(isOneTimeTaskAssignedToDate(todayTask, today, [yesterdayTask, todayTask])).toBe(true)
   })
 })

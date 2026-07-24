@@ -1125,7 +1125,7 @@ export default function Plan() {
                     .map((item, index) => (
                       item.kind === 'task' && taskChildKindOf(item.task, taskMap) === 'checklist'
                         ? groupedChecklistChildRow(item, index, `${context}:checklist`)
-                        : timelineItemRow(item, index, true)
+                        : itemRow(item, index, true)
                     ))}
                 </div>
               )}
@@ -1216,6 +1216,7 @@ export default function Plan() {
 
         {composerOpen && <div className="calendar-composer quick-card">
           <textarea
+            className="multiline-input-surface"
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={(event) => {

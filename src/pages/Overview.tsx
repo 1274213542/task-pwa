@@ -34,6 +34,7 @@ import {
   taskScheduleLabel,
 } from '../lib/taskSchedule'
 import { taskScopeOf } from '../lib/taskPeriods'
+import { isOneTimeTaskAssignedToDate } from '../lib/taskViews'
 import { PrivateAmount } from '../components/AmountPrivacy'
 import CalendarMarkerTrack from '../components/CalendarMarkerTrack'
 import { calendarMarkerSummary } from '../lib/calendarMarkers'
@@ -121,6 +122,7 @@ export default function Overview() {
       .map((record) => [record.taskId, record]))
     const dailyTasks = snapshot.tasks
       .filter((task) => taskScopeOf(task) === 'daily' && !task.recurrence && leaves.has(task.id))
+      .filter((task) => isOneTimeTaskAssignedToDate(task, today, snapshot.tasks))
       .map((task): CalItem => {
         const record = currentDailyRecords.get(task.id)
         const completedOn = record ? `${record.completedDate ?? record.occurrenceDate}T12:00:00` : undefined

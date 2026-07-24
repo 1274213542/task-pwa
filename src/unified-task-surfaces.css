@@ -523,59 +523,127 @@
 }
 
 .finance-work-entry-row {
-  gap: 8px !important;
-  padding-block: 14px !important;
+  gap: 12px !important;
+  padding-block: 16px !important;
 }
 
-.finance-work-entry-heading strong,
+.finance-work-entry-heading > div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.finance-work-entry-heading strong {
+  overflow: hidden;
+  font-size: 17px;
+  line-height: 23px;
+  font-weight: 690;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.finance-work-entry-heading small {
+  overflow: hidden;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  line-height: 17px;
+  font-weight: 520;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .finance-work-entry-heading b {
+  align-self: start;
   font-size: 16px;
-  line-height: 22px;
+  line-height: 23px;
   font-weight: 680;
 }
 
 .finance-work-entry-timing {
   display: grid;
   min-width: 0;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 8px 12px;
-  border-radius: var(--radius-control);
-  background: var(--color-surface-secondary);
-  padding: 8px 10px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: 0;
+  border-block: 1px solid var(--color-separator);
+  border-radius: 0;
+  background: transparent;
+  padding: 11px 0;
 }
 
-.finance-work-entry-timing > span {
-  display: inline-flex;
+.finance-work-entry-timing > div {
+  display: grid;
   min-width: 0;
-  align-items: center;
-  gap: 5px;
-  color: var(--color-text-secondary);
-  font-size: 12px;
-  line-height: 18px;
-  white-space: nowrap;
+  align-content: center;
+  gap: 3px;
+  padding-inline: 12px;
 }
 
-.finance-work-entry-timing > span > svg {
-  flex: 0 0 auto;
+.finance-work-entry-timing > div:first-child {
+  padding-left: 0;
 }
 
-.finance-work-entry-timing > strong {
+.finance-work-entry-timing > div + div {
+  border-left: 1px solid var(--color-separator);
+}
+
+.finance-work-entry-timing span {
+  color: var(--color-text-tertiary);
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 560;
+}
+
+.finance-work-entry-timing strong {
+  overflow: hidden;
+  min-width: 0;
   color: var(--color-text-primary);
   font-size: 13px;
   line-height: 18px;
   font-weight: 650;
-  text-align: right;
+  text-overflow: ellipsis;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
 
-.finance-work-entry-footer {
-  min-height: 32px;
+.finance-work-entry-duration {
+  padding-right: 0 !important;
+  text-align: right;
 }
 
-.finance-work-entry-footer > span {
-  overflow-wrap: anywhere;
+.finance-work-entry-duration strong {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.finance-work-entry-footer {
+  min-height: 34px;
+}
+
+.finance-work-entry-context {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0;
+  overflow: hidden;
+}
+
+.finance-work-entry-context > i {
+  overflow: hidden;
+  min-width: 0;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  line-height: 18px;
+  font-style: normal;
+  font-weight: 520;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.finance-work-entry-context > i + i::before {
+  content: '·';
+  margin-inline: 7px;
+  color: var(--color-text-tertiary);
 }
 
 .overview-days {
@@ -634,6 +702,42 @@
 .mobile-timeline-plan-steps {
   min-width: 0;
   padding: 0 12px 2px;
+}
+
+.mobile-timeline-plan-steps .calendar-timeline-step-row {
+  min-height: 50px;
+  grid-template-columns: 56px 28px minmax(0, 1fr);
+  background: transparent;
+}
+
+.mobile-timeline-plan-steps .calendar-timeline-step-row > time {
+  justify-content: flex-start;
+  border-right: 0;
+  padding-right: 8px;
+  font-size: 12px;
+}
+
+.mobile-timeline-plan-steps .calendar-timeline-step-row > button:last-child {
+  min-width: 0;
+  padding: 7px 4px 7px 8px;
+}
+
+.mobile-timeline-plan-steps .calendar-timeline-step-row strong {
+  display: block;
+  overflow: hidden;
+  min-width: 0;
+  font-size: 13.5px;
+  line-height: 19px;
+  font-weight: 580;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  word-break: normal;
+  overflow-wrap: normal;
+}
+
+.mobile-timeline-plan-steps .calendar-timeline-step-swipe .apple-swipe-divider {
+  right: 0 !important;
+  left: 92px !important;
 }
 
 .mobile-timeline-plan-steps .timeline-schedule-row,
@@ -752,8 +856,36 @@
 }
 
 .calendar-parent-children .calendar-timeline-step-row strong {
-  white-space: normal;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+
+/* A multiline editor is a text view, not a stretched one-line pill. */
+.multiline-input-surface {
+  min-height: 88px !important;
+  border-radius: 18px !important;
+  padding: 12px 14px !important;
+  line-height: 1.45 !important;
+  resize: none;
+}
+
+.finance-sheet-grid textarea.multiline-input-surface,
+.calendar-composer textarea.multiline-input-surface {
+  border-radius: 18px !important;
+}
+
+/* The day/unscheduled panel already owns the containing surface. Nested plan
+   groups become flat sections, while the child rows own the only dividers. */
+.mobile-timeline-unscheduled > .calendar-parent-group,
+.calendar-selected-items .calendar-parent-group {
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+.mobile-timeline-unscheduled > .calendar-parent-group + .calendar-parent-group,
+.calendar-selected-items .calendar-parent-group + .calendar-parent-group {
+  border-top: 1px solid var(--color-separator) !important;
 }
 
 @media (max-width: 390px) {
@@ -789,12 +921,35 @@
   }
 
   .finance-work-entry-timing {
-    gap: 6px 8px;
-    padding-inline: 8px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    padding-block: 9px 0;
   }
 
-  .finance-work-entry-timing > span,
-  .finance-work-entry-timing > strong {
-    font-size: 11.5px;
+  .finance-work-entry-timing > div {
+    padding: 0 8px 9px;
+  }
+
+  .finance-work-entry-timing > div:first-child {
+    padding-left: 0;
+  }
+
+  .finance-work-entry-duration {
+    display: flex;
+    min-height: 40px;
+    grid-column: 1 / -1;
+    align-items: center;
+    justify-content: space-between;
+    border-top: 1px solid var(--color-separator);
+    border-left: 0 !important;
+    padding: 8px 0 0 !important;
+    text-align: left;
+  }
+
+  .finance-work-entry-timing strong {
+    font-size: 12.5px;
+  }
+
+  .finance-work-entry-duration strong {
+    font-size: 14px;
   }
 }
