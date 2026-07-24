@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import AppIcon from './AppIcon'
+import TaskLeadingControl from './TaskLeadingControl'
 
 /**
  * One stable header for every parent task / plan projection.
@@ -33,20 +34,13 @@ export default function TaskGroupHeader({
 }) {
   return (
     <div className="task-group-header">
-      <button
-        type="button"
+      <TaskLeadingControl
         className="task-group-check"
-        aria-label={completed ? `取消完成 ${title}` : `完成 ${title}`}
+        label={completed ? `取消完成 ${title}` : `完成 ${title}`}
+        completed={completed}
         disabled={completionDisabled}
-        onClick={(event) => {
-          event.stopPropagation()
-          onToggleComplete()
-        }}
-      >
-        <span aria-hidden>
-          {completed && <AppIcon name="check" size={15} weight="bold" />}
-        </span>
-      </button>
+        onToggle={onToggleComplete}
+      />
 
       <button
         type="button"

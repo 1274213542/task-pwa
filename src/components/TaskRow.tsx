@@ -8,6 +8,7 @@ import AppIcon from './AppIcon'
 import SwipeActionRow from './SwipeActionRow'
 import { MOTION } from '../lib/motion'
 import TaskGroupHeader from './TaskGroupHeader'
+import TaskLeadingControl from './TaskLeadingControl'
 
 export interface RowActions {
   onToggle: () => void
@@ -199,35 +200,21 @@ export default function TaskRow({
         </TaskGroupHeader>
       ) : (
         <>
-      {organizational ? (
-        <span className="task-card-check task-card-plan-indicator" aria-label="计划">
-          <AppIcon name="list" size={18} />
-        </span>
-      ) : <button
-        type="button"
-        onClick={actions.onToggle}
-        disabled={completionDisabled}
+      <TaskLeadingControl
         className="task-card-check"
-        aria-label={completionDisabled ? '长期任务模板' : completed ? '取消完成' : '完成'}
-      >
-        <motion.span
-          className="task-card-check-feedback"
-          initial={false}
-          animate={completed
-            ? { scale: 1, opacity: 1 }
-            : { scale: 0.88, opacity: 0.86 }}
-          transition={reduceMotion ? MOTION.reduced : MOTION.press}
-          aria-hidden
-        >
-          {completed ? (
-            <AppIcon name="check" size={16} weight="bold" />
-          ) : completionDisabled ? (
-            <AppIcon name="sync" size={15} />
-          ) : (
-            <span className="task-card-check-empty" />
-          )}
-        </motion.span>
-      </button>}
+        label={organizational
+          ? '计划'
+          : completionDisabled
+            ? '长期任务模板'
+            : completed
+              ? '取消完成'
+              : '完成'}
+        completed={completed}
+        disabled={completionDisabled}
+        onToggle={actions.onToggle}
+        size={isChild ? 'child' : 'main'}
+        kind={organizational ? 'plan' : 'completion'}
+      />
 
       <div className="task-card-copy">
         <div className="task-card-title-line">

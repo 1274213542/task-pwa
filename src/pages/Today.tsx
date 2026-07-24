@@ -97,6 +97,7 @@ import {
   taskViewFromStorage,
   type TaskView,
 } from '../lib/taskViews'
+import { isRenderableRecord } from '../lib/displayRecords'
 
 /** 今天视图的投影条目（TaskOccurrenceView 的子集） */
 interface TodayItem {
@@ -144,9 +145,15 @@ function buildItems(
 
   for (const task of tasks) {
     const role = taskNodeRoleOf(task)
+    if (!isRenderableRecord(
+      task,
+      'task-list-projection',
+      role === 'plan' ? 'parent-task' : 'task',
+    )) continue
     if (role === 'plan') {
       const hasTodayChecklistChild = view === 'today' && tasks.some((child) => (
         child.parentTaskId === task.id
+        && isRenderableRecord(child, 'task-list-child-projection', 'task')
         && taskChildKindOf(child, taskMap) === 'checklist'
         && isTodayTaskDefinition(child, todayISO, tasks, taskMap)
       ))
@@ -485,11 +492,19 @@ export default function Today() {
 
   const todayISO = useCivilDate() // 跨零点与 iOS 后台恢复时刷新本地民用日期
   const catMap = new Map((categories ?? []).map((c) => [c.id, c]))
-  const taskMap = useMemo(() => taskMapOf(tasks ?? []), [tasks])
-  const childrenByParent = useMemo(() => taskChildrenMap(tasks ?? []), [tasks])
-  const activePlans = useMemo(
-    () => (tasks ?? []).filter((task) => taskNodeRoleOf(task) === 'plan'),
+  const renderableTasks = useMemo(
+    () => (tasks ?? []).filter((task) => isRenderableRecord(
+      task,
+      'task-list-map',
+      taskNodeRoleOf(task) === 'plan' ? 'parent-task' : 'task',
+    )),
     [tasks],
+  )
+  const taskMap = useMemo(() => taskMapOf(renderableTasks), [renderableTasks])
+  const childrenByParent = useMemo(() => taskChildrenMap(renderableTasks), [renderableTasks])
+  const activePlans = useMemo(
+    () => renderableTasks.filter((task) => taskNodeRoleOf(task) === 'plan'),
+    [renderableTasks],
   )
   const timedEntries = useMemo(() => parseTimedBatchEntries(title), [title])
   const firstTimedEntryError = timedEntries.find((entry) => entry.error)
@@ -787,7 +802,7 @@ export default function Today() {
     const directChildren = childrenByParent.get(item.task.id) ?? []
     const progress = childProgress(
       item.task.id,
-      tasks ?? [],
+      renderableTasks,
       currentCompletedTaskIds,
     ) ?? (directChildren.length > 0 ? {
       completed: directChildren.filter((child) => currentCompletedTaskIds.has(child.id)).length,

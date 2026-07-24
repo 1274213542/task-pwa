@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { CalendarEvent, Task } from './db'
 import { buildCalendarItems, monthGrid } from './calendar'
 
@@ -44,6 +44,42 @@ describe('buildCalendarItems（统一投影，任务不复制存储）', () => {
   it('does not project organizational plans as calendar tasks', () => {
     const plan = baseTask({ id: 'plan', nodeRole: 'plan', scheduleType: 'longTerm', startAt: '2026-07-10' })
     expect(buildCalendarItems([plan], [], [], '2026-07-01', '2026-07-31').size).toBe(0)
+  })
+
+  it('skips damaged task and event records without creating blank row wrappers', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const valid = baseTask({ id: 'valid', title: '真实任务', startDate: '2026-07-11' })
+    const blank = baseTask({ id: 'blank-task', title: '   ', startDate: '2026-07-10' })
+    const blankEvent: CalendarEvent = {
+      id: 'blank-event',
+      title: '',
+      allDay: true,
+      startDate: '2026-07-10',
+      endDate: '2026-07-10',
+      lifecycleStatus: 'active',
+      createdAt: '',
+      updatedAt: '',
+    }
+
+    const byDay = buildCalendarItems(
+      [blank, valid],
+      [],
+      [blankEvent],
+      '2026-07-01',
+      '2026-07-31',
+    )
+
+    expect(byDay.get('2026-07-10')).toBeUndefined()
+    expect(byDay.get('2026-07-11')).toHaveLength(1)
+    expect(warn).toHaveBeenCalledWith(
+      '[task-display] Skipped record without display content',
+      expect.objectContaining({ id: 'blank-task', type: 'task' }),
+    )
+    expect(warn).toHaveBeenCalledWith(
+      '[task-display] Skipped record without display content',
+      expect.objectContaining({ id: 'blank-event', type: 'event' }),
+    )
+    warn.mockRestore()
   })
 
   it('三类同屏：普通任务、周期实例、日程', () => {

@@ -1,13 +1,110 @@
+:root {
+  --color-separator: var(--color-divider);
+  --task-row-inline-start: 14px;
+  --task-main-control-track: 40px;
+  --task-main-control-visual: 32px;
+  --task-main-column-gap: 10px;
+  --task-main-content-start: calc(
+    var(--task-row-inline-start) +
+    var(--task-main-control-track) +
+    var(--task-main-column-gap)
+  );
+  --task-child-control-track: 28px;
+  --task-child-control-visual: 20px;
+  --task-child-column-gap: 8px;
+  --task-child-content-start: calc(
+    var(--task-main-content-start) +
+    var(--task-child-control-track) +
+    var(--task-child-column-gap)
+  );
+  --task-trailing-action-size: 44px;
+  --task-trailing-action-gap: 6px;
+  --task-trailing-track: 94px;
+}
+
+/* Every ordinary task and parent task uses this exact leading control.
+   Children keep the same interaction component with a smaller visual token. */
+.task-leading-control {
+  display: grid !important;
+  width: var(--task-main-control-track) !important;
+  min-width: var(--task-main-control-track) !important;
+  height: var(--task-main-control-track) !important;
+  min-height: var(--task-main-control-track) !important;
+  place-items: center !important;
+  box-sizing: border-box;
+  border: 0 !important;
+  border-radius: var(--radius-circle) !important;
+  background: transparent !important;
+  padding: 0 !important;
+  color: var(--color-text-primary) !important;
+}
+
+.task-leading-control::before,
+.task-leading-control::after {
+  content: none !important;
+}
+
+.task-leading-control-visual {
+  display: grid !important;
+  width: var(--task-main-control-visual) !important;
+  min-width: var(--task-main-control-visual) !important;
+  height: var(--task-main-control-visual) !important;
+  min-height: var(--task-main-control-visual) !important;
+  place-items: center !important;
+  box-sizing: border-box;
+  border: 1.5px solid var(--color-text-tertiary) !important;
+  border-radius: var(--radius-circle) !important;
+  background: var(--color-surface-primary) !important;
+  color: transparent !important;
+}
+
+.task-leading-control[data-completed='true'] .task-leading-control-visual {
+  border-color: var(--color-text-primary) !important;
+  background: var(--color-text-primary) !important;
+  color: var(--color-surface-primary) !important;
+}
+
+.task-leading-control[data-task-control-kind='plan'] .task-leading-control-visual {
+  color: var(--color-text-secondary) !important;
+}
+
+.task-leading-control[data-task-control-size='child'] {
+  width: var(--task-child-control-track) !important;
+  min-width: var(--task-child-control-track) !important;
+  height: var(--task-child-control-track) !important;
+  min-height: var(--task-child-control-track) !important;
+}
+
+.task-leading-control[data-task-control-size='child'] .task-leading-control-visual {
+  width: var(--task-child-control-visual) !important;
+  min-width: var(--task-child-control-visual) !important;
+  height: var(--task-child-control-visual) !important;
+  min-height: var(--task-child-control-visual) !important;
+}
+
+.task-leading-control:disabled {
+  cursor: default;
+  opacity: 0.72;
+}
+
+.task-leading-control:disabled .task-leading-control-visual {
+  color: var(--color-text-secondary) !important;
+}
+
 /* Unified grouped task / plan projection ---------------------------------
    One stable header is shared by Today and all Plan projections. Children
    occupy a separate detail row so expansion never moves header controls. */
 .task-group-header {
   display: grid;
   min-width: 0;
-  grid-template-columns: 42px minmax(0, 1fr) 80px;
+  grid-template-columns:
+    var(--task-main-control-track)
+    minmax(0, 1fr)
+    var(--task-trailing-track);
   align-items: center;
-  gap: 8px;
-  padding: 12px 12px 12px 14px;
+  gap: var(--task-main-column-gap);
+  box-sizing: border-box;
+  padding: 10px 12px 10px var(--task-row-inline-start);
 }
 
 .task-card > .task-group-header {
@@ -32,9 +129,9 @@
 .task-group-actions {
   display: grid;
   min-width: 0;
-  grid-template-columns: repeat(2, 36px);
+  grid-template-columns: repeat(2, var(--task-trailing-action-size));
   justify-content: end;
-  gap: 6px;
+  gap: var(--task-trailing-action-gap);
 }
 
 .task-group-actions > .task-group-toggle:only-child {
@@ -42,25 +139,11 @@
 }
 
 .task-group-check {
-  width: 40px;
-  height: 40px;
-  border: 1.5px solid var(--color-text-tertiary);
-  border-radius: var(--radius-circle);
-  background: var(--color-surface-primary);
-  color: var(--color-surface-primary);
+  align-self: center;
 }
 
 .task-group-check > span {
-  display: grid;
-  width: 100%;
-  height: 100%;
-  place-items: center;
-  border-radius: inherit;
-}
-
-.task-group-check[aria-label^='取消'] {
-  border-color: var(--color-text-primary);
-  background: var(--color-text-primary);
+  border-radius: var(--radius-circle);
 }
 
 .task-group-copy {
@@ -127,8 +210,12 @@
 }
 
 .task-group-add {
-  width: 36px;
-  height: 36px;
+  display: grid !important;
+  width: var(--task-trailing-action-size) !important;
+  min-width: var(--task-trailing-action-size) !important;
+  height: var(--task-trailing-action-size) !important;
+  min-height: var(--task-trailing-action-size) !important;
+  place-items: center !important;
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-circle);
   background: var(--color-surface-primary);
@@ -136,8 +223,12 @@
 }
 
 .task-group-toggle {
-  width: 36px;
-  height: 36px;
+  display: grid !important;
+  width: var(--task-trailing-action-size) !important;
+  min-width: var(--task-trailing-action-size) !important;
+  height: var(--task-trailing-action-size) !important;
+  min-height: var(--task-trailing-action-size) !important;
+  place-items: center !important;
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-circle);
   background: var(--color-surface-primary);
@@ -218,6 +309,101 @@
   display: none;
 }
 
+html .page-tasks .task-card-list .task-card:not(:has(> .task-group-header)) {
+  display: grid !important;
+  min-width: 0;
+  grid-template-columns: var(--task-main-control-track) minmax(0, 1fr) !important;
+  align-items: center;
+  column-gap: var(--task-main-column-gap) !important;
+  box-sizing: border-box;
+  padding: 8px 12px 8px var(--task-row-inline-start) !important;
+}
+
+html .page-tasks .task-card-list .task-card[data-task-role='child'] {
+  grid-template-columns: var(--task-child-control-track) minmax(0, 1fr) !important;
+  column-gap: var(--task-child-column-gap) !important;
+  padding-left: var(--task-main-content-start) !important;
+}
+
+html .page-tasks .task-card-list .task-card[data-task-role='child'][data-task-depth='2'] {
+  padding-left: calc(var(--task-main-content-start) + 12px) !important;
+}
+
+html .page-tasks .task-card-list .task-card[data-task-role='child'][data-task-depth='3'],
+html .page-tasks .task-card-list .task-card[data-task-role='child'][data-task-depth='4'] {
+  padding-left: calc(var(--task-main-content-start) + 24px) !important;
+}
+
+html .page-tasks .task-card-list .task-card[data-task-role='child'] .task-card-copy {
+  padding-left: 0 !important;
+}
+
+html .page-tasks .task-card-list .task-card-swipe-row > .task-card-swipe-content > .apple-swipe-divider {
+  right: 12px !important;
+  left: var(--task-main-content-start) !important;
+}
+
+html .page-tasks .task-card-list .task-card-swipe-row-child > .task-card-swipe-content > .apple-swipe-divider,
+.task-card-swipe-row-child > .task-card-swipe-content::before,
+.task-card-swipe-row-child > .task-card-swipe-content::after {
+  left: var(--task-child-content-start) !important;
+}
+
+html .page-tasks .task-card-list .task-leading-control.task-card-check {
+  width: var(--task-main-control-track) !important;
+  min-width: var(--task-main-control-track) !important;
+  height: var(--task-main-control-track) !important;
+  min-height: var(--task-main-control-track) !important;
+}
+
+html .page-tasks .task-card-list .task-leading-control.task-card-check[data-task-control-size='child'] {
+  width: var(--task-child-control-track) !important;
+  min-width: var(--task-child-control-track) !important;
+  height: var(--task-child-control-track) !important;
+  min-height: var(--task-child-control-track) !important;
+}
+
+.calendar-item-card {
+  display: grid !important;
+  min-width: 0;
+  min-height: 60px !important;
+  grid-template-columns: var(--task-main-control-track) minmax(0, 1fr) !important;
+  align-items: center;
+  gap: var(--task-main-column-gap) !important;
+  box-sizing: border-box;
+  padding: 8px 12px 8px var(--task-row-inline-start) !important;
+}
+
+.calendar-selection-summary .calendar-item-card {
+  /* Its 1px outer border must not shift the leading track off the parent axis. */
+  padding-left: calc(var(--task-row-inline-start) - 1px) !important;
+}
+
+.calendar-item-card-child {
+  min-height: 46px !important;
+  grid-template-columns: var(--task-child-control-track) minmax(0, 1fr) !important;
+  gap: var(--task-child-column-gap) !important;
+  padding: 5px 0 !important;
+}
+
+.calendar-item-card-child .calendar-item-main {
+  padding: 0 !important;
+}
+
+.task-leading-control.calendar-item-check {
+  margin-left: 0 !important;
+}
+
+.calendar-parent-children > * + *,
+.mobile-timeline-plan-steps > * + * {
+  border-top: 1px solid var(--color-separator) !important;
+}
+
+.calendar-parent-children .apple-swipe-divider,
+.mobile-timeline-plan-steps .apple-swipe-divider {
+  display: none !important;
+}
+
 .calendar-parent-group {
   display: grid;
   min-width: 0;
@@ -238,6 +424,11 @@
   border-top: 1px solid var(--color-separator);
   padding: 0;
   list-style: none;
+}
+
+.mobile-timeline-plan-steps {
+  margin-left: calc(var(--task-main-control-track) + var(--task-main-column-gap));
+  padding-right: 12px;
 }
 
 .calendar-parent-group .task-group-detail {
@@ -733,7 +924,7 @@
 
 .mobile-timeline-plan-steps {
   min-width: 0;
-  padding: 0 12px 2px;
+  padding: 0 12px 2px 0;
 }
 
 .mobile-timeline-plan-steps > * + *,
@@ -790,6 +981,11 @@
   display: grid !important;
 }
 
+.mobile-timeline-plan-steps .mobile-timeline-event[data-has-check='true'] {
+  grid-template-columns: var(--task-child-control-track) minmax(0, 1fr) auto !important;
+  column-gap: var(--task-child-column-gap) !important;
+}
+
 .mobile-timeline-plan-steps .mobile-timeline-event > strong {
   min-width: 0;
   white-space: normal;
@@ -805,36 +1001,16 @@
   display: grid;
   min-width: 0;
   min-height: 46px;
-  grid-template-columns: 28px minmax(0, 1fr) auto;
+  grid-template-columns: var(--task-child-control-track) minmax(0, 1fr) auto;
   align-items: center;
-  gap: 8px;
+  gap: var(--task-child-column-gap);
   box-sizing: border-box;
   background: var(--color-surface-primary);
-  padding: 5px 12px 5px 14px;
+  padding: 5px 12px 5px 0;
 }
 
 .plan-group-checklist-check {
-  display: grid;
-  width: 28px;
-  height: 36px;
-  place-items: center;
-  padding: 0;
-}
-
-.plan-group-checklist-check > span {
-  display: grid;
-  width: 20px;
-  height: 20px;
-  place-items: center;
-  border: 1.5px solid var(--color-text-tertiary);
-  border-radius: var(--radius-circle);
-  background: var(--color-surface-primary);
-  color: var(--color-surface-primary);
-}
-
-.plan-group-checklist-check[aria-label^='取消'] > span {
-  border-color: var(--color-text-primary);
-  background: var(--color-text-primary);
+  align-self: center;
 }
 
 .plan-group-checklist-main {
@@ -879,7 +1055,8 @@
 }
 
 .calendar-parent-children {
-  padding: 0 10px 2px 42px;
+  margin-left: calc(var(--task-main-control-track) + var(--task-main-column-gap));
+  padding: 0 12px 2px 0;
 }
 
 .calendar-parent-children .calendar-timeline-step-row {
@@ -927,25 +1104,28 @@
 
 @media (max-width: 390px) {
   .task-group-header {
-    grid-template-columns: 38px minmax(0, 1fr) 76px;
-    gap: 6px;
-    padding-inline: 10px;
+    grid-template-columns:
+      var(--task-main-control-track)
+      minmax(0, 1fr)
+      var(--task-trailing-track);
+    gap: var(--task-main-column-gap);
+    padding-inline: var(--task-row-inline-start) 12px;
   }
 
   .task-group-actions {
-    grid-template-columns: repeat(2, 34px);
-    gap: 5px;
+    grid-template-columns: repeat(2, var(--task-trailing-action-size));
+    gap: var(--task-trailing-action-gap);
   }
 
   .task-group-add,
   .task-group-toggle {
-    width: 34px;
-    height: 34px;
+    width: var(--task-trailing-action-size);
+    height: var(--task-trailing-action-size);
   }
 
   .task-group-check {
-    width: 36px;
-    height: 36px;
+    width: var(--task-main-control-track);
+    height: var(--task-main-control-track);
   }
 
   .task-group-title-line > strong {
@@ -1017,7 +1197,15 @@
 }
 
 .page-plan[data-mode='week'] .mobile-timeline-event[data-has-check='true'] {
-  grid-template-columns: 32px minmax(0, 1fr) auto !important;
+  grid-template-columns: var(--task-main-control-track) minmax(0, 1fr) auto !important;
+  column-gap: var(--task-main-column-gap) !important;
+}
+
+.page-plan[data-mode='week'] .mobile-timeline-unscheduled
+  .timeline-schedule-row > .mobile-timeline-row > .mobile-timeline-swipe
+  > .mobile-timeline-event[data-has-check='true'] {
+  box-sizing: border-box;
+  padding-inline: var(--task-row-inline-start) 12px !important;
 }
 
 .page-plan[data-mode='week'] .mobile-timeline-event > .mobile-timeline-check {
@@ -1185,6 +1373,37 @@
   padding-inline: 0 !important;
 }
 
+.agenda-structured-list {
+  display: grid;
+  gap: 0 !important;
+  border-top: 1px solid var(--color-separator) !important;
+}
+
+.agenda-structured-list > li {
+  min-width: 0;
+  min-height: 58px;
+}
+
+html .page-plan .agenda-structured-list > .agenda-parent-list-row > .task-group-header {
+  padding-inline: 16px !important;
+}
+
+.agenda-structured-list > li + li {
+  border-top: 1px solid var(--color-separator) !important;
+}
+
+.agenda-structured-list .calendar-item-card {
+  min-height: 58px;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.agenda-structured-list > .calendar-item-swipe {
+  border-radius: 0 !important;
+}
+
 .calendar-selected-items .calendar-item-list > .calendar-parent-group,
 .agenda-day .calendar-item-list > .calendar-parent-group {
   overflow: visible !important;
@@ -1208,11 +1427,49 @@
   border-top: 1px solid var(--color-separator) !important;
 }
 
+html .page-plan .calendar-selected-items .agenda-structured-list > li + li,
+html .page-plan .calendar-selection-summary .agenda-structured-list > li + li,
+html .page-plan .agenda-day .agenda-structured-list > li + li {
+  border-top: 1px solid var(--color-separator) !important;
+}
+
+.agenda-structured-list > .agenda-parent-list-row {
+  border-right: 0 !important;
+  border-bottom: 0 !important;
+  border-left: 0 !important;
+}
+
+.agenda-structured-list > .agenda-parent-list-row + li,
+.agenda-structured-list > li + .agenda-parent-list-row {
+  border-top: 1px solid var(--color-separator) !important;
+}
+
+.agenda-structured-list .agenda-parent-list-row > .task-group-header {
+  min-height: 58px;
+  padding: 8px 0;
+}
+
+.agenda-structured-list .agenda-parent-list-row .task-group-title-line > strong {
+  font-size: 16px;
+  line-height: 22px;
+}
+
+.agenda-structured-list .agenda-parent-list-row .task-group-meta {
+  font-size: 12px;
+  line-height: 17px;
+}
+
+.agenda-structured-list .agenda-parent-list-row .task-group-detail {
+  grid-column: 1 / -1;
+  gap: 0;
+  padding-top: 0;
+}
+
 .calendar-selected-items .calendar-parent-children,
 .agenda-day .calendar-parent-children {
-  margin-left: 54px;
+  margin-left: calc(var(--task-main-control-track) + var(--task-main-column-gap));
   border-top: 1px solid var(--color-separator);
-  padding: 0 10px 2px 0;
+  padding: 0 12px 2px 0;
 }
 
 .calendar-selected-items .calendar-parent-children > *,
@@ -1222,9 +1479,38 @@
   box-shadow: none !important;
 }
 
+.calendar-selected-items .calendar-parent-children > * + *,
+.agenda-day .calendar-parent-children > * + * {
+  border-top: 1px solid var(--color-separator) !important;
+}
+
+html .page-plan .calendar-selection-summary .calendar-parent-children > li + li,
+html .page-plan .agenda-day .calendar-parent-children > li + li {
+  border-top: 1px solid var(--color-separator) !important;
+}
+
+html .page-plan .calendar-parent-children > li + li,
+html .page-plan .mobile-timeline-plan-steps > li + li {
+  position: relative;
+  border-top: 0 !important;
+}
+
+html .page-plan .calendar-parent-children > li + li::before,
+html .page-plan .mobile-timeline-plan-steps > li + li::before {
+  content: "" !important;
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  right: 0;
+  left: calc(var(--task-child-control-track) + var(--task-child-column-gap));
+  height: 1px;
+  background: var(--color-separator);
+  pointer-events: none;
+}
+
 .calendar-selected-items .calendar-parent-group > .task-group-header,
 .agenda-day .calendar-parent-group > .task-group-header {
-  padding-inline: 4px 6px;
+  padding-inline: var(--task-row-inline-start) 0;
 }
 
 .calendar-selected-items .calendar-parent-children,

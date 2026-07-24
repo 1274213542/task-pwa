@@ -3,6 +3,7 @@ import type { CalendarEvent, CompletionRecord, Task } from './db'
 import { describeRecurrence, fixedOccurrencesInRange } from './recurrence'
 import { civilDateOf, effectiveTaskSchedule, taskDueStatus, taskNodeRoleOf } from './taskSchedule'
 import { todayLocalISO } from './dates'
+import { isRenderableRecord } from './displayRecords'
 
 /**
  * 月历网格与统一投影（v4.2 §8 CalendarItemView）。
@@ -65,6 +66,11 @@ export function buildCalendarItems(
   }
 
   for (const task of tasks) {
+    if (!isRenderableRecord(
+      task,
+      'calendar-projection',
+      taskNodeRoleOf(task) === 'plan' ? 'parent-task' : 'task',
+    )) continue
     if (taskNodeRoleOf(task) === 'plan') continue
     const r = task.recurrence
     if (!r) {
@@ -121,6 +127,7 @@ export function buildCalendarItems(
   }
 
   for (const ev of events) {
+    if (!isRenderableRecord(ev, 'calendar-projection', 'event')) continue
     // 跨日事项按日切片渲染（存储不复制）
     let d = Temporal.PlainDate.from(
       ev.startDate > rangeStart ? ev.startDate : rangeStart,

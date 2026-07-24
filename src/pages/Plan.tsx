@@ -41,6 +41,8 @@ import { calendarMarkerSummary } from '../lib/calendarMarkers'
 import { effectiveTaskSchedule, taskChildKindOf, taskMapOf, taskNodeRoleOf } from '../lib/taskSchedule'
 import TaskGroupHeader from '../components/TaskGroupHeader'
 import InlinePlanChildComposer from '../components/InlinePlanChildComposer'
+import TaskLeadingControl from '../components/TaskLeadingControl'
+import { isRenderableRecord, renderableTitle } from '../lib/displayRecords'
 
 const WEEK_LABELS_MON = ['一', '二', '三', '四', '五', '六', '日']
 const WEEK_LABELS_SUN = ['日', '一', '二', '三', '四', '五', '六']
@@ -297,7 +299,15 @@ export default function Plan() {
     () => new Map((categories ?? []).map((category) => [category.id, category])),
     [categories],
   )
-  const taskMap = useMemo(() => taskMapOf(tasks ?? []), [tasks])
+  const renderableTasks = useMemo(
+    () => (tasks ?? []).filter((task) => isRenderableRecord(
+      task,
+      'plan-task-map',
+      taskNodeRoleOf(task) === 'plan' ? 'parent-task' : 'task',
+    )),
+    [tasks],
+  )
+  const taskMap = useMemo(() => taskMapOf(renderableTasks), [renderableTasks])
 
   const grid = useMemo(
     () => monthGrid(cursor.year, cursor.month, weekStartsOn),
@@ -771,13 +781,13 @@ export default function Plan() {
           },
         ]}
       >
-        <button
-          aria-label={resolved ? '取消完成' : '完成'}
-          onClick={() => toggleItem(item)}
+        <TaskLeadingControl
           className="calendar-item-check hit-target"
-        >
-          <span>{resolved && <AppIcon name="check" size={14} />}</span>
-        </button>
+          label={resolved ? '取消完成' : '完成'}
+          completed={resolved}
+          onToggle={() => toggleItem(item)}
+          size={nestedChild ? 'child' : 'main'}
+        />
         <button onClick={() => openItem(item)} className="calendar-item-main">
           <strong>{itemTitle(item)}</strong>
           {subtitle && <span>{subtitle}</span>}
@@ -811,17 +821,14 @@ export default function Plan() {
           { label: '删除', icon: 'trash', tone: 'danger', onSelect: () => void softDeleteTask(item.task.id) },
         ]}
       >
-        <button
-          type="button"
+        <TaskLeadingControl
           className="plan-group-checklist-check"
-          aria-label={resolved ? '取消完成' : '完成'}
-          onClick={(event) => {
-            event.stopPropagation()
-            toggleItem(item)
-          }}
-        >
-          <span>{resolved && <AppIcon name="check" size={11} />}</span>
-        </button>
+          label={resolved ? '取消完成' : '完成'}
+          completed={resolved}
+          onToggle={() => toggleItem(item)}
+          size="child"
+          checkSize={11}
+        />
         <button type="button" className="plan-group-checklist-main" onClick={() => openItem(item)}>
           <strong>{itemTitle(item)}</strong>
         </button>
@@ -870,7 +877,11 @@ export default function Plan() {
     function agendaParentRow(parentId: string, childItems: CalItem[], rowDate: string) {
       const parent = taskMap.get(parentId)
       const parentItem = parentItems.get(parentId)
-      const title = parentItem ? itemTitle(parentItem) : parent?.title ?? '父任务'
+      const title = parentItem
+        ? itemTitle(parentItem)
+        : parent
+          ? renderableTitle(parent, '父任务')
+          : '父任务'
       const completed = childItems.filter((child) =>
         child.kind === 'task'
           ? child.completed || child.skipped
@@ -882,7 +893,11 @@ export default function Plan() {
       const addingHere = childComposer?.stateKey === stateKey
 
       return (
-        <li key={`agenda-parent:${stateKey}`} className="calendar-parent-group">
+        <li
+          key={`agenda-parent:${stateKey}`}
+          className="calendar-parent-group agenda-parent-list-row"
+          data-item-kind="parent-task"
+        >
           <TaskGroupHeader
             title={title}
             completed={complete}
@@ -1047,17 +1062,14 @@ export default function Plan() {
             ]}
           >
             {item.kind === 'task' && (
-              <button
-                type="button"
+              <TaskLeadingControl
                 className="mobile-timeline-check"
-                aria-label={resolved ? '取消完成' : '完成'}
-                onClick={(event) => {
-                  event.stopPropagation()
-                  toggleItem(item)
-                }}
-              >
-                <span>{resolved && <AppIcon name="check" size={12} />}</span>
-              </button>
+                label={resolved ? '取消完成' : '完成'}
+                completed={resolved}
+                onToggle={() => toggleItem(item)}
+                size={checklistChild ? 'child' : 'main'}
+                checkSize={12}
+              />
             )}
             <strong>{itemTitle(item)}</strong>
             {planTitle && !groupedStep && <small className="timeline-plan-label">{planTitle}</small>}
@@ -1079,7 +1091,7 @@ export default function Plan() {
         .map((item, index) => timelineItemRow(item, index))
     }
     const parent = taskMap.get(parentId)
-    const title = parent?.title ?? '父任务'
+    const title = parent ? renderableTitle(parent, '父任务') : '父任务'
     const completed = childItems.filter((child) =>
       child.kind === 'task' ? child.completed || child.skipped : child.completed,
     ).length
@@ -1282,7 +1294,7 @@ export default function Plan() {
             {selectedItems.some((item) => !(
               item.kind === 'task' && taskChildKindOf(item.task, taskMap) === 'timeline'
             )) && (
-              <ul className="calendar-item-list">
+              <ul className="calendar-item-list agenda-structured-list">
                 {agendaRows(
                   selectedItems.filter((item) => !(
                     item.kind === 'task' && taskChildKindOf(item.task, taskMap) === 'timeline'
@@ -1587,7 +1599,7 @@ export default function Plan() {
                   </button>
                 </header>
                 {selectedSummaryCount > 0 && (
-                  <ul>
+                  <ul className="calendar-item-list agenda-structured-list">
                     {selectedDateTypes.map((definition) => (
                       <li key={`month-marker:${definition.id}`} data-color-token={definition.colorToken}>
                         <div className="calendar-month-marker-summary">
@@ -1635,7 +1647,9 @@ export default function Plan() {
                   <time dateTime={date}>{dateLabel(date, { month: 'long', day: 'numeric' })}</time>
                   <span>{dateLabel(date, { weekday: 'long' })}{date === todayISO ? ' · 今天' : ''}</span>
                 </header>
-                <ul className="calendar-item-list">{agendaRows(items, date)}</ul>
+                <ul className="calendar-item-list agenda-structured-list">
+                  {agendaRows(items, date)}
+                </ul>
               </section>
             ))}
             {byDay && futureAgendaGroups.length === 0 && (
